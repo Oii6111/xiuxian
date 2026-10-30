@@ -1,0 +1,24 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Export credentials and local environment settings.
+export_credentials.cfg
+.env
+.env.*
+!.env.example
+
+# Plugin updater state and backups.
+/addons/.godot_ai_update/
+
+# Player progress, test output, logs, and local backups.
+/output/*.json
+/output/backups/
+/output/pixel-screenshot.png
+/output/pixel-screenshot.png.import
+*.log
+
+# Operating system files.
+.DS_Store
+Thumbs.db
+Desktop.ini

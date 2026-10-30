@@ -1,1 +1,1 @@
-extends "res://tests/gameplay_test.gd"
+extends "res://tests/ink_world_test.gd"

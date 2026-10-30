@@ -8,6 +8,8 @@
 
 开发先读 [v2 内核与团队接入指南](docs/KERNEL_V2.md)。Godot 中打开 `scenes/kernel/workbench.tscn` 按 F6 可验证框架；运行 `tools/test_kernel.ps1 -Godot 'Godot可执行文件路径'` 检查内核契约。后端边界见 [server/README.md](server/README.md)。
 
+产品方向更新：老人通过微信官方 iLink 接入的 AI Bot 查看健康任务、拍照提交资料；验证后为对应修仙者结算灵石，年轻人在游戏中抽卡。方案与待开发范围见 [微信信息入口](docs/WECHAT_ILINK_ENTRY.md) 及 [设计文档 v2](家族修真录-设计文档-v2.md)。
+
 ## 开始玩
 
 使用 Godot **4.7.2** 打开 `project.godot`，按 F5；Windows 可双击 `启动试玩.cmd`。启动器读取 `GODOT4` 环境变量，本机也支持 D 盘已安装的引擎路径。首次打开会导入素材。

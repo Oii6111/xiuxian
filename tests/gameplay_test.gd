@@ -202,6 +202,9 @@ func _run() -> void:
 		while not scene.ui.modal_open and Time.get_ticks_msec() < deadline:
 			await create_timer(0.1).timeout
 		check(scene.ui.modal_open and scene.player.position.distance_to(site.position) < 12, "Full automatic town walk to " + site.id)
+		if is_instance_valid(scene.ui.campaign):
+			scene.ui.campaign.request_exit()
+			await process_frame
 		scene.ui.close_modal()
 	Engine.time_scale = 1.0
 	scene.queue_free()

@@ -2,7 +2,7 @@ extends Node2D
 
 const State = preload("res://scripts/game_state.gd")
 const Player = preload("res://scripts/pixel_player.gd")
-const Interface = preload("res://scripts/gameplay_interface.gd")
+const Interface = preload("res://scripts/pixel_campaign/village_ui.gd")
 const Assets = preload("res://scripts/pixel_assets.gd")
 const Effects = preload("res://scripts/pixel_effects.gd")
 const SPAWN = Vector2(681, 565)

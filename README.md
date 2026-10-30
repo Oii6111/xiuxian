@@ -54,6 +54,7 @@
 - [首章剧本](outputs/game-design-v2/序章与玄泽第一章剧本_V2.md)
 - [Blender MCP、免费插件研究与实际资产交付](docs/BLENDER_PIPELINE.md)
 - [窃荣造型对照与新版实际画面](docs/QIERONG_VISUAL_REFINEMENT.md)
+- [开源建模项目核查与采用顺序](docs/OPEN_SOURCE_MODELING_RESEARCH.md)
 - [攻击与Godot实现对照](docs/BOSS_IMPLEMENTATION.md)
 - [10种小怪与6位NPC的故事、建模及闭环](docs/MINIONS_AND_NPCS.md)
 - [当前可玩版本的循环与奖励](docs/GAMEPLAY_V3.md)

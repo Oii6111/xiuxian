@@ -22,3 +22,8 @@ export_credentials.cfg
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Pixel campaign local work and reproducible graphical output.
+/work/
+/outputs/*
+!/outputs/.gdignore

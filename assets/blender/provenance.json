@@ -1,0 +1,65 @@
+{
+  "generated_on": "2026-10-30",
+  "blender": "4.5.14 LTS",
+  "generator": "tools/blender/build_assets.py",
+  "coordinate_system": "Blender Z up, -Y forward; glTF Y up, -Z forward",
+  "assets": [
+    {
+      "id": "b03",
+      "authorship": "Original project geometry; AI-generated reference image; project-authored 7-bone rig",
+      "reference": "assets/references/qierong-turnaround.png",
+      "animations": [
+        "Idle",
+        "Walk",
+        "Attack"
+      ],
+      "game_use": "Boss b03",
+      "revision": 2,
+      "generator": "tools/blender/refine_qierong.py",
+      "triangles": 86914,
+      "material_surfaces": 15,
+      "textures": [
+        "textures/qierong_bark_basecolor.png",
+        "textures/qierong_bark_normal.png"
+      ],
+      "texture_authorship": "Original procedural wood grain and height-derived tangent normal; PNGs embedded in GLB. Godot extracts b03_qierong_bark_*.png on import."
+    },
+    {
+      "id": "sapling_tree",
+      "authorship": "Generated with Blender Sapling; project materials and seed 18",
+      "plugin_source": "https://github.com/blender/blender-addons/tree/b42d68627734cb18af0e6f41537063984313a284/add_curve_sapling",
+      "plugin_spdx": "GPL-2.0-or-later",
+      "plugin_version": "0.3.5",
+      "game_use": "Shared main-town vegetation"
+    },
+    {
+      "id": "zhaosheng_pagoda",
+      "authorship": "Original project mesh geometry and materials",
+      "game_use": "Main-town Zhaosheng lantern pavilion"
+    }
+  ],
+  "tools": [
+    {
+      "name": "mcp-for-blender",
+      "version": "2.2.6",
+      "source": "https://github.com/ahujasid/mcp-for-blender",
+      "license": "MIT",
+      "addon_commit": "992233bb258975a05eec8b5691465c50c2831e34"
+    },
+    {
+      "name": "A.N.T. Landscape",
+      "version": "0.1.8",
+      "source_commit": "b42d68627734cb18af0e6f41537063984313a284",
+      "license": "GPL-2.0-or-later",
+      "status": "Enabled, no exported terrain asset this revision"
+    },
+    {
+      "name": "Rigify",
+      "version": "0.6.10",
+      "source_commit": "b42d68627734cb18af0e6f41537063984313a284",
+      "license": "GPL-2.0-or-later",
+      "status": "Enabled, deer uses custom rig"
+    }
+  ],
+  "redistribution": "Project ships generated meshes and project-authored scripts; third-party plugin source and executable installers are not bundled. No external CC0 asset downloads are included this revision."
+}

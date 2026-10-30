@@ -28,7 +28,7 @@
       font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
       min-height: 100vh;
     }
-    button, input { font: inherit; }
+    button, input, select, textarea { font: inherit; }
     button { cursor: pointer; }
     .app-shell { max-width: 1440px; margin: 0 auto; padding: 24px 34px 40px; }
     .topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:26px; }
@@ -65,10 +65,21 @@
     .flow-dot.active { background:var(--jade); box-shadow:0 0 0 4px rgba(35,126,104,.12); }
     .flow-bar { height:1px; background:#dbe6df; width:40px; }
     .workspace { padding:22px; }
+    .view { display:none; }
+    .view.active { display:block; }
     .section-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:17px; }
     .section-head h3 { font-size:16px; margin:0; }
     .section-head p { color:var(--muted); font-size:11px; margin:5px 0 0; }
     .mode-badge { font-size:10px; padding:7px 9px; border-radius:999px; background:#f3f7f3; color:#5b6e67; border:1px solid #dce7df; white-space:nowrap; }
+    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .field { display:flex; flex-direction:column; gap:5px; }
+    .field.full { grid-column:1/-1; }
+    .field label { color:#65756f; font-size:10px; font-weight:800; }
+    .field label .req { color:var(--coral); }
+    .field input, .field select, .field textarea { border:1px solid #d6e3db; background:white; border-radius:9px; padding:9px 10px; color:var(--ink); outline:none; font-size:12px; }
+    .field textarea { resize:vertical; min-height:52px; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color:#8bbca8; box-shadow:0 0 0 3px rgba(35,126,104,.08); }
+    .manual-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
     .upload-box { border:1.5px dashed #a9c9bc; border-radius:17px; padding:29px 24px 25px; background:linear-gradient(145deg,#f6fbf7,#eff8f1); text-align:center; transition:.2s ease; }
     .upload-box.drag { border-color:var(--jade); background:#eaf6ee; transform:translateY(-1px); }
     .upload-icon { width:56px; height:56px; margin:0 auto 13px; border-radius:18px; display:grid; place-items:center; background:#d9eee5; color:var(--jade-dark); font-size:25px; }
@@ -76,28 +87,17 @@
     .upload-box p { margin:8px auto 17px; color:var(--muted); font-size:11px; line-height:1.6; max-width:440px; }
     .primary { border:0; background:var(--jade); color:white; padding:11px 17px; border-radius:11px; font-weight:800; font-size:12px; box-shadow:0 9px 18px rgba(35,126,104,.19); transition:.18s ease; }
     .primary:hover { transform:translateY(-1px); background:#1b6e5b; }
+    .primary:disabled { opacity:.6; cursor:not-allowed; transform:none; }
     .secondary { border:1px solid #cdded6; background:white; color:#416159; padding:10px 14px; border-radius:11px; font-weight:700; font-size:11px; }
+    .file-list { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; justify-content:center; }
+    .file-list:empty { display:none; }
+    .file-chip { display:flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid #d6e4dc; background:#fff; border-radius:10px; font-size:10px; color:#4e5d59; }
+    .file-chip b { max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+    .file-chip button { border:0; background:#f4e9e6; color:#b65d4c; border-radius:6px; width:18px; height:18px; font-size:11px; line-height:1; }
     .sample-row { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
     .sample-btn { border:1px solid #d6e4dc; background:rgba(255,255,255,.85); color:#64756e; padding:7px 10px; border-radius:999px; font-size:10px; }
     .sample-btn:hover { border-color:#a6c8ba; color:var(--jade-dark); }
     .privacy-note { margin-top:14px; color:#8b9893; font-size:10px; line-height:1.5; text-align:center; }
-    .file-meta { display:none; margin:12px auto 0; max-width:520px; padding:8px 10px; border-radius:9px; background:#fff; border:1px solid #dce9e0; color:#5d746b; font-size:10px; text-align:left; }
-    .file-meta.show { display:block; }
-    .file-meta strong { color:var(--jade-dark); }
-    .file-meta em { color:#8a9891; font-style:normal; float:right; }
-    .manual-form { display:none; border:1px solid #dce9e0; border-radius:16px; padding:18px; background:#fbfdfb; }
-    .manual-form.show { display:block; }
-    .manual-form h4 { margin:0 0 5px; font-size:14px; }
-    .manual-form p { margin:0 0 15px; color:var(--muted); font-size:11px; line-height:1.5; }
-    .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-    .field { display:flex; flex-direction:column; gap:5px; }
-    .field.full { grid-column:1/-1; }
-    .field label { color:#65756f; font-size:10px; font-weight:800; }
-    .field input, .field select { border:1px solid #d6e3db; background:white; border-radius:9px; padding:9px 10px; color:var(--ink); outline:none; font-size:11px; }
-    .field input:focus, .field select:focus { border-color:#8bbca8; box-shadow:0 0 0 3px rgba(35,126,104,.08); }
-    .manual-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:15px; }
-    .scan { display:none; padding:10px 2px 6px; }
-    .scan.show { display:block; }
     .scan-visual { background:#102d27; border-radius:16px; height:220px; position:relative; overflow:hidden; display:grid; place-items:center; color:white; }
     .scan-visual:before { content:""; position:absolute; inset:18px; border:1px solid rgba(140,226,190,.23); border-radius:10px; background:linear-gradient(145deg,rgba(255,255,255,.06),rgba(255,255,255,0)); }
     .scan-grid { position:absolute; inset:0; background:linear-gradient(rgba(130,215,180,.08) 1px,transparent 1px),linear-gradient(90deg,rgba(130,215,180,.08) 1px,transparent 1px); background-size:26px 26px; opacity:.5; }
@@ -107,35 +107,10 @@
     .scan-percent { position:absolute; bottom:16px; right:20px; font-weight:800; z-index:2; }
     @keyframes scan { 0%,100%{transform:translateY(-65px);opacity:.2} 50%{transform:translateY(65px);opacity:1} }
     @keyframes pulse { 0%,100%{transform:scale(.86);opacity:.4} 50%{transform:scale(1.05);opacity:1} }
-    .result { display:none; }
-    .result.show { display:block; }
     .result-grid { display:grid; grid-template-columns:1fr; gap:12px; }
     .subcard { border:1px solid #e0e9e3; border-radius:15px; padding:16px; background:#fff; }
     .subcard h4 { font-size:12px; margin:0 0 13px; display:flex; align-items:center; justify-content:space-between; }
     .confidence { color:#327a62; background:#edf8f0; border:1px solid #d1e9da; padding:4px 6px; border-radius:6px; font-size:9px; font-weight:800; }
-    .data-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid #edf1ee; }
-    .data-row:last-child { border-bottom:0; padding-bottom:0; }
-    .report-scroll { max-height: 510px; overflow:auto; padding-right:3px; }
-    .report-banner { padding:12px; border-radius:12px; background:linear-gradient(145deg,#f3faf4,#fbfdf8); border:1px solid #dce9df; margin-bottom:12px; }
-    .report-banner strong { display:block; font-size:12px; }
-    .report-banner span { display:block; color:#82918b; font-size:9px; margin-top:4px; line-height:1.5; }
-    .report-block { border-top:1px solid #e9efeb; padding:12px 0 0; margin-top:11px; }
-    .report-block-title { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:10px; font-weight:900; color:#38534a; margin-bottom:8px; }
-    .report-block-title em { font-size:9px; color:#88a096; font-style:normal; font-weight:700; }
-    .metric-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; }
-    .metric { display:flex; justify-content:space-between; gap:8px; align-items:center; font-size:9px; padding:5px 0; border-bottom:1px dashed #edf2ee; }
-    .metric span { color:#7b8b84; }
-    .metric strong { color:#30473f; font-size:10px; }
-    .metric strong.ok { color:#2c7c61; }
-    .case-note { padding:9px 10px; border-radius:10px; background:#fffaf0; border:1px solid #eee1c5; color:#766849; font-size:9px; line-height:1.6; }
-    .data-main { display:flex; gap:9px; align-items:center; min-width:0; }
-    .data-icon { width:28px; height:28px; flex:0 0 28px; border-radius:9px; display:grid; place-items:center; background:#edf6ef; color:var(--jade-dark); font-size:13px; }
-    .data-label { font-size:11px; font-weight:800; }
-    .data-sub { color:#85938d; font-size:10px; margin-top:3px; }
-    .tag { padding:5px 7px; border-radius:7px; font-size:9px; font-weight:800; white-space:nowrap; }
-    .tag.green { color:#267057; background:#e9f6ed; }
-    .tag.gold { color:#8c6a2c; background:#fff4dc; }
-    .tag.gray { color:#71807a; background:#f1f4f1; }
     .mapping { display:flex; flex-direction:column; gap:9px; }
     .mapping-row { padding:10px; border:1px solid #e5ece7; background:#fbfdfb; border-radius:10px; }
     .mapping-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -190,7 +165,7 @@
     .toast { position:fixed; left:50%; bottom:26px; transform:translate(-50%,20px); padding:12px 16px; border-radius:12px; background:#162b26; color:#fff; font-size:11px; box-shadow:0 14px 35px rgba(0,0,0,.2); opacity:0; pointer-events:none; transition:.25s ease; z-index:10; }
     .toast.show { opacity:1; transform:translate(-50%,0); }
     @media (max-width:1100px){ .layout{grid-template-columns:215px minmax(0,1fr);} .right-col{grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr 1fr;} }
-    @media (max-width:760px){ .app-shell{padding:16px 14px 30px;} .topbar{align-items:flex-start; gap:12px;} .top-actions{flex-direction:column; align-items:flex-end;} .layout{display:block;} .rail{position:static; margin-bottom:14px;} .rail .step{display:none;} .rail .step.active{display:flex;} .result-grid{grid-template-columns:1fr;} .right-col{display:flex; margin-top:14px;} .hero h2{font-size:24px;} }
+    @media (max-width:760px){ .app-shell{padding:16px 14px 30px;} .topbar{align-items:flex-start; gap:12px;} .top-actions{flex-direction:column; align-items:flex-end;} .layout{display:block;} .rail{position:static; margin-bottom:14px;} .rail .step{display:none;} .rail .step.active{display:flex;} .result-grid{grid-template-columns:1fr;} .right-col{display:flex; margin-top:14px;} .hero h2{font-size:24px;} .form-grid{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
@@ -210,9 +185,9 @@
       <aside class="card rail">
         <p class="rail-kicker">First journey</p>
         <h2 class="rail-title">建立长辈角色</h2>
-        <div class="step active" data-step="1"><div class="step-num">1</div><div><strong>创建长辈档案</strong><span>确定资料属于哪位家人</span></div></div>
-        <div class="step" data-step="2"><div class="step-num">2</div><div><strong>上传或填写资料</strong><span>体检报告优先，后续可补充</span></div></div>
-        <div class="step" data-step="3"><div class="step-num">3</div><div><strong>AI 识别与确认</strong><span>只确认关键字段，不填长表</span></div></div>
+        <div class="step active" data-step="1"><div class="step-num">1</div><div><strong>填写基本信息</strong><span>长辈关系与年龄必填</span></div></div>
+        <div class="step" data-step="2"><div class="step-num">2</div><div><strong>上传健康资料</strong><span>体检报告·病历·用药，可多张</span></div></div>
+        <div class="step" data-step="3"><div class="step-num">3</div><div><strong>AI 识别与换算</strong><span>合并图片与文字</span></div></div>
         <div class="step" data-step="4"><div class="step-num">4</div><div><strong>生成初始状态</strong><span>属性自动计算并锁定</span></div></div>
         <div class="rail-note">资料只会进入已授权的家庭档案。识别结果先给你确认，确认后才会同步到游戏角色。</div>
       </aside>
@@ -220,75 +195,86 @@
       <main class="main">
         <section class="card hero">
           <p class="eyebrow">Health to cultivation</p>
-          <h2>从一份体检报告，建立角色的第一版状态。</h2>
-          <p>首次注册只需要一份报告，或者填写少量基础信息。后续补充的新资料会自动生成新版本状态，初始属性始终由输入数据和规则引擎决定。</p>
-          <div class="flow-line"><span class="flow-dot active"></span>上传 <span class="flow-bar"></span><span class="flow-dot"></span>识别 <span class="flow-bar"></span><span class="flow-dot"></span>确认 <span class="flow-bar"></span><span class="flow-dot"></span>入局</div>
+          <h2>从健康资料，建立角色的第一版状态。</h2>
+          <p>先填长辈的基本信息，再上传体检报告、病历或用药单（可多张）。系统会把常规健康数据自动换算成游戏属性与五行，罕见数据自动舍去。</p>
+          <div class="flow-line"><span class="flow-dot active"></span>基本信息 <span class="flow-bar"></span><span class="flow-dot"></span>上传资料 <span class="flow-bar"></span><span class="flow-dot"></span>识别换算 <span class="flow-bar"></span><span class="flow-dot"></span>入局</div>
         </section>
 
         <section class="card workspace">
-          <div id="uploadView">
-            <div class="section-head"><div><h3>首次注册只需要一份资料</h3><p>优先上传体检报告，也可以上传其他健康数据或填写最少信息，后续再补充。</p></div><span class="mode-badge">步骤 1 / 4</span></div>
+          <!-- 步骤 1：基本信息（最先出现，必填项） -->
+          <div class="view active" id="profileView">
+            <div class="section-head"><div><h3>先填长辈基本信息</h3><p>关系与年龄为必填；病史和长期用药也可以直接写在这里，和图片一起参与识别换算。</p></div><span class="mode-badge">步骤 1 / 4</span></div>
+            <div class="form-grid">
+              <div class="field"><label>长辈关系<span class="req">（必填）</span></label><select id="profileRelation"><option value="">请选择</option><option>爸爸</option><option>妈妈</option><option>爷爷</option><option>奶奶</option><option>外公</option><option>外婆</option><option>其他</option></select></div>
+              <div class="field"><label>准确年龄<span class="req">（必填，岁）</span></label><input id="profileAge" type="number" min="1" max="120" placeholder="例如 68" /></div>
+              <div class="field"><label>姓名 / 称呼（选填）</label><input id="profileName" placeholder="例如 张建国" /></div>
+              <div class="field"><label>性别（选填）</label><select id="profileSex"><option value="">暂不填</option><option>男</option><option>女</option></select></div>
+              <div class="field full"><label>既往病史 / 病历（选填）</label><input id="profileHistory" placeholder="例如：高血压 10 年，2018 年做过胆囊手术" /></div>
+              <div class="field full"><label>长期用药（选填）</label><input id="profileMedications" placeholder="例如：氨氯地平 5mg 每日一次，二甲双胍 0.5g 每日两次" /></div>
+            </div>
+            <div class="manual-actions"><button class="primary" id="toUploadBtn">下一步：上传资料</button></div>
+          </div>
+
+          <!-- 步骤 2：上传多张图片 -->
+          <div class="view" id="uploadView">
+            <div class="section-head"><div><h3>上传健康资料（可多张）</h3><p>体检报告、病历、用药单都可以，一次可传多张，AI 会合并识别。没有图片也可以直接用文字生成。</p></div><span class="mode-badge">步骤 2 / 4</span></div>
             <div class="upload-box" id="dropZone">
               <div class="upload-icon">↑</div>
-              <h4>上传体检报告或其他健康资料</h4>
-              <p>支持手机拍照或选择体检报告图片/PDF。AI 会先提取文字和关键字段；首次不要求完整资料，确认后的结果才会进入游戏。</p>
-              <button class="primary" id="chooseBtn">拍照 / 上传体检报告</button>
-              <input id="reportInput" type="file" accept="image/*,.pdf" capture="environment" hidden />
-              <div class="file-meta" id="fileMeta"><strong>已选择资料</strong><span id="fileMetaName"></span><em id="fileMetaState">等待识别</em></div>
-              <div class="sample-row"><button class="sample-btn" id="otherDataBtn">上传其他健康数据</button><button class="sample-btn" id="manualBtn">手动填写基础信息</button><button class="sample-btn" data-sample="report">用示例报告体验识别</button></div>
-              <div class="privacy-note">当前 Demo 使用模拟识别 · 正式版接入 OCR/VLM · 后续可补充资料</div>
+              <h4>上传体检报告 / 病历 / 用药单</h4>
+              <p>支持手机拍照或选择多张图片。AI 会提取常规指标、病史和用药，确认后的结果才会进入游戏。</p>
+              <button class="primary" id="chooseBtn">拍照 / 选择图片（可多选）</button>
+              <input id="reportInput" type="file" accept="image/*" capture="environment" multiple hidden />
+              <div class="file-list" id="fileList"></div>
+              <div class="sample-row"><button class="sample-btn" id="sampleBtn">用示例报告体验</button></div>
+              <div class="privacy-note">资料只会进入已授权的家庭档案，确认后才同步到游戏角色。</div>
             </div>
-            <div class="manual-form" id="manualView">
-              <h4>填写最少基础信息</h4>
-              <p>只用于生成第一版角色状态。空着的字段会保持“未知”，不会被系统猜测。</p>
-              <div class="form-grid">
-                <div class="field"><label>长辈称呼（可选）</label><input id="manualName" placeholder="例如：爸爸" /></div>
-                <div class="field"><label>年龄段（可选）</label><select id="manualAge"><option value="unknown">暂不填写</option><option>50–59 岁</option><option>60–69 岁</option><option>70–79 岁</option><option>80 岁以上</option></select></div>
-                <div class="field full"><label>目前最需要关注的健康问题（可选）</label><input id="manualConcern" placeholder="例如：血压、血糖、睡眠，暂时不知道也可以留空" /></div>
-                <div class="field"><label>是否有长期用药计划</label><select id="manualMedication"><option>暂不确定</option><option>没有</option><option>有，但以后补充</option></select></div>
-                <div class="field"><label>是否有近期体检报告</label><select id="manualReport"><option>暂未上传</option><option>稍后补充</option></select></div>
-              </div>
-              <div class="manual-actions"><button class="secondary" id="cancelManual">返回选择资料</button><button class="primary" id="manualSubmit">使用基础信息生成</button></div>
+            <div class="manual-actions">
+              <button class="secondary" id="backToProfileBtn">返回上一步</button>
+              <button class="primary" id="startScanBtn">开始识别</button>
             </div>
           </div>
 
-          <div class="scan" id="scanView">
-            <div class="section-head"><div><h3>AI 正在整理这份资料</h3><p>正在识别图片文字、日期、疾病史和可用指标；识别结果仍需确认。</p></div><span class="mode-badge">步骤 2 / 4</span></div>
-            <div class="scan-visual"><div class="scan-grid"></div><div class="scan-ring"></div><div class="scan-laser"></div><div class="scan-copy" id="scanCopy">正在读取健康资料…</div><div class="scan-percent" id="scanPercent">18%</div></div>
+          <!-- 步骤 3：识别动画 -->
+          <div class="view" id="scanView">
+            <div class="section-head"><div><h3>AI 正在整理这份资料</h3><p>正在合并图片与文字，识别常规指标、病史和用药；识别结果仍需确认。</p></div><span class="mode-badge">步骤 3 / 4</span></div>
+            <div class="scan-visual"><div class="scan-grid"></div><div class="scan-ring"></div><div class="scan-laser"></div><div class="scan-copy" id="scanCopy">正在读取健康资料…</div><div class="scan-percent" id="scanPercent">12%</div></div>
           </div>
 
-          <div class="result" id="resultView">
-            <div class="section-head"><div><h3>初始状态已生成</h3><p>已根据健康资料自动生成初始人物状态，确认后即可进入游戏。属性自动生成，不能手动调节。</p></div><span class="mode-badge">步骤 3 / 4</span></div>
+          <!-- 步骤 4：确认初始状态 -->
+          <div class="view" id="resultView">
+            <div class="section-head"><div><h3>初始状态已生成</h3><p>已根据健康资料自动生成初始人物状态，确认后即可进入游戏。属性自动生成，不能手动调节。</p></div><span class="mode-badge">步骤 4 / 4</span></div>
             <div class="result-grid">
               <div class="subcard"><h4>将进入游戏的初始状态 <span class="confidence">自动生成 · 锁定</span></h4>
                 <div class="mapping">
-                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">气血 HP</span><span class="mapping-value" id="mapHpValue">111 / 111</span></div><div class="bar"><i id="mapHpBar" style="width:85%"></i></div></div>
-                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">攻击 ATK</span><span class="mapping-value" id="mapAtkValue">53</span></div><div class="bar"><i id="mapAtkBar" style="width:53%"></i></div></div>
+                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">气血 HP</span><span class="mapping-value" id="mapHpValue">100 / 100</span></div><div class="bar"><i id="mapHpBar" style="width:77%"></i></div></div>
+                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">攻击 ATK</span><span class="mapping-value" id="mapAtkValue">50</span></div><div class="bar"><i id="mapAtkBar" style="width:50%"></i></div></div>
                   <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">防御 DEF</span><span class="mapping-value" id="mapDefValue">50</span></div><div class="bar"><i id="mapDefBar" style="width:50%"></i></div></div>
-                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">灵力 SPIRIT</span><span class="mapping-value" id="mapSpiritValue">65</span></div><div class="bar"><i id="mapSpiritBar" style="width:65%"></i></div></div>
-                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">五行主题</span><span class="mapping-value" id="mapElementValue">稳定</span></div><div class="bar gold"><i id="mapElementBar" style="width:64%"></i></div></div>
+                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">灵力 SPIRIT</span><span class="mapping-value" id="mapSpiritValue">50</span></div><div class="bar"><i id="mapSpiritBar" style="width:50%"></i></div></div>
+                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">体力 STA</span><span class="mapping-value" id="mapStaValue">50</span></div><div class="bar"><i id="mapStaBar" style="width:50%"></i></div></div>
+                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">五行主题</span><span class="mapping-value" id="mapElementValue">待确认</span></div><div class="bar gold"><i id="mapElementBar" style="width:50%"></i></div></div>
                 </div>
               </div>
             </div>
             <div class="result-actions"><div class="small-copy">确认后状态会写入游戏。后续补充资料会生成新 baseline 版本，用户不能直接修改属性。</div><button class="primary" id="confirmBtn">确认并锁定初始状态</button></div>
           </div>
 
-          <div class="result" id="doneView">
-            <div class="section-head"><div><h3>初始状态已建立并锁定</h3><p>这份资料已经生成一份可回放的 baseline，并同步到游戏服务。</p></div><span class="mode-badge">步骤 4 / 4</span></div>
-            <div class="upload-box" style="padding:34px 24px"><div class="upload-icon">✓</div><h4>青松真人 · 炼气一层</h4><p>属性由输入资料和规则引擎生成，用户不能直接调节。后续补充体检报告或健康数据时，系统会自动计算新版本。</p><button class="primary" id="copyPayload">复制联调 JSON</button><div class="privacy-note">Demo 中的识别结果是模拟数据；正式版替换为 /api/v1/records/parse 与 /api/v1/game/baseline。</div></div>
+          <div class="view" id="doneView">
+            <div class="section-head"><div><h3>初始状态已建立并锁定</h3><p>这份资料已经生成一份可回放的 baseline，并同步到游戏服务。</p></div><span class="mode-badge">步骤 4 / 4 · 完成</span></div>
+            <div class="upload-box" style="padding:34px 24px"><div class="upload-icon">✓</div><h4 id="doneTitle">青松真人 · 炼气一层</h4><p>属性由输入资料和规则引擎生成，用户不能直接调节。后续补充体检报告或健康数据时，系统会自动计算新版本。</p><button class="primary" id="copyPayload">复制联调 JSON</button><div class="privacy-note">确认后的 baseline 通过 /api/v1/game/baseline 落盘；正式联调时替换为游戏服务。</div></div>
           </div>
         </section>
       </main>
 
       <aside class="right-col">
         <section class="card state-card">
-          <div class="state-head"><div class="avatar">青</div><div><h3>青松真人</h3><p id="stateSub">等待健康资料建立初始状态</p></div><span class="state-badge" id="stateBadge">待创建</span></div>
+          <div class="state-head"><div class="avatar" id="avatar">长</div><div><h3 id="stateName">长辈真人</h3><p id="stateSub">等待健康资料建立初始状态</p></div><span class="state-badge" id="stateBadge">待创建</span></div>
           <div class="state-hero"><div class="realm">炼气一层<small>初始境界 · 由游戏规则决定</small></div><div class="readiness"><strong id="readinessValue">—</strong><span>守护准备度</span></div></div>
           <div class="stats">
             <div class="stat"><div class="stat-top"><span>气血</span><strong id="hpStat">—</strong></div><div class="bar"><i id="hpBar" style="width:0%"></i></div></div>
             <div class="stat"><div class="stat-top"><span>攻击</span><strong id="atkStat">—</strong></div><div class="bar"><i id="atkBar" style="width:0%"></i></div></div>
             <div class="stat"><div class="stat-top"><span>防御</span><strong id="defStat">—</strong></div><div class="bar"><i id="defBar" style="width:0%"></i></div></div>
             <div class="stat"><div class="stat-top"><span>灵力</span><strong id="spiritStat">—</strong></div><div class="bar"><i id="spiritBar" style="width:0%"></i></div></div>
+            <div class="stat"><div class="stat-top"><span>体力</span><strong id="staStat">—</strong></div><div class="bar"><i id="staBar" style="width:0%"></i></div></div>
           </div>
         </section>
 
@@ -301,43 +287,92 @@
         </section>
 
         <section class="card tasks-card"><h3>资料档案状态</h3>
-          <div class="task"><div class="task-icon">✓</div><div class="task-copy"><strong>首次资料</strong><span>体检报告识别结果已用于生成初始 baseline</span></div><div class="task-state">已录入</div></div>
+          <div class="task"><div class="task-icon">✓</div><div class="task-copy"><strong>首次资料</strong><span>体检报告 + 病史 + 用药识别结果已用于生成初始 baseline</span></div><div class="task-state">已录入</div></div>
           <div class="task"><div class="task-icon">＋</div><div class="task-copy"><strong>后续可补充</strong><span>用药计划、近期测量、复诊资料，均可在进入游戏后继续上传</span></div><div class="task-state">可选</div></div>
-          <div class="task"><div class="task-icon">▣</div><div class="task-copy"><strong>属性修改权限</strong><span>只允许补充资料，不能直接修改 HP、攻击、防御或五行数值</span></div><div class="task-state">锁定</div></div>
+          <div class="task"><div class="task-icon">▣</div><div class="task-copy"><strong>属性修改权限</strong><span>只允许补充资料，不能直接修改 HP、攻击、防御、体力或五行数值</span></div><div class="task-state">锁定</div></div>
         </section>
 
-        <section class="integration"><div class="integration-head"><h4>与现有游戏联调</h4><span>READY</span></div><p>本入口只负责采集和解析，确认后的 baseline 会通过统一事件契约进入现有游戏服务。</p><code>POST /api/v1/game/baseline</code></section>
+        <section class="integration"><div class="integration-head"><h4>与现有游戏联调</h4><span>READY</span></div><p>本入口只负责采集和解析，确认后的 baseline 会通过统一事件契约进入现有游戏服务。字段与映射见 MAPPING.md。</p><code>POST /api/v1/game/baseline</code></section>
       </aside>
     </div>
   </div>
   <div class="toast" id="toast">已完成</div>
   <script>
     const $ = (id) => document.getElementById(id);
-    const uploadView = $('uploadView'), scanView = $('scanView'), resultView = $('resultView'), doneView = $('doneView'), manualView = $('manualView');
-    const dropZone = $('dropZone');
-    const reportInput = $('reportInput'), fileMeta = $('fileMeta'), fileMetaName = $('fileMetaName'), fileMetaState = $('fileMetaState');
-    let scanTimer, selectedFile = null, parsedRecord = null, recognitionError = null;
+    const profileView = $('profileView'), uploadView = $('uploadView'), scanView = $('scanView'), resultView = $('resultView'), doneView = $('doneView');
+    const reportInput = $('reportInput'), fileList = $('fileList'), dropZone = $('dropZone');
+    let selectedFiles = [], parsedRecord = null, recognitionError = null, scanTimer = null, recognitionDone = false;
+
     const payload = {
       baseline_version: 'char_baseline_v1', person_id: 'elder_demo_001',
-      evidence: { data_completeness: 92, plan_coverage: 50, family_support: 50, function_capacity: 70, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
-      character_state: { hp_max: 111, hp_current: 111, attack: 53, defense: 50, spirit: 65, stamina: 57, insight: 71, mind: 50, speed: 55, luck: 50 },
-      five_elements: { metal: { state:'stable', resonance:62 }, wood:{state:'stable',resonance:58}, water:{state:'stable',resonance:60}, fire:{state:'stable',resonance:64}, earth:{state:'stable',resonance:61} },
-      input_mode: 'report', source_priority: 'medical_report', recognition_mode: 'demo', source_document: null, baseline_locked: true, supplementable: true,
-      tasks: []
+      evidence: { data_completeness: 50, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
+      character_state: { hp_max: 100, hp_current: 100, attack: 50, defense: 50, spirit: 50, stamina: 50, insight: 50, mind: 50, speed: 50, luck: 50 },
+      five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'unknown', resonance: 50 }, water: { state: 'unknown', resonance: 50 }, fire: { state: 'unknown', resonance: 50 }, earth: { state: 'unknown', resonance: 50 } },
+      input_mode: 'report', source_priority: 'medical_report', recognition_mode: 'demo', source_document: null, baseline_locked: true, supplementable: true, tasks: []
     };
-    const elementNotes = { metal:'防御 / 血氧与胸片资料正常', wood:'身法 / 肝糖代谢资料正常', water:'体力 / 肾功能与尿检正常', fire:'灵力 / 血压与心电资料正常', earth:'气血 / BMI与营养相关资料正常' };
-    function escapeHtml(value){ return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
-    function recordApiBase(){ return String(window.XIUXIAN_RECORD_API || '').replace(/\/$/,''); }
-    function fileToDataUrl(file){ return new Promise((resolve,reject)=>{ const reader=new FileReader(); reader.onload=()=>resolve(reader.result); reader.onerror=()=>reject(new Error('无法读取本地文件')); reader.readAsDataURL(file); }); }
-    async function parseUploadedRecord(file){
-      const dataUrl = await fileToDataUrl(file);
-      const base = recordApiBase();
-      const response = await fetch((base || '') + '/api/v1/records/parse', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ filename:file.name, mime_type:file.type || 'application/octet-stream', data_url:dataUrl }) });
-      let body = null; try { body = await response.json(); } catch (_) {}
-      if (!response.ok) throw new Error(body?.message || '真实识别接口不可用');
-      return body;
+    const elementNotes = { metal: '防御 / 未提供相关资料', wood: '身法 / 未提供相关资料', water: '体力 / 未提供相关资料', fire: '灵力 / 未提供相关资料', earth: '气血 / 未提供相关资料' };
+
+    // 示例结果（无需后端/密钥，纯前端演示，与 sample-baseline.json 一致）
+    const DEMO_RECORD = {
+      provider: '通义千问视觉', model: 'qwen3-vl-plus',
+      document: { person: { name: '张建国', age: 68, sex: '男' }, groups: [], history: [{ condition: '高血压', status: 'ongoing' }], medications: [{ name: '氨氯地平', purpose: '降压' }], summary: '' },
+      game_projection: {
+        evidence: { data_completeness: 68, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
+        character_state: { hp_max: 103, hp_current: 103, attack: 48, defense: 50, spirit: 58, stamina: 48, insight: 61, mind: 50, speed: 48, luck: 50 },
+        five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'needs_care', resonance: 48 }, water: { state: 'stable', resonance: 58 }, fire: { state: 'stable', resonance: 58 }, earth: { state: 'needs_care', resonance: 48 } },
+        element_notes: { metal: '防御 / 未提供相关资料', wood: '身法 / 3 项需关注，已生成护持任务', water: '体力 / 相关指标、病史或用药在可控范围', fire: '灵力 / 相关指标、病史或用药在可控范围', earth: '气血 / 1 项需关注，已生成护持任务' },
+        tasks: [
+          { task_id: 'care_wood_001', title: '木·舒展 护持', detail: '核对 3 项相关指标/病史，整理复诊问题', status: 'pending' },
+          { task_id: 'care_earth_001', title: '土·纳养 护持', detail: '核对 1 项相关指标/病史，整理复诊问题', status: 'pending' },
+        ],
+        readiness: 58
+      }
+    };
+
+    function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+    function recordApiBase() { return String(window.XIUXIAN_RECORD_API || '').replace(/\/$/, ''); }
+    function fileToDataUrl(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = () => reject(new Error('无法读取本地文件')); reader.readAsDataURL(file); }); }
+    function showView(v) { [profileView, uploadView, scanView, resultView, doneView].forEach(el => el.classList.remove('active')); v.classList.add('active'); }
+    function setStep(n) { document.querySelectorAll('.step').forEach((el, i) => { const idx = i + 1; el.classList.toggle('active', idx === n); el.classList.toggle('done', idx < n); el.querySelector('.step-num').textContent = idx < n ? '✓' : idx; }); }
+    function toast(text) { const t = $('toast'); t.textContent = text; t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2400); }
+    function currentProfile() {
+      return {
+        relation: $('profileRelation').value.trim() || null,
+        name: $('profileName').value.trim() || null,
+        age: $('profileAge').value.trim() || null,
+        sex: $('profileSex').value || null,
+      };
     }
-    function applyProjection(record){
+    function validateProfile() {
+      const relation = $('profileRelation').value.trim();
+      const age = $('profileAge').value.trim();
+      if (!relation) { toast('请选择长辈关系'); $('profileRelation').focus(); return false; }
+      if (!age || isNaN(Number(age)) || Number(age) <= 0) { toast('请填写准确年龄'); $('profileAge').focus(); return false; }
+      return true;
+    }
+    function addFiles(files) {
+      for (const f of files || []) if (f && f.type && f.type.startsWith('image/')) selectedFiles.push(f);
+      renderFileList();
+    }
+    function renderFileList() {
+      fileList.innerHTML = '';
+      selectedFiles.forEach((f, i) => {
+        const chip = document.createElement('div'); chip.className = 'file-chip';
+        const b = document.createElement('b'); b.textContent = f.name;
+        const rm = document.createElement('button'); rm.type = 'button'; rm.textContent = '✕';
+        rm.addEventListener('click', () => { selectedFiles.splice(i, 1); renderFileList(); });
+        chip.append(b, rm); fileList.append(chip);
+      });
+    }
+    async function parseRecord(dataUrls) {
+      const body = { data_urls: dataUrls, profile: currentProfile(), history_text: $('profileHistory').value.trim(), medications_text: $('profileMedications').value.trim() };
+      const base = recordApiBase();
+      const res = await fetch((base || '') + '/api/v1/records/parse', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      let b = null; try { b = await res.json(); } catch (_) {}
+      if (!res.ok) throw new Error(b?.message || '识别接口不可用');
+      return b;
+    }
+    function applyProjection(record) {
       const projection = record?.game_projection || record?.projection;
       if (!projection) return;
       if (projection.evidence) Object.assign(payload.evidence, projection.evidence);
@@ -347,15 +382,13 @@
       if (projection.readiness != null) payload.readiness = projection.readiness;
       if (projection.element_notes) Object.assign(elementNotes, projection.element_notes);
       payload.source_document = record.document || record.extraction || null;
-      payload.recognition_mode = 'live';
+      payload.recognition_mode = record.document ? 'live' : 'demo';
       payload.provider = record.provider || null;
       payload.model = record.model || null;
+      const relation = currentProfile().relation;
+      if (relation) payload.person_id = 'elder_' + relation;
     }
-    function updateFileMeta(file, state){
-      if (!file) { fileMeta.classList.remove('show'); return; }
-      fileMeta.classList.add('show'); fileMetaName.textContent = ` · ${file.name}`; fileMetaState.textContent = state || '等待识别';
-    }
-    async function refreshEngineStatus(){
+    async function refreshEngineStatus() {
       try {
         const res = await fetch('/api/v1/health'); const status = await res.json();
         const pill = $('engineStatus');
@@ -363,94 +396,106 @@
         else pill.innerHTML = '<i></i>识别引擎：Demo 模拟 · 未配置真实模型';
       } catch (_) { /* 静态预览没有后端时保持 Demo 文案 */ }
     }
-    function toast(text){ const t=$('toast'); t.textContent=text; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),2400); }
-    function setStep(n){ document.querySelectorAll('.step').forEach((el,i)=>{ const idx=i+1; el.classList.toggle('active',idx===n); el.classList.toggle('done',idx<n); if(idx<n) el.querySelector('.step-num').textContent='✓'; else el.querySelector('.step-num').textContent=idx; }); }
-    function showUploadError(error){
-      clearInterval(scanTimer); scanView.classList.remove('show'); resultView.classList.remove('show'); doneView.classList.remove('show'); uploadView.style.display='block'; dropZone.style.display='block'; setStep(1);
-      updateFileMeta(selectedFile, '未识别');
-      toast(error?.message || '真实识别接口不可用，请先配置模型');
-    }
-    function showScan(kind='report', file=null){
-      clearInterval(scanTimer); recognitionError=null; parsedRecord=null; setStep(2); uploadView.style.display='none'; manualView.classList.remove('show'); resultView.classList.remove('show'); doneView.classList.remove('show'); scanView.classList.add('show');
-      const copy = $('scanCopy'); const percent = $('scanPercent'); let p=12;
-      payload.input_mode = kind; payload.source_priority = kind === 'report' ? 'medical_report' : kind === 'manual' ? 'manual_profile' : 'other_health_data';
-      payload.recognition_mode = file ? 'live_pending' : 'demo';
-      const messages = kind==='manual' ? ['正在整理手动填写信息…','正在生成资料完整度…','正在建立中性初始状态…'] : kind==='other' ? ['正在读取健康数据…','正在识别日期和指标…','正在建立健康档案…'] : file ? ['正在上传体检图片…','正在识别健康指标…','正在生成初始人物状态…'] : ['正在读取体检报告文字…','正在识别检查项目和日期…','正在建立健康档案…'];
-      let mi=0; copy.textContent=messages[0];
-      let recognitionDone = !file;
-      if (file) {
-        updateFileMeta(file, '识别中');
-        parseUploadedRecord(file).then(record=>{ parsedRecord=record; applyProjection(record); recognitionDone=true; }).catch(error=>{ recognitionError=error; recognitionDone=true; });
+    async function startScan() {
+      if (!validateProfile()) return;
+      setStep(3); showView(scanView);
+      recognitionError = null; parsedRecord = null; recognitionDone = false;
+      const hasFiles = selectedFiles.length > 0;
+      const hasText = Boolean($('profileHistory').value.trim() || $('profileMedications').value.trim());
+      const messages = hasFiles ? ['正在上传图片…', '正在识别指标与病史…', '正在生成初始人物状态…'] : ['正在整理文字信息…', '正在换算五行与属性…', '正在生成初始人物状态…'];
+      $('scanCopy').textContent = messages[0]; $('scanPercent').textContent = '12%';
+      let p = 12, mi = 0;
+
+      if (hasFiles) {
+        (async () => { const dataUrls = []; for (const f of selectedFiles) dataUrls.push(await fileToDataUrl(f)); return parseRecord(dataUrls); })()
+          .then(r => { parsedRecord = r; applyProjection(r); }).catch(e => { recognitionError = e; }).finally(() => { recognitionDone = true; });
+      } else if (hasText) {
+        parseRecord([]).then(r => { parsedRecord = r; applyProjection(r); }).catch(e => { recognitionError = e; }).finally(() => { recognitionDone = true; });
+      } else {
+        recognitionError = new Error('请先选择图片，或填写病史 / 用药');
+        recognitionDone = true;
       }
-      scanTimer=setInterval(()=>{
-        p += Math.floor(Math.random()*17)+8;
-        const ceiling = file ? 88 : 100;
-        if(p>ceiling)p=ceiling; percent.textContent=p+'%';
-        if(p>35&&mi<1){mi=1;copy.textContent=messages[1]}
-        if(p>72&&mi<2){mi=2;copy.textContent=messages[2]}
-        if((!file && p>=100) || (file && p>=88 && recognitionDone)){
+
+      scanTimer = setInterval(() => {
+        p += Math.floor(Math.random() * 17) + 8; if (p > 88) p = 88; $('scanPercent').textContent = p + '%';
+        if (p > 35 && mi < 1) { mi = 1; $('scanCopy').textContent = messages[1]; }
+        if (p > 72 && mi < 2) { mi = 2; $('scanCopy').textContent = messages[2]; }
+        if (p >= 88 && recognitionDone) {
           clearInterval(scanTimer);
-          if (recognitionError) { setTimeout(()=>showUploadError(recognitionError),260); return; }
-          if (file) updateFileMeta(file, '识别完成 · 已生成初始状态');
-          setTimeout(showResult,380);
+          if (recognitionError) { setTimeout(() => { showView(uploadView); setStep(2); toast(recognitionError.message || '识别失败，请重试'); }, 300); return; }
+          setTimeout(showResult, 380);
         }
-      },300);
+      }, 300);
     }
-    function showResult(){
-      const liveState = payload.character_state || {};
-      const avgElement = Object.values(payload.five_elements || {}).reduce((sum,item)=>sum + Number(item?.resonance || 50),0) / 5;
-      const map = payload.input_mode === 'manual' ? {hp:'100 / 100', hpw:76, atk:'50', atkw:50, def:'50', defw:50, spirit:'50', spiritw:50, element:'资料未知', ew:50} : payload.input_mode === 'other' ? {hp:'103 / 103', hpw:79, atk:'52', atkw:52, def:'57', defw:57, spirit:'55', spiritw:55, element:'待确认', ew:55} : {hp:`${liveState.hp_max || 111} / ${liveState.hp_current || liveState.hp_max || 111}`, hpw:Math.min(100,Number(liveState.hp_max || 111) * .77), atk:String(liveState.attack || 53), atkw:Number(liveState.attack || 53), def:String(liveState.defense || 50), defw:Number(liveState.defense || 50), spirit:String(liveState.spirit || 65), spiritw:Number(liveState.spirit || 65), element:payload.recognition_mode === 'live' ? (avgElement >= 58 ? '稳定' : '待护持') : '稳定', ew:avgElement};
-      $('mapHpValue').textContent=map.hp; $('mapHpBar').style.width=map.hpw+'%'; $('mapAtkValue').textContent=map.atk; $('mapAtkBar').style.width=map.atkw+'%'; $('mapDefValue').textContent=map.def; $('mapDefBar').style.width=map.defw+'%'; $('mapSpiritValue').textContent=map.spirit; $('mapSpiritBar').style.width=map.spiritw+'%'; $('mapElementValue').textContent=map.element; $('mapElementBar').style.width=map.ew+'%';
-      scanView.classList.remove('show'); resultView.classList.add('show'); setStep(3); toast('初始状态已生成');
+    function showResult() {
+      const s = payload.character_state || {};
+      const avgElement = Object.values(payload.five_elements || {}).reduce((sum, it) => sum + Number(it?.resonance || 50), 0) / 5;
+      $('mapHpValue').textContent = `${s.hp_max || 100} / ${s.hp_current || s.hp_max || 100}`; $('mapHpBar').style.width = Math.min(100, Number(s.hp_max || 100) * .77) + '%';
+      $('mapAtkValue').textContent = s.attack ?? 50; $('mapAtkBar').style.width = (s.attack ?? 50) + '%';
+      $('mapDefValue').textContent = s.defense ?? 50; $('mapDefBar').style.width = (s.defense ?? 50) + '%';
+      $('mapSpiritValue').textContent = s.spirit ?? 50; $('mapSpiritBar').style.width = (s.spirit ?? 50) + '%';
+      $('mapStaValue').textContent = s.stamina ?? 50; $('mapStaBar').style.width = (s.stamina ?? 50) + '%';
+      $('mapElementValue').textContent = avgElement >= 58 ? '稳定' : '待护持'; $('mapElementBar').style.width = avgElement + '%';
+      showView(resultView); setStep(4); toast('初始状态已生成');
     }
-    async function syncBaseline(){
-      // 真实联调时，现有游戏可注入 window.XIUXIAN_ADAPTER.createCharacter(payload)，
-      // 或设置 window.XIUXIAN_GAME_API 指向游戏服务；没有注入时保留 Demo 回退。
+    async function syncBaseline() {
       if (window.XIUXIAN_ADAPTER?.createCharacter) return await window.XIUXIAN_ADAPTER.createCharacter(payload);
-      // 由本后端托管时（http/https）默认同步到同源 /api/v1/game/baseline；
-      // 以 file:// 静态打开时保持 Demo 回退。
-      const gameApi = window.XIUXIAN_GAME_API ? window.XIUXIAN_GAME_API.replace(/\/$/,'') : (location.protocol.startsWith('http') ? '' : null);
+      const gameApi = window.XIUXIAN_GAME_API ? window.XIUXIAN_GAME_API.replace(/\/$/, '') : (location.protocol.startsWith('http') ? '' : null);
       if (gameApi != null) {
-        const res = await fetch(gameApi + '/api/v1/game/baseline', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+        const res = await fetch(gameApi + '/api/v1/game/baseline', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!res.ok) throw new Error('baseline sync failed');
-        return {mode:'live'};
+        return { mode: 'live' };
       }
-      return {mode:'demo'};
+      return { mode: 'demo' };
     }
-    function setElementState(key, note, score){ $(key+'Note').textContent=note; $(key+'Score').textContent=score; $(key+'Bar').style.width=score+'%'; }
-    async function showDone(){
+    function renderStats(s) {
+      const rows = [
+        ['hpStat', s.hp_current ?? s.hp_max ?? 100, 'hpBar', Math.min(100, Number(s.hp_max || 100) * .77)],
+        ['atkStat', s.attack ?? 50, 'atkBar', Number(s.attack ?? 50)],
+        ['defStat', s.defense ?? 50, 'defBar', Number(s.defense ?? 50)],
+        ['spiritStat', s.spirit ?? 50, 'spiritBar', Number(s.spirit ?? 50)],
+        ['staStat', s.stamina ?? 50, 'staBar', Number(s.stamina ?? 50)],
+      ];
+      rows.forEach(([vId, val, barId, w]) => { $(vId).textContent = val; $(barId).style.width = w + '%'; });
+    }
+    function renderElements() {
+      Object.entries(payload.five_elements || {}).forEach(([key, item]) => {
+        $(key + 'Note').textContent = elementNotes[key] || `${key} / 已提取`;
+        $(key + 'Score').textContent = Number(item?.resonance ?? 50);
+        $(key + 'Bar').style.width = (item?.resonance ?? 50) + '%';
+      });
+    }
+    async function showDone() {
       const button = $('confirmBtn'); button.disabled = true; button.textContent = '正在同步到游戏…';
       try {
         const result = await syncBaseline();
-        resultView.classList.remove('show'); doneView.classList.add('show'); setStep(4);
+        showView(doneView); setStep(4);
         $('stateSub').textContent = result?.mode === 'live' ? '初始状态已生成 · 已同步到游戏服务 · 属性已锁定' : '初始状态已生成 · Demo 联调模式 · 属性已锁定';
         $('stateBadge').textContent = result?.mode === 'live' ? '已同步' : 'Demo';
-        const liveState = payload.character_state || {};
-        const stats = payload.input_mode === 'manual' ? {ready:'34', hp:'100', hpw:76, atk:'50', atkw:50, def:'50', defw:50, spirit:'50', spiritw:50} : payload.input_mode === 'other' ? {ready:'52', hp:'103', hpw:79, atk:'52', atkw:52, def:'57', defw:57, spirit:'55', spiritw:55} : {ready:String(payload.readiness || 76), hp:String(liveState.hp_current || liveState.hp_max || 111), hpw:Math.min(100,Number(liveState.hp_max || 111) * .77), atk:String(liveState.attack || 53), atkw:Number(liveState.attack || 53), def:String(liveState.defense || 50), defw:Number(liveState.defense || 50), spirit:String(liveState.spirit || 65), spiritw:Number(liveState.spirit || 65)};
-        $('readinessValue').textContent=stats.ready;
-        [['hpStat',stats.hp,'hpBar',stats.hpw],['atkStat',stats.atk,'atkBar',stats.atkw],['defStat',stats.def,'defBar',stats.defw],['spiritStat',stats.spirit,'spiritBar',stats.spiritw]].forEach(([a,v,b,w])=>{$(a).textContent=v;$(b).style.width=w+'%'});
-        if(payload.input_mode === 'report'){
-          Object.entries(payload.five_elements || {}).forEach(([key,item])=>setElementState(key,elementNotes[key] || `${key} / 已从报告提取`,Number(item?.resonance || 50)));
-        } else {
-          setElementState('metal','防御 / 未提供相关资料',50); setElementState('wood','身法 / 未提供相关资料',50); setElementState('water','体力 / 未提供相关资料',50); setElementState('fire','灵力 / 未提供相关资料',50); setElementState('earth','气血 / 未提供相关资料',50);
-        }
+        const s = payload.character_state || {};
+        $('readinessValue').textContent = String(payload.readiness ?? '—');
+        renderStats(s); renderElements();
+        const relation = currentProfile().relation || '长辈';
+        $('stateName').textContent = relation + '真人';
+        $('avatar').textContent = (relation || '长').slice(0, 1);
+        $('doneTitle').textContent = relation + '真人 · 炼气一层';
         toast(result?.mode === 'live' ? '角色已建立，baseline 已同步' : '角色已建立，等待接入真实游戏 API');
       } catch (error) {
         button.disabled = false; button.textContent = '确认并锁定初始状态'; toast('游戏服务暂时不可用，资料仍保留在当前流程');
       }
     }
-    document.querySelectorAll('.sample-btn[data-sample]').forEach(btn=>btn.addEventListener('click',()=>{ selectedFile=null; updateFileMeta(null); showScan(btn.dataset.sample); }));
-    $('chooseBtn').addEventListener('click',()=>reportInput.click());
-    reportInput.addEventListener('change',()=>{ const file=reportInput.files?.[0]; if(file){ selectedFile=file; updateFileMeta(file,'等待识别'); showScan('report',file); } });
-    $('otherDataBtn').addEventListener('click',()=>showScan('other'));
-    $('manualBtn').addEventListener('click',()=>{ dropZone.style.display='none'; manualView.classList.add('show'); setStep(2); });
-    $('cancelManual').addEventListener('click',()=>{ manualView.classList.remove('show'); dropZone.style.display='block'; setStep(1); });
-    $('manualSubmit').addEventListener('click',()=>showScan('manual'));
-    $('confirmBtn').addEventListener('click',showDone);
-    $('copyPayload').addEventListener('click',()=>{ navigator.clipboard?.writeText(JSON.stringify(payload,null,2)); toast('已复制联调 JSON'); });
-    ['dragenter','dragover'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.add('drag')}));
-    ['dragleave','drop'].forEach(evt=>dropZone.addEventListener(evt,e=>{e.preventDefault();dropZone.classList.remove('drag')}));
-    dropZone.addEventListener('drop',e=>{ const file=e.dataTransfer?.files?.[0]; if(file){ selectedFile=file; updateFileMeta(file,'等待识别'); showScan('report',file); } });
+
+    $('toUploadBtn').addEventListener('click', () => { if (!validateProfile()) return; showView(uploadView); setStep(2); });
+    $('backToProfileBtn').addEventListener('click', () => { showView(profileView); setStep(1); });
+    $('chooseBtn').addEventListener('click', () => reportInput.click());
+    reportInput.addEventListener('change', () => { addFiles([...reportInput.files]); reportInput.value = ''; });
+    $('startScanBtn').addEventListener('click', startScan);
+    $('sampleBtn').addEventListener('click', () => { selectedFiles = []; renderFileList(); applyProjection(DEMO_RECORD); showResult(); });
+    $('confirmBtn').addEventListener('click', showDone);
+    $('copyPayload').addEventListener('click', () => { navigator.clipboard?.writeText(JSON.stringify(payload, null, 2)); toast('已复制联调 JSON'); });
+    ['dragenter', 'dragover'].forEach(evt => dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach(evt => dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
+    dropZone.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
     refreshEngineStatus();
   </script>
 </body>

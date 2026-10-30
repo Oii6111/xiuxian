@@ -5,11 +5,11 @@
 ## 1. 整体流程
 
 ```
-上传体检报告照片
+上传体检报告 / 病历 / 用药单照片（可多张）+ 文字基本信息
    ↓  视觉模型识别（recognizer.py）
-结构化健康指标（document）
+结构化健康指标 + 病史 + 用药（document）
    ↓  确定性规则引擎（rules.py）
-初始角色状态（game_projection）
+初始角色状态 + 五行 + 护持任务（game_projection）
    ↓  用户确认、锁定
 baseline JSON（锁定，不可手改）
    ↓  游戏读取
@@ -17,6 +17,8 @@ baseline JSON（锁定，不可手改）
 ```
 
 游戏只需要读最后产出的 **baseline JSON**，不需要关心识别过程。
+
+> 哪些健康数据会被采用、以及它们如何映射成属性和五行，见 [MAPPING.md](./MAPPING.md)。
 
 ## 2. 游戏需要关心的字段
 

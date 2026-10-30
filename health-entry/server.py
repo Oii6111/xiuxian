@@ -3,11 +3,19 @@
 作用：
 - 托管前端原型 index.html
 - GET  /api/v1/health         识别引擎配置状态（前端顶部药丸读取）
-- POST /api/v1/records/parse  接收图片 data_url，调用视觉模型识别 + 规则引擎投影
+- POST /api/v1/records/parse  接收多张图片 + 文字基础信息，调用视觉模型识别 + 规则引擎投影
 - POST /api/v1/game/baseline  接收确认后的 baseline（Demo 阶段落盘，联调时替换为游戏服务）
 
+records/parse 请求体：
+    {
+      "data_urls": ["data:image/...", "data:image/..."],   // 可空
+      "profile": {"relation": "爸爸", "name": null, "age": 68, "sex": "男"},
+      "history_text": "高血压10年…",       // 可空
+      "medications_text": "氨氯地平 5mg…"   // 可空
+    }
+至少提供图片或文字信息之一。
+
 运行：
-    cd prototype
     pip install -r requirements.txt
     copy .env.example .env   （填入 LLM_API_KEY）
     python server.py
@@ -50,32 +58,73 @@ def health():
     })
 
 
+def _merge_profile(document, profile, history_text, medications_text):
+    """把用户手填的基础信息合并进 document：手填优先，病史/用药以追加方式并入。"""
+    person = document.get("person") or {}
+    for k in ("relation", "name", "age", "sex"):
+        v = profile.get(k)
+        if v not in (None, ""):
+            person[k] = v
+    document["person"] = person
+
+    history = list(document.get("history") or [])
+    if history_text:
+        history.append({"condition": history_text, "status": "unknown", "source": "text"})
+    document["history"] = history
+
+    medications = list(document.get("medications") or [])
+    if medications_text:
+        medications.append({"name": medications_text, "status": "unknown", "source": "text"})
+    document["medications"] = medications
+    return document
+
+
 @app.post("/api/v1/records/parse")
 def parse_record():
     data = request.get_json(silent=True) or {}
-    data_url = (data.get("data_url") or "").strip()
-    filename = data.get("filename") or "report.jpg"
+    data_urls = data.get("data_urls") or []
+    if isinstance(data_urls, str):
+        data_urls = [data_urls]
+    data_urls = [u for u in data_urls if isinstance(u, str) and u.strip()]
 
-    if not data_url:
-        return jsonify({"message": "缺少图片数据 data_url"}), 400
-    if not data_url.startswith("data:"):
-        return jsonify({"message": "data_url 必须是 data:image/...;base64,... 格式"}), 400
-    if not recognizer.is_configured():
-        return jsonify({
-            "message": "未配置视觉模型，无法识别真实照片。请在 .env 设置 LLM_API_KEY（或 DASHSCOPE_API_KEY），或先用“示例报告”演示。",
-        }), 503
+    profile = data.get("profile") or {}
+    history_text = str(data.get("history_text") or "").strip()
+    medications_text = str(data.get("medications_text") or "").strip()
 
-    try:
-        document = recognizer.recognize_medical_report(data_url, filename)
-    except Exception as exc:  # noqa: BLE001 —— 识别失败要把原因返回给前端，不伪造结果
-        return jsonify({"message": f"识别失败：{exc}"}), 502
+    has_text = bool(
+        profile.get("relation") or profile.get("name") or profile.get("age") or profile.get("sex")
+        or history_text or medications_text
+    )
+    if not data_urls and not has_text:
+        return jsonify({"message": "请至少上传一张图片，或填写基础信息"}), 400
+    for u in data_urls:
+        if not u.startswith("data:"):
+            return jsonify({"message": "图片必须是 data:image/...;base64,... 格式"}), 400
+
+    # 有图片 → 视觉模型识别；没有图片 → 直接由文字信息构造 document（不调模型，秒回）
+    if data_urls:
+        if not recognizer.is_configured():
+            return jsonify({
+                "message": "未配置视觉模型，无法识别照片。请在 .env 设置 LLM_API_KEY，或只填写文字基础信息。",
+            }), 503
+        try:
+            document = recognizer.recognize_medical_report(data_urls, data.get("filename") or "report")
+        except Exception as exc:  # noqa: BLE001 —— 识别失败要把原因返回给前端，不伪造结果
+            return jsonify({"message": f"识别失败：{exc}"}), 502
+    else:
+        document = {
+            "person": {}, "groups": [], "history": [], "medications": [],
+            "clinical_notes": history_text, "summary": "",
+        }
+
+    document = _merge_profile(document, profile, history_text, medications_text)
 
     _, base_url, model = recognizer.load_config()
     projection = rules.build_projection(document)
     return jsonify({
         "record_id": f"rec_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}",
-        "provider": recognizer.provider_label(base_url),
-        "model": model,
+        "provider": recognizer.provider_label(base_url) if data_urls else "文字资料",
+        "model": model if data_urls else None,
         "confidence": document.get("confidence") or rules.estimate_confidence(document),
         "document": document,
         "game_projection": projection,

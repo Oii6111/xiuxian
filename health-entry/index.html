@@ -260,14 +260,14 @@
 
           <div class="view" id="doneView">
             <div class="section-head"><div><h3>初始状态已建立并锁定</h3><p>这份资料已经生成一份可回放的 baseline，并同步到游戏服务。</p></div><span class="mode-badge">步骤 4 / 4 · 完成</span></div>
-            <div class="upload-box" style="padding:34px 24px"><div class="upload-icon">✓</div><h4 id="doneTitle">青松真人 · 炼气一层</h4><p>属性由输入资料和规则引擎生成，用户不能直接调节。后续补充体检报告或健康数据时，系统会自动计算新版本。</p><button class="primary" id="copyPayload">复制联调 JSON</button><div class="privacy-note">确认后的 baseline 通过 /api/v1/game/baseline 落盘；正式联调时替换为游戏服务。</div></div>
+            <div class="upload-box" style="padding:34px 24px"><div class="upload-icon">✓</div><h4 id="doneTitle">待命名</h4><p>属性由输入资料和规则引擎生成，用户不能直接调节。后续补充体检报告或健康数据时，系统会自动计算新版本。</p><button class="primary" id="copyPayload">复制联调 JSON</button><div class="privacy-note">确认后的 baseline 通过 /api/v1/game/baseline 落盘；正式联调时替换为游戏服务。</div></div>
           </div>
         </section>
       </main>
 
       <aside class="right-col">
         <section class="card state-card">
-          <div class="state-head"><div class="avatar" id="avatar">长</div><div><h3 id="stateName">长辈真人</h3><p id="stateSub">等待健康资料建立初始状态</p></div><span class="state-badge" id="stateBadge">待创建</span></div>
+          <div class="state-head"><div class="avatar" id="avatar">长</div><div><h3 id="stateName">长辈</h3><p id="stateSub">等待健康资料建立初始状态</p></div><span class="state-badge" id="stateBadge">待创建</span></div>
           <div class="state-hero"><div class="realm">炼气一层<small>初始境界 · 由游戏规则决定</small></div><div class="readiness"><strong id="readinessValue">—</strong><span>守护准备度</span></div></div>
           <div class="stats">
             <div class="stat"><div class="stat-top"><span>气血</span><strong id="hpStat">—</strong></div><div class="bar"><i id="hpBar" style="width:0%"></i></div></div>
@@ -459,10 +459,10 @@
         const s = payload.character_state || {};
         $('readinessValue').textContent = String(payload.readiness ?? '—');
         renderStats(s);
-        const relation = currentProfile().relation || '长辈';
-        $('stateName').textContent = relation + '真人';
-        $('avatar').textContent = (relation || '长').slice(0, 1);
-        $('doneTitle').textContent = relation + '真人 · 炼气一层';
+        const name = currentProfile().name || '长辈';
+        $('stateName').textContent = name;
+        $('avatar').textContent = (name || '长').slice(0, 1);
+        $('doneTitle').textContent = name;
         toast(result?.mode === 'live' ? '角色已建立，baseline 已同步' : '角色已建立，等待接入真实游戏 API');
       } catch (error) {
         button.disabled = false; button.textContent = '确认并锁定初始状态'; toast('游戏服务暂时不可用，资料仍保留在当前流程');

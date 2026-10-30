@@ -22,3 +22,11 @@ export_credentials.cfg
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Local development work and campaign saves.
+/work/
+/output/campaign-*.json
+/output/*.tmp
+/output/*.bak
+/output/campaign-*.png
+/output/campaign-*.png.import

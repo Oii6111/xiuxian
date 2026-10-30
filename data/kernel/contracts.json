@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "modules": [
+    {"id": "growth", "commands": {
+      "growth.create": {"name": "string", "element": "string"},
+      "growth.select": {"cultivator_id": "string"},
+      "growth.equip": {"cultivator_id": "string", "equipment_id": "string", "slot": "string"},
+      "growth.draw": {"cultivator_id": "string", "count": "integer", "request_id": "string"}
+    }},
+    {"id": "combat", "commands": {
+      "combat.start": {"cultivator_id": "string", "encounter_id": "string"},
+      "combat.finish": {"session_id": "string", "won": "bool", "duration_seconds": "number"}
+    }},
+    {"id": "quests", "commands": {
+      "quests.list": {"cultivator_id": "string"},
+      "quests.claim": {"cultivator_id": "string", "quest_id": "string", "request_id": "string"}
+    }},
+    {"id": "lifecycle", "commands": {
+      "lifecycle.request_change": {"cultivator_id": "string", "target_state": "string"},
+      "lifecycle.confirm_change": {"cultivator_id": "string", "confirmation_token": "string", "request_id": "string"},
+      "lifecycle.update_stage": {"cultivator_id": "string", "stage_id": "string", "confirmation_token": "string"}
+    }},
+    {"id": "story", "commands": {
+      "story.advance": {"cultivator_id": "string", "node_id": "string"}
+    }},
+    {"id": "social", "commands": {
+      "social.visit": {"cultivator_id": "string"},
+      "social.bless": {"cultivator_id": "string", "request_id": "string"},
+      "social.set_visibility": {"cultivator_id": "string", "scope": "string"}
+    }},
+    {"id": "season", "commands": {
+      "season.refresh": {"cultivator_id": "string"}
+    }}
+  ],
+  "events": [
+    {"id": "kernel.ready", "fields": {"modules": "array"}},
+    {"id": "kernel.state_changed", "fields": {"module_id": "string"}},
+    {"id": "growth.changed", "fields": {"cultivator_id": "string"}},
+    {"id": "combat.finished", "fields": {"session_id": "string", "cultivator_id": "string", "won": "bool"}},
+    {"id": "quests.changed", "fields": {"cultivator_id": "string", "quest_id": "string"}},
+    {"id": "lifecycle.changed", "fields": {"cultivator_id": "string", "state": "string"}},
+    {"id": "story.changed", "fields": {"chapter_id": "string"}},
+    {"id": "social.changed", "fields": {"cultivator_id": "string"}},
+    {"id": "season.changed", "fields": {"season_id": "string"}}
+  ],
+  "enums": {
+    "elements": ["wood", "fire", "earth", "metal", "water"],
+    "lifecycle_states": ["cultivating", "tribulation", "seclusion", "ascended"],
+    "equipment_slots": ["weapon", "armor", "accessory", "artifact"],
+    "realms": ["qi_refining", "foundation", "golden_core", "nascent_soul", "spirit", "mahayana", "emperor"],
+    "visibility": ["family", "friends", "public"]
+  },
+  "resource_owners": {
+    "spirit_stones": "cultivator", "realm_xp": "cultivator", "materials": "cultivator", "merit": "attendant"
+  }
+}

@@ -2,6 +2,12 @@
 
 在当前像素仙村上增加五域冒险：20 位山海祟兽、10 种散祟、6 位故事 NPC，7 张像素地图底图、9 个地区入口，以及独立的实时战斗和主线进度。默认场景仍是原有仙村。
 
+## v2 内核与团队开发入口
+
+新增统一内核 `GameKernel`，提供时间、事件、随机、配置、状态存档、迁移、命令路由与审计，以及养成、战斗、任务、生命周期、剧情、社交、赛季七个独立系统骨架。业务接口当前明确返回 `NOT_IMPLEMENTED`，供团队逐项接入。
+
+开发先读 [v2 内核与团队接入指南](docs/KERNEL_V2.md)。Godot 中打开 `scenes/kernel/workbench.tscn` 按 F6 可验证框架；运行 `tools/test_kernel.ps1 -Godot 'Godot可执行文件路径'` 检查内核契约。后端边界见 [server/README.md](server/README.md)。
+
 ## 开始玩
 
 使用 Godot **4.7.2** 打开 `project.godot`，按 F5；Windows 可双击 `启动试玩.cmd`。启动器读取 `GODOT4` 环境变量，本机也支持 D 盘已安装的引擎路径。首次打开会导入素材。

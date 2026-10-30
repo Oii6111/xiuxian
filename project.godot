@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+GameKernel="*res://scripts/autoload/game_kernel.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]

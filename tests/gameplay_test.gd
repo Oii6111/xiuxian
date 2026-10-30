@@ -115,7 +115,7 @@ func _run() -> void:
 	loaded.load_game()
 	check(loaded.avatar_id == "female" and loaded.player_name == "清岚" and loaded.profile_created and loaded.cultivation == 137, "Avatar and nickname persist without resetting resources")
 	check(loaded.recovery_status == "active" and loaded.longterm_enabled, "Both care tracks persist")
-	var scene = load("res://scenes/pixel-legacy.tscn").instantiate()
+	var scene = load("res://scenes/main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	scene.state = State.new()

@@ -130,8 +130,6 @@
     .state-head p { margin:4px 0 0; font-size:10px; color:var(--muted); }
     .state-badge { margin-left:auto; padding:6px 8px; border-radius:7px; background:#eef7ef; color:#31765d; font-size:9px; font-weight:800; }
     .state-hero { display:flex; justify-content:space-between; align-items:end; padding:14px; border-radius:13px; background:linear-gradient(145deg,#f0f8f0,#f8fbf6); border:1px solid #dbe9df; }
-    .realm { color:var(--jade-dark); font-weight:900; font-size:18px; }
-    .realm small { display:block; color:#81918b; font-size:9px; font-weight:700; margin-top:4px; }
     .readiness { text-align:right; }
     .readiness strong { font-size:21px; color:var(--jade); }
     .readiness span { display:block; color:#809087; font-size:9px; margin-top:3px; }
@@ -140,16 +138,8 @@
     .stat-top { display:flex; justify-content:space-between; font-size:10px; color:#72827c; }
     .stat-top strong { color:var(--ink); font-size:13px; }
     .stat .bar { margin-top:7px; height:4px; }
-    .elements-card { padding:18px; }
-    .elements-card h3, .tasks-card h3 { margin:0 0 13px; font-size:13px; }
-    .element { display:grid; grid-template-columns:54px 1fr 32px; align-items:center; gap:8px; margin:10px 0; }
-    .element-name { font-size:10px; font-weight:800; }
-    .element-note { color:#87948f; font-size:9px; margin-top:2px; }
-    .element-score { color:var(--jade-dark); font-size:11px; font-weight:800; text-align:right; }
-    .element .bar { height:6px; }
-    .element.fire .bar i { background:linear-gradient(90deg,#bb6f50,#e6a16d); }
-    .element.earth .bar i { background:linear-gradient(90deg,#b88635,#dfc076); }
     .tasks-card { padding:18px; }
+    .tasks-card h3 { margin:0 0 13px; font-size:13px; }
     .task { display:flex; align-items:flex-start; gap:10px; padding:10px 0; border-bottom:1px solid #edf1ee; }
     .task:last-child { border-bottom:0; padding-bottom:0; }
     .task-icon { width:24px; height:24px; border-radius:8px; display:grid; place-items:center; background:#f1f5f0; color:var(--jade); font-size:12px; }
@@ -268,7 +258,7 @@
       <aside class="right-col">
         <section class="card state-card">
           <div class="state-head"><div class="avatar" id="avatar">长</div><div><h3 id="stateName">长辈</h3><p id="stateSub">等待健康资料建立初始状态</p></div><span class="state-badge" id="stateBadge">待创建</span></div>
-          <div class="state-hero"><div class="realm">炼气一层<small>初始境界 · 由游戏规则决定</small></div><div class="readiness"><strong id="readinessValue">—</strong><span>守护准备度</span></div></div>
+          <div class="state-hero"><div class="readiness"><strong id="readinessValue">—</strong><span>守护准备度</span></div></div>
           <div class="stats">
             <div class="stat"><div class="stat-top"><span>气血</span><strong id="hpStat">—</strong></div><div class="bar"><i id="hpBar" style="width:0%"></i></div></div>
             <div class="stat"><div class="stat-top"><span>攻击</span><strong id="atkStat">—</strong></div><div class="bar"><i id="atkBar" style="width:0%"></i></div></div>
@@ -298,24 +288,25 @@
     const payload = {
       baseline_version: 'char_baseline_v1', person_id: 'elder_demo_001',
       evidence: { data_completeness: 50, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
-      character_state: { hp_max: 100, hp_current: 100, attack: 50, defense: 50, spirit: 50, stamina: 50, insight: 50, mind: 50, speed: 50, luck: 50 },
-      five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'unknown', resonance: 50 }, water: { state: 'unknown', resonance: 50 }, fire: { state: 'unknown', resonance: 50 }, earth: { state: 'unknown', resonance: 50 } },
-      input_mode: 'report', source_priority: 'medical_report', recognition_mode: 'demo', source_document: null, baseline_locked: true, supplementable: true, tasks: []
+      character_state: { hp_max: 80, hp_current: 80, attack: 50, defense: 50, spirit: 50, stamina: 50, insight: 50, mind: 50, speed: 50, luck: 50 },
+      attribute_notes: {},
+      input_mode: 'report', source_priority: 'medical_report', recognition_mode: 'demo', source_document: null, baseline_locked: true, supplementable: true
     };
     // 示例结果（无需后端/密钥，纯前端演示，与 sample-baseline.json 一致）
     const DEMO_RECORD = {
       provider: '通义千问视觉', model: 'qwen3-vl-plus',
       document: { person: { name: '张建国', age: 68, sex: '男' }, groups: [], history: [{ condition: '高血压', status: 'ongoing' }], medications: [{ name: '氨氯地平', purpose: '降压' }], summary: '' },
       game_projection: {
-        evidence: { data_completeness: 68, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
-        character_state: { hp_max: 100, hp_current: 100, attack: 48, defense: 50, spirit: 58, stamina: 48, insight: 61, mind: 50, speed: 48, luck: 50 },
-        five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'needs_care', resonance: 48 }, water: { state: 'stable', resonance: 58 }, fire: { state: 'stable', resonance: 58 }, earth: { state: 'needs_care', resonance: 48 } },
-        element_notes: { metal: '防御 / 平和', wood: '身法 / 3 项需关注，已生成护持任务', water: '体力 / 相关指标、病史或用药在可控范围', fire: '灵力 / 相关指标、病史或用药在可控范围', earth: '气血 / 1 项需关注，已生成护持任务' },
-        tasks: [
-          { task_id: 'care_wood_001', title: '木·舒展 护持', detail: '核对 3 项相关指标/病史，整理复诊问题', status: 'pending' },
-          { task_id: 'care_earth_001', title: '土·纳养 护持', detail: '核对 1 项相关指标/病史，整理复诊问题', status: 'pending' },
-        ],
-        readiness: 58
+        evidence: { data_completeness: 47, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
+        character_state: { hp_max: 80, hp_current: 80, attack: 50, defense: 50, spirit: 48, stamina: 50, insight: 51, mind: 50, speed: 50, luck: 50 },
+        attribute_notes: {
+          spirit: '灵力 = 48（高血压病史 −5、氨氯地平 +3）',
+          defense: '防御 = 50（无相关常规数据，中性 50）',
+          stamina: '体力 = 50（无相关常规数据，中性 50）',
+          speed: '身法 = 50（无相关常规数据，中性 50）',
+          hp_max: '气血 = 80（无相关常规数据，中性 80）'
+        },
+        readiness: 49
       }
     };
 
@@ -371,8 +362,7 @@
       if (!projection) return;
       if (projection.evidence) Object.assign(payload.evidence, projection.evidence);
       if (projection.character_state) Object.assign(payload.character_state, projection.character_state);
-      if (projection.five_elements) Object.assign(payload.five_elements, projection.five_elements);
-      if (Array.isArray(projection.tasks)) payload.tasks = projection.tasks;
+      if (projection.attribute_notes) Object.assign(payload.attribute_notes, projection.attribute_notes);
       if (projection.readiness != null) payload.readiness = projection.readiness;
       payload.source_document = record.document || record.extraction || null;
       payload.recognition_mode = record.document ? 'live' : 'demo';

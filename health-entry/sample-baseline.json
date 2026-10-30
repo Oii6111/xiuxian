@@ -3,7 +3,7 @@
   "baseline_version": "char_baseline_v1",
   "person_id": "elder_demo_001",
   "evidence": {
-    "data_completeness": 68,
+    "data_completeness": 47,
     "plan_coverage": 50,
     "family_support": 50,
     "function_capacity": 50,
@@ -13,54 +13,25 @@
     "tech_readiness": 50
   },
   "character_state": {
-    "hp_max": 100,
-    "hp_current": 100,
-    "attack": 48,
+    "hp_max": 80,
+    "hp_current": 80,
+    "attack": 50,
     "defense": 50,
-    "spirit": 58,
-    "stamina": 48,
-    "insight": 61,
+    "spirit": 48,
+    "stamina": 50,
+    "insight": 51,
     "mind": 50,
-    "speed": 48,
+    "speed": 50,
     "luck": 50
   },
-  "five_elements": {
-    "metal": {
-      "state": "unknown",
-      "resonance": 50
-    },
-    "wood": {
-      "state": "needs_care",
-      "resonance": 48
-    },
-    "water": {
-      "state": "stable",
-      "resonance": 58
-    },
-    "fire": {
-      "state": "stable",
-      "resonance": 58
-    },
-    "earth": {
-      "state": "needs_care",
-      "resonance": 48
-    }
+  "attribute_notes": {
+    "spirit": "灵力 = 48（高血压病史 −5、氨氯地平 +3）",
+    "defense": "防御 = 50（无相关常规数据，中性 50）",
+    "stamina": "体力 = 50（无相关常规数据，中性 50）",
+    "speed": "身法 = 50（无相关常规数据，中性 50）",
+    "hp_max": "气血 = 80（无相关常规数据，中性 80）"
   },
-  "tasks": [
-    {
-      "task_id": "care_wood_001",
-      "title": "木·舒展 护持",
-      "detail": "核对 3 项相关指标，整理复诊问题",
-      "status": "pending"
-    },
-    {
-      "task_id": "care_earth_001",
-      "title": "土·纳养 护持",
-      "detail": "核对 1 项相关指标，整理复诊问题",
-      "status": "pending"
-    }
-  ],
-  "readiness": 58,
+  "readiness": 49,
   "input_mode": "report",
   "source_priority": "medical_report",
   "recognition_mode": "live",

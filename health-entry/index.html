@@ -78,6 +78,7 @@
     .field label .req { color:var(--coral); }
     .field input, .field select, .field textarea { border:1px solid #d6e3db; background:white; border-radius:9px; padding:9px 10px; color:var(--ink); outline:none; font-size:12px; }
     .field textarea { resize:vertical; min-height:52px; }
+    .field .hint { color:#94a19c; font-size:9px; line-height:1.4; }
     .field input:focus, .field select:focus, .field textarea:focus { border-color:#8bbca8; box-shadow:0 0 0 3px rgba(35,126,104,.08); }
     .manual-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; }
     .upload-box { border:1.5px dashed #a9c9bc; border-radius:17px; padding:29px 24px 25px; background:linear-gradient(145deg,#f6fbf7,#eff8f1); text-align:center; transition:.2s ease; }
@@ -196,7 +197,7 @@
         <section class="card hero">
           <p class="eyebrow">Health to cultivation</p>
           <h2>从健康资料，建立角色的第一版状态。</h2>
-          <p>先填长辈的基本信息，再上传体检报告、病历或用药单（可多张）。系统会把常规健康数据自动换算成游戏属性与五行，罕见数据自动舍去。</p>
+          <p>先填长辈的基本信息，再上传体检报告、病历或用药单（可多张）。系统会把常规健康数据自动换算成游戏属性，罕见数据自动舍去。</p>
           <div class="flow-line"><span class="flow-dot active"></span>基本信息 <span class="flow-bar"></span><span class="flow-dot"></span>上传资料 <span class="flow-bar"></span><span class="flow-dot"></span>识别换算 <span class="flow-bar"></span><span class="flow-dot"></span>入局</div>
         </section>
 
@@ -207,10 +208,10 @@
             <div class="form-grid">
               <div class="field"><label>长辈关系<span class="req">（必填）</span></label><select id="profileRelation"><option value="">请选择</option><option>爸爸</option><option>妈妈</option><option>爷爷</option><option>奶奶</option><option>外公</option><option>外婆</option><option>其他</option></select></div>
               <div class="field"><label>准确年龄<span class="req">（必填，岁）</span></label><input id="profileAge" type="number" min="1" max="120" placeholder="例如 68" /></div>
-              <div class="field"><label>姓名 / 称呼（选填）</label><input id="profileName" placeholder="例如 张建国" /></div>
-              <div class="field"><label>性别（选填）</label><select id="profileSex"><option value="">暂不填</option><option>男</option><option>女</option></select></div>
-              <div class="field full"><label>既往病史 / 病历（选填）</label><input id="profileHistory" placeholder="例如：高血压 10 年，2018 年做过胆囊手术" /></div>
-              <div class="field full"><label>长期用药（选填）</label><input id="profileMedications" placeholder="例如：氨氯地平 5mg 每日一次，二甲双胍 0.5g 每日两次" /></div>
+              <div class="field"><label>用户名称<span class="req">（必填）</span></label><input id="profileName" placeholder="例如 张建国" /></div>
+              <div class="field"><label>性别<span class="req">（必填）</span></label><select id="profileSex"><option value="">请选择</option><option>男</option><option>女</option></select></div>
+              <div class="field full"><label>既往病史 / 病历（选填）</label><input id="profileHistory" placeholder="例如：高血压 10 年，2018 年做过胆囊手术" /><span class="hint">也可在下一步上传病历照片</span></div>
+              <div class="field full"><label>长期用药（选填）</label><input id="profileMedications" placeholder="例如：氨氯地平 5mg 每日一次，二甲双胍 0.5g 每日两次" /><span class="hint">也可在下一步上传用药单照片</span></div>
             </div>
             <div class="manual-actions"><button class="primary" id="toUploadBtn">下一步：上传资料</button></div>
           </div>
@@ -251,7 +252,6 @@
                   <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">防御 DEF</span><span class="mapping-value" id="mapDefValue">50</span></div><div class="bar"><i id="mapDefBar" style="width:50%"></i></div></div>
                   <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">灵力 SPIRIT</span><span class="mapping-value" id="mapSpiritValue">50</span></div><div class="bar"><i id="mapSpiritBar" style="width:50%"></i></div></div>
                   <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">体力 STA</span><span class="mapping-value" id="mapStaValue">50</span></div><div class="bar"><i id="mapStaBar" style="width:50%"></i></div></div>
-                  <div class="mapping-row"><div class="mapping-top"><span class="mapping-name">五行主题</span><span class="mapping-value" id="mapElementValue">待确认</span></div><div class="bar gold"><i id="mapElementBar" style="width:50%"></i></div></div>
                 </div>
               </div>
             </div>
@@ -278,18 +278,10 @@
           </div>
         </section>
 
-        <section class="card elements-card"><h3>五行主题状态</h3>
-          <div class="element"><div><div class="element-name">金 · 护息</div><div class="element-note" id="metalNote">防御 / 未提供相关资料</div></div><div class="bar"><i id="metalBar" style="width:50%"></i></div><div class="element-score" id="metalScore">50</div></div>
-          <div class="element"><div><div class="element-name">木 · 舒展</div><div class="element-note" id="woodNote">身法 / 未提供相关资料</div></div><div class="bar"><i id="woodBar" style="width:50%"></i></div><div class="element-score" id="woodScore">50</div></div>
-          <div class="element"><div><div class="element-name">水 · 藏养</div><div class="element-note" id="waterNote">体力 / 未提供相关资料</div></div><div class="bar"><i id="waterBar" style="width:50%"></i></div><div class="element-score" id="waterScore">50</div></div>
-          <div class="element fire"><div><div class="element-name">火 · 心脉</div><div class="element-note" id="fireNote">灵力 / 未提供相关资料</div></div><div class="bar"><i id="fireBar" style="width:50%"></i></div><div class="element-score" id="fireScore">50</div></div>
-          <div class="element earth"><div><div class="element-name">土 · 纳养</div><div class="element-note" id="earthNote">气血 / 未提供相关资料</div></div><div class="bar"><i id="earthBar" style="width:50%"></i></div><div class="element-score" id="earthScore">50</div></div>
-        </section>
-
         <section class="card tasks-card"><h3>资料档案状态</h3>
           <div class="task"><div class="task-icon">✓</div><div class="task-copy"><strong>首次资料</strong><span>体检报告 + 病史 + 用药识别结果已用于生成初始 baseline</span></div><div class="task-state">已录入</div></div>
           <div class="task"><div class="task-icon">＋</div><div class="task-copy"><strong>后续可补充</strong><span>用药计划、近期测量、复诊资料，均可在进入游戏后继续上传</span></div><div class="task-state">可选</div></div>
-          <div class="task"><div class="task-icon">▣</div><div class="task-copy"><strong>属性修改权限</strong><span>只允许补充资料，不能直接修改 HP、攻击、防御、体力或五行数值</span></div><div class="task-state">锁定</div></div>
+          <div class="task"><div class="task-icon">▣</div><div class="task-copy"><strong>属性修改权限</strong><span>只允许补充资料，不能直接修改 HP、攻击、防御、体力数值</span></div><div class="task-state">锁定</div></div>
         </section>
 
         <section class="integration"><div class="integration-head"><h4>与现有游戏联调</h4><span>READY</span></div><p>本入口只负责采集和解析，确认后的 baseline 会通过统一事件契约进入现有游戏服务。字段与映射见 MAPPING.md。</p><code>POST /api/v1/game/baseline</code></section>
@@ -310,17 +302,15 @@
       five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'unknown', resonance: 50 }, water: { state: 'unknown', resonance: 50 }, fire: { state: 'unknown', resonance: 50 }, earth: { state: 'unknown', resonance: 50 } },
       input_mode: 'report', source_priority: 'medical_report', recognition_mode: 'demo', source_document: null, baseline_locked: true, supplementable: true, tasks: []
     };
-    const elementNotes = { metal: '防御 / 未提供相关资料', wood: '身法 / 未提供相关资料', water: '体力 / 未提供相关资料', fire: '灵力 / 未提供相关资料', earth: '气血 / 未提供相关资料' };
-
     // 示例结果（无需后端/密钥，纯前端演示，与 sample-baseline.json 一致）
     const DEMO_RECORD = {
       provider: '通义千问视觉', model: 'qwen3-vl-plus',
       document: { person: { name: '张建国', age: 68, sex: '男' }, groups: [], history: [{ condition: '高血压', status: 'ongoing' }], medications: [{ name: '氨氯地平', purpose: '降压' }], summary: '' },
       game_projection: {
         evidence: { data_completeness: 68, plan_coverage: 50, family_support: 50, function_capacity: 50, routine_stability: 50, self_reported_energy: 50, knowledge_tasks: 50, tech_readiness: 50 },
-        character_state: { hp_max: 103, hp_current: 103, attack: 48, defense: 50, spirit: 58, stamina: 48, insight: 61, mind: 50, speed: 48, luck: 50 },
+        character_state: { hp_max: 100, hp_current: 100, attack: 48, defense: 50, spirit: 58, stamina: 48, insight: 61, mind: 50, speed: 48, luck: 50 },
         five_elements: { metal: { state: 'unknown', resonance: 50 }, wood: { state: 'needs_care', resonance: 48 }, water: { state: 'stable', resonance: 58 }, fire: { state: 'stable', resonance: 58 }, earth: { state: 'needs_care', resonance: 48 } },
-        element_notes: { metal: '防御 / 未提供相关资料', wood: '身法 / 3 项需关注，已生成护持任务', water: '体力 / 相关指标、病史或用药在可控范围', fire: '灵力 / 相关指标、病史或用药在可控范围', earth: '气血 / 1 项需关注，已生成护持任务' },
+        element_notes: { metal: '防御 / 平和', wood: '身法 / 3 项需关注，已生成护持任务', water: '体力 / 相关指标、病史或用药在可控范围', fire: '灵力 / 相关指标、病史或用药在可控范围', earth: '气血 / 1 项需关注，已生成护持任务' },
         tasks: [
           { task_id: 'care_wood_001', title: '木·舒展 护持', detail: '核对 3 项相关指标/病史，整理复诊问题', status: 'pending' },
           { task_id: 'care_earth_001', title: '土·纳养 护持', detail: '核对 1 项相关指标/病史，整理复诊问题', status: 'pending' },
@@ -345,9 +335,13 @@
     }
     function validateProfile() {
       const relation = $('profileRelation').value.trim();
+      const name = $('profileName').value.trim();
       const age = $('profileAge').value.trim();
+      const sex = $('profileSex').value;
       if (!relation) { toast('请选择长辈关系'); $('profileRelation').focus(); return false; }
+      if (!name) { toast('请填写用户名称'); $('profileName').focus(); return false; }
       if (!age || isNaN(Number(age)) || Number(age) <= 0) { toast('请填写准确年龄'); $('profileAge').focus(); return false; }
+      if (!sex) { toast('请选择性别'); $('profileSex').focus(); return false; }
       return true;
     }
     function addFiles(files) {
@@ -380,7 +374,6 @@
       if (projection.five_elements) Object.assign(payload.five_elements, projection.five_elements);
       if (Array.isArray(projection.tasks)) payload.tasks = projection.tasks;
       if (projection.readiness != null) payload.readiness = projection.readiness;
-      if (projection.element_notes) Object.assign(elementNotes, projection.element_notes);
       payload.source_document = record.document || record.extraction || null;
       payload.recognition_mode = record.document ? 'live' : 'demo';
       payload.provider = record.provider || null;
@@ -402,7 +395,7 @@
       recognitionError = null; parsedRecord = null; recognitionDone = false;
       const hasFiles = selectedFiles.length > 0;
       const hasText = Boolean($('profileHistory').value.trim() || $('profileMedications').value.trim());
-      const messages = hasFiles ? ['正在上传图片…', '正在识别指标与病史…', '正在生成初始人物状态…'] : ['正在整理文字信息…', '正在换算五行与属性…', '正在生成初始人物状态…'];
+      const messages = hasFiles ? ['正在上传图片…', '正在识别指标与病史…', '正在生成初始人物状态…'] : ['正在整理文字信息…', '正在换算属性…', '正在生成初始人物状态…'];
       $('scanCopy').textContent = messages[0]; $('scanPercent').textContent = '12%';
       let p = 12, mi = 0;
 
@@ -429,13 +422,11 @@
     }
     function showResult() {
       const s = payload.character_state || {};
-      const avgElement = Object.values(payload.five_elements || {}).reduce((sum, it) => sum + Number(it?.resonance || 50), 0) / 5;
-      $('mapHpValue').textContent = `${s.hp_max || 100} / ${s.hp_current || s.hp_max || 100}`; $('mapHpBar').style.width = Math.min(100, Number(s.hp_max || 100) * .77) + '%';
+      $('mapHpValue').textContent = `${s.hp_max || 100} / ${s.hp_current || s.hp_max || 100}`; $('mapHpBar').style.width = Math.min(100, Number(s.hp_current || s.hp_max || 100)) + '%';
       $('mapAtkValue').textContent = s.attack ?? 50; $('mapAtkBar').style.width = (s.attack ?? 50) + '%';
       $('mapDefValue').textContent = s.defense ?? 50; $('mapDefBar').style.width = (s.defense ?? 50) + '%';
       $('mapSpiritValue').textContent = s.spirit ?? 50; $('mapSpiritBar').style.width = (s.spirit ?? 50) + '%';
       $('mapStaValue').textContent = s.stamina ?? 50; $('mapStaBar').style.width = (s.stamina ?? 50) + '%';
-      $('mapElementValue').textContent = avgElement >= 58 ? '稳定' : '待护持'; $('mapElementBar').style.width = avgElement + '%';
       showView(resultView); setStep(4); toast('初始状态已生成');
     }
     async function syncBaseline() {
@@ -450,20 +441,13 @@
     }
     function renderStats(s) {
       const rows = [
-        ['hpStat', s.hp_current ?? s.hp_max ?? 100, 'hpBar', Math.min(100, Number(s.hp_max || 100) * .77)],
+        ['hpStat', s.hp_current ?? s.hp_max ?? 100, 'hpBar', Math.min(100, Number(s.hp_current ?? s.hp_max ?? 100))],
         ['atkStat', s.attack ?? 50, 'atkBar', Number(s.attack ?? 50)],
         ['defStat', s.defense ?? 50, 'defBar', Number(s.defense ?? 50)],
         ['spiritStat', s.spirit ?? 50, 'spiritBar', Number(s.spirit ?? 50)],
         ['staStat', s.stamina ?? 50, 'staBar', Number(s.stamina ?? 50)],
       ];
       rows.forEach(([vId, val, barId, w]) => { $(vId).textContent = val; $(barId).style.width = w + '%'; });
-    }
-    function renderElements() {
-      Object.entries(payload.five_elements || {}).forEach(([key, item]) => {
-        $(key + 'Note').textContent = elementNotes[key] || `${key} / 已提取`;
-        $(key + 'Score').textContent = Number(item?.resonance ?? 50);
-        $(key + 'Bar').style.width = (item?.resonance ?? 50) + '%';
-      });
     }
     async function showDone() {
       const button = $('confirmBtn'); button.disabled = true; button.textContent = '正在同步到游戏…';
@@ -474,7 +458,7 @@
         $('stateBadge').textContent = result?.mode === 'live' ? '已同步' : 'Demo';
         const s = payload.character_state || {};
         $('readinessValue').textContent = String(payload.readiness ?? '—');
-        renderStats(s); renderElements();
+        renderStats(s);
         const relation = currentProfile().relation || '长辈';
         $('stateName').textContent = relation + '真人';
         $('avatar').textContent = (relation || '长').slice(0, 1);

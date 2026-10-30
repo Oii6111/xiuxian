@@ -174,7 +174,7 @@ def compute_five_elements(document):
             note = f"{meta['stat']} / 相关指标、病史或用药在可控范围"
         else:
             state, resonance = "unknown", NEUTRAL
-            note = f"{meta['stat']} / 未提供相关资料"
+            note = f"{meta['stat']} / 平和"
 
         five[key] = {"state": state, "resonance": resonance}
         notes[key] = note
@@ -183,7 +183,7 @@ def compute_five_elements(document):
 
 
 _RANGE = {
-    "hp_max": (80, 130), "attack": (20, 80), "defense": (20, 90), "spirit": (20, 85),
+    "hp_max": (80, 100), "attack": (20, 80), "defense": (20, 90), "spirit": (20, 85),
     "stamina": (20, 90), "insight": (20, 90), "mind": (20, 80), "speed": (20, 80), "luck": (50, 50),
 }
 # 五行 → 对应的游戏属性（见 MAPPING.md）
@@ -196,7 +196,7 @@ def compute_character_state(ev, five):
     f = ev
     engagement = NEUTRAL
     state = {
-        "hp_max": clamp(80 + 0.25 * f["function_capacity"] + 0.15 * f["data_completeness"], 80, 130),
+        "hp_max": clamp(80 + 0.25 * f["function_capacity"] + 0.15 * f["data_completeness"], 80, 100),
         "attack": clamp(20 + 0.25 * f["function_capacity"] + 0.20 * f["routine_stability"] + 0.10 * f["family_support"], 20, 80),
         "defense": clamp(20 + 0.35 * f["plan_coverage"] + 0.25 * f["family_support"], 20, 90),
         "spirit": clamp(20 + 0.30 * f["data_completeness"] + 0.20 * f["routine_stability"] + 0.15 * f["plan_coverage"], 20, 85),

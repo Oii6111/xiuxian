@@ -13,8 +13,8 @@
     "tech_readiness": 50
   },
   "character_state": {
-    "hp_max": 103,
-    "hp_current": 103,
+    "hp_max": 100,
+    "hp_current": 100,
     "attack": 48,
     "defense": 50,
     "spirit": 58,

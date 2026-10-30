@@ -39,7 +39,7 @@ baseline JSON 里游戏真正要用的只有这几个：
 ```json
 {
   "character_state": {
-    "hp_max": 103, "hp_current": 103,
+    "hp_max": 100, "hp_current": 100,
     "attack": 48, "defense": 50, "spirit": 58,
     "stamina": 48, "insight": 61, "mind": 50,
     "speed": 48, "luck": 50
@@ -74,7 +74,7 @@ baseline JSON 里游戏真正要用的只有这几个：
 | `speed` | 身法 SPD | 身法 |
 | `luck` | 气运 LUCK | 气运 |
 
-数值范围大致在 20–130 之间，未知项用中性值 50。
+数值范围大致在 20–100 之间（气血 HP 上限 100），未知项用中性值 50。
 
 ## 5. 五行
 

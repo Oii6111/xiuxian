@@ -58,7 +58,7 @@
 **第二步：换算公式 + 五行修正**。例如：
 
 ```
-hp_max    = clamp(80 + 0.25×function_capacity + 0.15×data_completeness, 80, 130)
+hp_max    = clamp(80 + 0.25×function_capacity + 0.15×data_completeness, 80, 100)
 spirit    = clamp(20 + 0.30×data_completeness + 0.20×routine_stability + 0.15×plan_coverage, 20, 85)
 stamina   = clamp(20 + 0.45×function_capacity + 0.10×self_reported_energy, 20, 90)
 ```

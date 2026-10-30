@@ -1,0 +1,72 @@
+{
+  "baseline_id": "baseline_20261031_sample",
+  "baseline_version": "char_baseline_v1",
+  "person_id": "elder_demo_001",
+  "evidence": {
+    "data_completeness": 68,
+    "plan_coverage": 50,
+    "family_support": 50,
+    "function_capacity": 50,
+    "routine_stability": 50,
+    "self_reported_energy": 50,
+    "knowledge_tasks": 50,
+    "tech_readiness": 50
+  },
+  "character_state": {
+    "hp_max": 103,
+    "hp_current": 103,
+    "attack": 48,
+    "defense": 50,
+    "spirit": 58,
+    "stamina": 48,
+    "insight": 61,
+    "mind": 50,
+    "speed": 48,
+    "luck": 50
+  },
+  "five_elements": {
+    "metal": {
+      "state": "unknown",
+      "resonance": 50
+    },
+    "wood": {
+      "state": "needs_care",
+      "resonance": 48
+    },
+    "water": {
+      "state": "stable",
+      "resonance": 58
+    },
+    "fire": {
+      "state": "stable",
+      "resonance": 58
+    },
+    "earth": {
+      "state": "needs_care",
+      "resonance": 48
+    }
+  },
+  "tasks": [
+    {
+      "task_id": "care_wood_001",
+      "title": "木·舒展 护持",
+      "detail": "核对 3 项相关指标，整理复诊问题",
+      "status": "pending"
+    },
+    {
+      "task_id": "care_earth_001",
+      "title": "土·纳养 护持",
+      "detail": "核对 1 项相关指标，整理复诊问题",
+      "status": "pending"
+    }
+  ],
+  "readiness": 58,
+  "input_mode": "report",
+  "source_priority": "medical_report",
+  "recognition_mode": "live",
+  "provider": "通义千问视觉",
+  "model": "qwen3-vl-plus",
+  "baseline_locked": true,
+  "supplementable": true,
+  "synced_at": "2026-10-31T00:00:00"
+}

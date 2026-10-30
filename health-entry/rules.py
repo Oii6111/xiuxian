@@ -89,7 +89,7 @@ SYSTEMS = [
         "keywords": ["血糖", "糖化", "hba1c", "空腹血糖", "餐后血糖", "血脂", "胆固醇", "甘油三酯",
                      "低密度", "高密度", "ldl", "hdl", "alt", "ast", "转氨酶", "肝", "脂肪肝", "胆", "ggt", "胆红素", "代谢",
                      "糖尿病", "高血糖", "高血脂", "肝炎", "肝硬化", "胆囊炎", "胆结石", "胆囊切除",
-                     "降糖", "降脂", "二甲双胍", "胰岛素", "他汀", "格列美脲", "格列齐特", "阿卡波糖", "护肝", "保肝"],
+                     "降糖", "降脂", "二甲双胍", "胰岛素", "他汀", "阿托伐他汀", "瑞舒伐他汀", "辛伐他汀", "普伐他汀", "氟伐他汀", "洛伐他汀", "匹伐他汀", "格列美脲", "格列齐特", "阿卡波糖", "护肝", "保肝"],
     },
     {
         "name": "营养血象", "attr": "hp_max", "label": "气血", "base": 80,
@@ -110,12 +110,26 @@ def _match(text, keywords):
     return any(k in t for k in keywords)
 
 
+def _best_system(text):
+    """返回 text 最佳命中的系统索引；无命中返回 None。
+
+    最长关键词优先（“阿托伐他汀” > “他汀” > “钙”），平局按 SYSTEMS 表顺序。
+    这样每个数据项只会归入一个系统，避免“阿托伐他汀钙片”既算降脂又算补钙。
+    """
+    t = (text or "").lower()
+    best, best_len = None, 0
+    for idx, sys in enumerate(SYSTEMS):
+        for k in sys["keywords"]:
+            if k and k in t and len(k) > best_len:
+                best, best_len = idx, len(k)
+    return best
+
+
 def _known_items(document):
     """只保留能命中身体系统关键词的「常规」指标，罕见/非常规指标舍去。"""
     known = []
     for it in _items(document):
-        label = str(it.get("label") or "").lower()
-        if any(_match(label, sys["keywords"]) for sys in SYSTEMS):
+        if _best_system(str(it.get("label") or "")) is not None:
             known.append(it)
     return known
 
@@ -148,36 +162,57 @@ def compute_evidence(document):
     }
 
 
+def _history_text(h):
+    return str(h.get("condition") or "")
+
+
+def _medication_text(m):
+    # 通用名可能在 name 或（模型偶发）dose 里，purpose 兜底；brand 不参与匹配。
+    return " ".join(str(m.get(k) or "") for k in ("name", "dose", "purpose"))
+
+
 def compute_system_scores(document):
     """用具体指标 / 病史 / 用药测算每个身体系统对应的属性。
 
     每个系统 = base + 正常指标×4 − 异常指标×6 − 持续病史×5 + 正在用药×3。
+    每个数据项（指标按 label、病史按 condition、用药按 name+purpose）只归入一个系统，
+    避免同一个药因字符串子串被重复计入多个属性。
     返回 (scores, notes)：scores 是 attr→分数，notes 是 attr→具体由哪些数据算出。
     """
-    items = _known_items(document)
-    history = _history_entries(document)
-    medications = _medication_entries(document)
+    buckets = {sys["attr"]: {"abnormal": [], "normal": [], "ongoing": [], "meds": []} for sys in SYSTEMS}
+
+    for it in _known_items(document):
+        idx = _best_system(str(it.get("label") or ""))
+        if idx is None:
+            continue
+        key = "abnormal" if _is_abnormal(it) else "normal"
+        buckets[SYSTEMS[idx]["attr"]][key].append(it)
+
+    for h in _history_entries(document):
+        idx = _best_system(_history_text(h))
+        if idx is not None and _condition_status(h) != "past":
+            buckets[SYSTEMS[idx]["attr"]]["ongoing"].append(h)
+
+    for m in _medication_entries(document):
+        idx = _best_system(_medication_text(m))
+        if idx is not None:
+            buckets[SYSTEMS[idx]["attr"]]["meds"].append(m)
+
     scores, notes = {}, {}
     for sys in SYSTEMS:
         attr = sys["attr"]
-        matched = [it for it in items if _match(it.get("label"), sys["keywords"])]
-        abnormal = [it for it in matched if _is_abnormal(it)]
-        normal = [it for it in matched if not _is_abnormal(it)]
-        hist = [h for h in history if _match(" ".join(str(v) for v in h.values()), sys["keywords"])]
-        ongoing = [h for h in hist if _condition_status(h) != "past"]
-        meds = [m for m in medications if _match(" ".join(str(v) for v in m.values()), sys["keywords"])]
-
-        score = sys["base"] + 4 * len(normal) - 6 * len(abnormal) - 5 * len(ongoing) + 3 * len(meds)
+        b = buckets[attr]
+        score = sys["base"] + 4 * len(b["normal"]) - 6 * len(b["abnormal"]) - 5 * len(b["ongoing"]) + 3 * len(b["meds"])
         scores[attr] = score
 
         parts = []
-        for it in abnormal:
+        for it in b["abnormal"]:
             parts.append(f"{it.get('label', '指标')}异常 −6")
-        for it in normal:
+        for it in b["normal"]:
             parts.append(f"{it.get('label', '指标')}正常 +4")
-        for h in ongoing:
+        for h in b["ongoing"]:
             parts.append(f"{h.get('condition', '病史')}病史 −5")
-        for m in meds:
+        for m in b["meds"]:
             parts.append(f"{m.get('name', '用药')} +3")
         notes[attr] = f"{sys['label']} = {score}（" + ("、".join(parts) if parts else f"无相关常规数据，中性 {sys['base']}") + "）"
     return scores, notes

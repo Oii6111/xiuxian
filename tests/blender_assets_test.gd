@@ -31,6 +31,11 @@ func _run() -> void:
 			for surface in range(mesh.mesh.get_surface_count()):
 				var material = mesh.get_active_material(surface)
 				check(material != null,id + " retains material")
+				if id == "b03" and material != null and material.resource_name.begins_with("Q2_bark"):
+					check(material.albedo_texture != null,"Wood basecolor texture survives GLB")
+					check(material.normal_enabled and material.normal_texture != null,"Wood tangent normal survives GLB")
+					var arrays = mesh.mesh.surface_get_arrays(surface)
+					check(arrays[Mesh.ARRAY_TEX_UV] != null and arrays[Mesh.ARRAY_TEX_UV].size() > 0,"Wood has usable UVs in game mesh")
 				var indices = mesh.mesh.surface_get_array_index_len(surface)
 				triangles += indices / 3 if indices > 0 else mesh.mesh.surface_get_array_len(surface) / 3
 		check(triangles > 0 and triangles < 100000,id + " is under the scene mesh budget")
@@ -64,7 +69,7 @@ func _run() -> void:
 				check(player.current_animation == "Idle","Finished attack really returns to Idle")
 		asset.free()
 	var boss = Art.model(Catalogue.entry("b03"),"bosses")
-	check(boss != null and boss.find_child("Rig",true,false) != null,"Boss loader selects refined Blender asset")
+	check(boss != null and boss.find_children("*","Skeleton3D",true,false).size() == 1,"Boss loader selects refined Blender asset")
 	boss.free()
 	check(Art.blender_asset("missing-asset") == null,"Missing resource preserves procedural fallback path")
 	print("Blender assets: %d passed, %d failed" % [passed,failed])

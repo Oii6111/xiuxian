@@ -32,7 +32,7 @@
 
 | 资源 | 三角面 | 材质槽 | GLB大小 | 游戏用途 |
 |---|---:|---:|---:|---|
-| b03 窃荣 | 17,560 | 9 | 673,728 bytes | 替换该 Boss 的运行模型，7骨骼，Idle/Walk/Attack |
+| b03 窃荣 V2 | 86,914 | 15 | 6,671,720 bytes | 替换该 Boss 的运行模型，7骨骼，Idle/Walk/Attack |
 | sapling_tree | 15,964 | 2 | 665,160 bytes | 主城后方7株树共享同一资源 |
 | zhaosheng_pagoda | 12,328 | 7 | 310,232 bytes | 主城照生灯台，曲面屋顶、瓦脊、铜饰、悬灯 |
 
@@ -43,10 +43,10 @@
 ## 参考图、实际模型和复现
 
 1. assets/references/qierong-turnaround.png 是生成的四视图概念参考；同目录提示词保留目标及一致性要求。
-2. tools/blender/build_assets.py 是实际制作源码。在专用 Blender 空场景通过 MCP 执行文件后，依次调用 sapling()、pagoda()、deer() 即可重建三件资源。脚本会清空当前场景，因此应在专用空文件运行。
-3. 窃荣胸灯、枝冠、叶鬃、铜饰和木纹采用实际网格；材质使用 glTF 支持的颜色、金属、粗糙度和发光。没有以 Blender 专用程序纹理冒充已导出的 PBR 贴图。
+2. tools/blender/build_assets.py 是总制作入口，deer() 已转到 tools/blender/refine_qierong.py 的新版制作。在专用 Blender 空场景通过 MCP 执行文件后，依次调用 sapling()、pagoda()、deer() 即可重建三件资源。脚本会清空当前场景，因此应在专用空文件运行。
+3. 窃荣胸灯、枝冠、叶鬃、铜饰和木纹采用实际网格；新版木纹另有1024像素颜色和切线法线PNG，嵌入GLB并在Godot验证。图案由制作脚本生成，未以未导出的Blender专用节点代替游戏细节。
 4. 保存源文件后导出 GLB。三段动作经 NLA 导出；Godot 运行时循环 Idle，主祟预兆触发 Attack，结束回到 Idle。Walk 已导出并验证，当前窃荣没有新增追逐移动 AI。
-5. docs/screenshots/blender/b03-front.png、b03-side.png、b03-back.png、b03-three-quarter.png 是实际 Blender 模型渲染，不是概念图。
+5. docs/screenshots/blender 保留第一版实际模型渲染；docs/screenshots/qierong-v2 包含当前新版四视角、Godot近景与战斗画面。两者均是实际模型渲染，不是概念图。
 6. docs/screenshots/town-blender.png、boss-blender.png 是实际 Godot 画面；town-front/left/back/right.png 为同一主城的四个观察方向。可用 --preview --restored-town --capture-view=front --capture-clean --campaign-capture=D:/...png 复现，不写玩家进度。
 
 ## 美术范围
@@ -54,3 +54,5 @@
 这是可复现的首批三件资产和已跑通的工具链。其余19只 Boss、10种小怪与 NPC 仍以先前的程序化模型为主体。概念参考比当前网格更精细；本轮没有完成20只 Boss 的商业级雕刻、重拓扑、烘焙贴图、肌肉形变、LOD 和完整动作库，不将此阶段称为“已完成3A”。
 
 后续以窃荣样板的方法逐个推进赤棘、失稷、缄风、壅川，再扩展其他怪物：先定四视图与正交比例，优先复用已验证生成器，定制核心轮廓，再完成模型、绑定、贴图和游戏镜头验收。Unity/Unreal/Three.js 可以使用同一 GLB 资产作为后续移植起点，仍需分别验证材质、动画和渲染预算。
+
+当前窃荣模型的造型对比、352项验证与剩余差距见[视觉精修记录](QIERONG_VISUAL_REFINEMENT.md)。

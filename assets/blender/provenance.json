@@ -13,7 +13,16 @@
         "Walk",
         "Attack"
       ],
-      "game_use": "Boss b03"
+      "game_use": "Boss b03",
+      "revision": 2,
+      "generator": "tools/blender/refine_qierong.py",
+      "triangles": 86914,
+      "material_surfaces": 15,
+      "textures": [
+        "textures/qierong_bark_basecolor.png",
+        "textures/qierong_bark_normal.png"
+      ],
+      "texture_authorship": "Original procedural wood grain and height-derived tangent normal; PNGs embedded in GLB. Godot extracts b03_qierong_bark_*.png on import."
     },
     {
       "id": "sapling_tree",

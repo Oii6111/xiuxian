@@ -53,6 +53,7 @@
 - [20只Boss形象与背景故事](outputs/game-design-v2/二十祟兽名录与故事_V2.md)
 - [首章剧本](outputs/game-design-v2/序章与玄泽第一章剧本_V2.md)
 - [Blender MCP、免费插件研究与实际资产交付](docs/BLENDER_PIPELINE.md)
+- [窃荣造型对照与新版实际画面](docs/QIERONG_VISUAL_REFINEMENT.md)
 - [攻击与Godot实现对照](docs/BOSS_IMPLEMENTATION.md)
 - [10种小怪与6位NPC的故事、建模及闭环](docs/MINIONS_AND_NPCS.md)
 - [当前可玩版本的循环与奖励](docs/GAMEPLAY_V3.md)
@@ -69,7 +70,7 @@ PowerShell：
 ./scripts/run_tests.ps1 -GodotPath '你的Godot4控制台可执行文件'
 ```
 
-脚本先导入资源，再运行234项战役测试、61项原版本回归和48项Blender资产集成检查。测试使用项目work目录独立存档，日志不提交。测试结果与运行截图见后续验证记录。
+脚本先导入资源，再运行234项战役测试、61项原版本回归和57项Blender资产集成检查。测试使用项目work目录独立存档，日志不提交。测试结果与运行截图见后续验证记录。
 
 ## 工程入口
 

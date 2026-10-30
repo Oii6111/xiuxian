@@ -1,8 +1,14 @@
 {
   "asset": "b03",
-  "triangles": 17560,
-  "vertices": 9198,
-  "materials": 9,
-  "blender": "4.5.14 LTS",
-  "glb_bytes": 673728
+  "revision": 2,
+  "triangles": 86914,
+  "vertices": 51718,
+  "materials": 15,
+  "bones": 7,
+  "glb_bytes": 6671720,
+  "textures": [
+    "textures/qierong_bark_basecolor.png",
+    "textures/qierong_bark_normal.png"
+  ],
+  "blender": "4.5.14 LTS"
 }

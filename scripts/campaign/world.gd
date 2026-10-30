@@ -266,7 +266,7 @@ func start_encounter(id: String) -> bool:
 	boss = Art.model(rules.entry,"bosses")
 	stage.add_child(boss)
 	boss.position = Vector3(rules.boss_position.x,0,rules.boss_position.y)
-	Art.label(boss,rules.entry.name,Vector3(0,4.5,0),Color("fff8de"),44)
+	Art.label(boss,rules.entry.name,Vector3(0,5.3 if id == "b03" else 4.5,0),Color("fff8de"),44)
 	player.position = Vector3(-5.8,0,3.4)
 	player.velocity = Vector3.ZERO
 	for node in rules.nodes:

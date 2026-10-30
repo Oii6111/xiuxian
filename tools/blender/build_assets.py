@@ -110,6 +110,12 @@ def gem(p,size,bone="head"):
     o=bpy.data.objects.new("Chest lantern gem",mesh);bpy.context.collection.objects.link(o)
     return finish(o,o.name,"glow",bone)
 def deer():
+    import runpy
+    source=BASE/"tools"/"blender"/"refine_qierong.py"
+    runpy.run_path(str(source))["build"](publish=True)
+
+def deer_blockout():
+
     reset()
     ell("Carved wooden flank",(0,.30,1.30),(.72,1.06,.64),"bark")
     ell("Raised withers",(0,-.39,1.67),(.59,.58,.75),"bark")

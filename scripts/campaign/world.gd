@@ -163,13 +163,18 @@ func _build_town() -> void:
 	_floor(Color("93bc9c"),true)
 	Art.ring(stage,Vector3(0,0.03,0),5.0,0.55,Color("d8c69a"))
 	Art.ring(stage,Vector3(0,0.04,0),2.0,0.05,Color("72bcb5"))
-	# Pagoda and lantern plaza.
-	for y in [0.8,1.9]:
-		Art.cylinder(stage,Vector3(0,y,-4),1.4,0.7,Color("f0d4a0"))
-		var roof = Art.cylinder(stage,Vector3(0,y+0.55,-4),2.0,0.6,Color("579a9e"),0.18)
-		roof.mesh.radial_segments = 4
-		roof.rotation.y = PI*0.25
-	Art.ball(stage,Vector3(0,3.05,-4),0.20,Color("ffe4a1"))
+	# Editable Blender architecture; simple fallback keeps headless prototypes usable.
+	var pavilion = Art.blender_asset("zhaosheng_pagoda")
+	if pavilion != null:
+		stage.add_child(pavilion)
+		pavilion.position = Vector3(0,0,-4)
+		pavilion.scale = Vector3.ONE * 0.78
+	else:
+		for y in [0.8,1.9]:
+			Art.cylinder(stage,Vector3(0,y,-4),1.4,0.7,Color("f0d4a0"))
+			var roof = Art.cylinder(stage,Vector3(0,y+0.55,-4),2.0,0.6,Color("579a9e"),0.18)
+			roof.mesh.radial_segments = 4
+			roof.rotation.y = PI*0.25
 	Art.label(stage,"照生灯台",Vector3(0,3.5,-4),Color("fff8dc"),34)
 	var regions = ["水","土","金","火","木"]
 	var names = ["玄泽","稷野","白羽关","丹霞岭","苍梧林"]
@@ -196,9 +201,17 @@ func _build_town() -> void:
 	Art.label(stage,"听雷台 · E",Vector3(-3.5,1.3,3.5),Color("fff3c2"),32)
 	portals.append({"position":Vector2(-3.5,3.5),"region":"序章","label":"听雷台"})
 	for i in range(7):
-		var p = Vector3(-9+float(i)*2.8,0,-7.5)
-		Art.cylinder(stage,p+Vector3(0,0.8,0),0.16,1.6,Color("a88765"))
-		Art.ball(stage,p+Vector3(0,2,0),0.8,Color("79bf9e"))
+		var angle = -1.05 + float(i)*0.35
+		var p = Vector3(sin(angle)*9.2,0,-cos(angle)*9.2)
+		var tree = Art.blender_asset("sapling_tree")
+		if tree != null:
+			stage.add_child(tree)
+			tree.position = p
+			tree.rotation.y = float(i)*1.6
+			tree.scale = Vector3.ONE * (0.85+float(i%3)*0.12)
+		else:
+			Art.cylinder(stage,p+Vector3(0,0.8,0),0.16,1.6,Color("a88765"))
+			Art.ball(stage,p+Vector3(0,2,0),0.8,Color("79bf9e"))
 	_build_townfolk()
 	player.position = Vector3(-2,0,2.8)
 	player.velocity = Vector3.ZERO
@@ -405,6 +418,8 @@ func _sync_visuals() -> void:
 		live.append(h.id)
 		if not hazard_visuals.has(h.id):
 			hazard_visuals[h.id] = _hazard_mesh(h)
+			if h.get("source","") == "" and is_instance_valid(boss):
+				Art.play_attack(boss)
 		var visual: Node3D = hazard_visuals[h.id]
 		for child in visual.get_children():
 			if child is MeshInstance3D:
@@ -509,6 +524,16 @@ func _capture_args() -> void:
 			state.data.clears = ["b00","b03","b06","b09","b12","b15"]
 			state.data.seals = ["木","火","土","金","水"]
 			start_encounter(arg.trim_prefix("--capture-boss="))
+	var capture_positions = {"front":Vector3(0,18,26),"left":Vector3(-26,18,0),"back":Vector3(0,18,-26),"right":Vector3(26,18,0)}
+	for arg in args:
+		if arg.begins_with("--capture-view="):
+			var view_name = arg.trim_prefix("--capture-view=")
+			if capture_positions.has(view_name):
+				camera.position = capture_positions[view_name]
+				camera.size = 23.0
+				camera.look_at(Vector3(0,0.4,0))
+	if "--capture-clean" in args:
+		ui.hide()
 	if "--show-atlas" in args:
 		ui.open_atlas()
 	for arg in args:

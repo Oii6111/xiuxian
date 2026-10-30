@@ -51,3 +51,21 @@
 ## 复现
 
 PowerShell执行scripts/run_tests.ps1，指定-GodotPath。模型可用tools/build_models.gd重新生成；生成会覆盖对应原型场景，精修前请另存版本。
+
+## 2026-10-30 Blender 精修批次
+
+Blender4.5.14 LTS（官方SHA256匹配）、mcp-for-blender2.2.6、Godot4.7.2、Windows/AMD Radeon780M，GL Compatibility。已通过原生MCP读取插件状态、生成Sapling树、运行制作脚本并导出。遥测关闭。
+
+本批次测试：战役234项、旧版61项、GLB资产48项，共343项通过，0失败。最终导入和测试日志未出现 ERROR / SCRIPT ERROR；编辑器测试资料改到D盘，修复初次导入时本机默认配置保存失败的环境问题。
+
+资产检查覆盖三件GLB可导入、可见网格、材质、三角面预算、7骨骼保留、Idle/Walk/Attack存在且含真实变换轨道、采样播放确实改变骨骼、主祟攻击动作从Idle启动并自动回到Idle、运行模型加载器选用新资源和缺失文件时的回退入口。常规run_tests.ps1已包含此检查。
+
+首批资产和尺寸见[Blender制作记录](BLENDER_PIPELINE.md)。实际模型四角度图位于screenshots/blender，主城四个方向图位于screenshots/town-{front,left,back,right}.png。画面均为实际渲染，概念图单独位于assets/references。
+
+![Blender窃荣实际模型](screenshots/blender/b03-three-quarter.png)
+
+![Blender资产接入后的故乡](screenshots/town-blender.png)
+
+![窃荣实际游戏画面](screenshots/boss-blender.png)
+
+当前仍需人工试玩与美术审阅；没有完成其他19只Boss的同等级精修、完整动作库、材质烘焙、LOD制作、移动端/网页性能验收。上述通过项不能证明已达到3A成品质量。

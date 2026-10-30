@@ -30,3 +30,9 @@ Desktop.ini
 /output/*.bak
 /output/campaign-*.png
 /output/campaign-*.png.import
+
+# Blender recovery files and Python compilation cache.
+*.blend1
+*.blend2
+__pycache__/
+*.pyc

@@ -1,12 +1,12 @@
 extends RefCounted
-## Original procedural, Q-proportioned 3D characters. No external art dependency.
+## Q-style fallback meshes plus editable Blender GLB overrides.
 static var materials: Dictionary = {}
 
 static func material(color: Color) -> StandardMaterial3D:
 	var key = color.to_html()
 	if not materials.has(key):
 		var m = StandardMaterial3D.new()
-		m.albedo_color = color
+		m.albedo_color = color.srgb_to_linear()
 		m.roughness = 0.82
 		if color.a < 1:
 			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -280,7 +280,34 @@ static func npc(entry: Dictionary) -> Node3D:
 				ball(root,Vector3(-0.45,1.1+i*0.12,-0.25),0.13,Color("d8b4d7"))
 	return root
 
+static func play_attack(model_root: Node3D) -> void:
+	var animator = model_root.find_child("AnimationPlayer",true,false) as AnimationPlayer
+	if animator == null or not animator.has_animation("Attack"):
+		return
+	if animator.current_animation != "Attack" or not animator.is_playing():
+		animator.play("Attack",0.1)
+		animator.queue("Idle")
+
+static func blender_asset(id: String) -> Node3D:
+	var path = "res://assets/blender/" + id + ".glb"
+	if not ResourceLoader.exists(path):
+		return null
+	var packed = load(path) as PackedScene
+	if packed == null:
+		return null
+	var result = packed.instantiate() as Node3D
+	var animator = result.find_child("AnimationPlayer",true,false) as AnimationPlayer
+	if animator != null and animator.has_animation("Idle"):
+		animator.get_animation("Idle").loop_mode = Animation.LOOP_LINEAR
+		animator.autoplay = "Idle"
+		animator.play("Idle")
+	return result
+
 static func model(entry: Dictionary, folder: String) -> Node3D:
+	if folder == "bosses" and entry.id == "b03":
+		var polished = blender_asset("b03")
+		if polished != null:
+			return polished
 	var path = "res://assets/generated/" + folder + "/" + str(entry.id) + ".tscn"
 	if ResourceLoader.exists(path):
 		var scene = load(path)

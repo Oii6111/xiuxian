@@ -231,6 +231,8 @@ func _ready() -> void:
 		status.text = "请填写基础信息，上传报告或补充文字资料后开始分析。"
 	else:
 		connect_service()
+	if guest_mode:
+		call_deferred("load_guest_samples")
 
 func text_line(parent: Node, placeholder: String, initial: String = "") -> LineEdit:
 	var field = LineEdit.new()
@@ -349,8 +351,8 @@ func probe_completed(result: int, code: int, _headers: PackedStringArray, body: 
 				await get_tree().create_timer(2.0).timeout
 				if not disposed:
 					connect_service()
-	else:
-		status.text = "服务未连接。请运行 health-entry/start.bat，再点击重新连接。"
+		else:
+			status.text = "服务未连接。请运行 health-entry/start.bat，再点击重新连接。"
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if code != 200 or not data is Dictionary or data.get("service") != "xiuxian-health-entry" or int(data.get("api_version", 0)) < 3:

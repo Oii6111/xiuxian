@@ -59,7 +59,7 @@
 服务只监听 `127.0.0.1:8001`，配置热读取。`health` 包含服务身份和 `api_version: 3`。解析返回 `record_id` 与模式 `live`（图像）或 `text`（文字）。确认提交 `{record_id, recognition_mode, baseline_locked: true}`，返回服务端原始规则生成的 `baseline`；不接受客户端手改真实属性。结果保留 30 分钟，重复确认幂等。离线示例使用 `sample`。确认文件只保存游戏状态、显示姓名和属性依据，不保存完整报告。
 
 
-当前像素游戏接入自提交 `1f356a0`，Godot 启动后直接进入“创建基础状态”，不提供样例快捷入口；样例文件仅保留供开发者自行选择测试。游戏操作说明见 [health-entry-integration.md](../docs/health-entry-integration.md)。
+当前像素游戏接入自提交 1f356a0，Godot 启动后进入“创建基础状态”。登录界面提供游客模式；游客会自动创建张建国样例档案、加载三张原始样例图片，并在无模型密钥时使用 sample-baseline.json 快速入局。游戏操作说明见 health-entry-integration.md。
 
 创建状态必须提供 `profile.name`、`profile.age`、`profile.sex`、`profile.relation`；年龄为 1—120 的整数，性别为男或女。缺少必填项会在模型调用前返回 400。Godot 仅显示最终属性，不显示 `attribute_notes` 的公式或依据。
 

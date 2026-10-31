@@ -1,0 +1,21 @@
+{
+  "id": "elder-health-sidecar",
+  "name": "Elder Health Sidecar",
+  "description": "Route direct Weixin elder messages to the local safety-first health assistant.",
+  "activation": {
+    "onCapabilities": ["hook"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "sidecarUrl": { "type": "string" },
+      "sidecarToken": { "type": "string" },
+      "defaultElderId": { "type": "string" },
+      "elderIdMap": { "type": "object", "additionalProperties": { "type": "string" } },
+      "familyShareDefault": { "type": "boolean" },
+      "allowRemoteMedia": { "type": "boolean" },
+      "failClosed": { "type": "boolean" }
+    }
+  }
+}

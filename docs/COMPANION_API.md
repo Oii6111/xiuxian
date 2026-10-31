@@ -25,6 +25,25 @@ $env:XIUXIAN_COMPANION_API_URL = 'http://127.0.0.1:8031/api/v1/companion/chat'
 
 当前本机账号会话尚不是跨服务通用凭证，正式部署仍需统一验证或增加最小权限令牌交换；不要仅为消除 401 就把 C 登录令牌发给模型供应商。服务端必须验证身份和家庭授权，不能信任请求里的 account_id/member_id。测试夹具接受固定测试会话，仅限本机联调。请求发出后若账号会话、角色或聊天地址改变，旧回复会被丢弃；连接失败仍显示原有本地向导。
 
+## 接入 DeepSeek（deepseek-flash）
+
+仓库内自带一个符合本契约的实现：[`companion-service/`](../companion-service/README.md)，默认模型 `deepseek-flash`。
+
+```powershell
+cd companion-service
+python -m pip install -r requirements.txt
+copy .env.example .env          # 填 LLM_API_KEY
+python server.py
+```
+
+游戏侧设置 `XIUXIAN_COMPANION_API_URL=http://127.0.0.1:8031/api/v1/companion/chat` 与
+`XIUXIAN_COMPANION_AUTH_ORIGIN=http://127.0.0.1:8031` 即可；仓库根目录的
+`启动试玩-灵宠模型.cmd` 会一起拉起服务和游戏。
+
+约束没有变化：模型密钥只在本服务，游戏和存档里没有；模型只产出文字，`actions` 由服务端白名单挑选，
+`reward`、任务完成、账本数字一律不采信。未配置密钥时服务进入 stub 模式，返回本地固定话术，
+用于离线演练整条链路；没有设置 `XIUXIAN_COMPANION_API_URL` 时游戏仍然只用本地向导。
+
 ## 请求
 
 ```json

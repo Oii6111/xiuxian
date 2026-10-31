@@ -37,3 +37,5 @@ Desktop.ini
 /outputs/*
 !/outputs/.gdignore
 /build/
+/output/a-backend-*/
+/output/account-test-*/

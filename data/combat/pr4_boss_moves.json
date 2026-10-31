@@ -1,0 +1,1764 @@
+{
+  "schema": 4,
+  "base_damage": 32,
+  "tier_damage": 0.75,
+  "max_raw_damage": 240,
+  "bosses": {
+    "b00": {
+      "name": "听雷",
+      "motion": "kite",
+      "speed": 126,
+      "spacing": 220,
+      "tempo": 1.45,
+      "minions": 0,
+      "moves": [
+        {
+          "tell": 1.1,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 3,
+          "spread": 0.22,
+          "speed": 355,
+          "style": "thunder",
+          "id": "b00_0",
+          "name": "试雷翎",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.65,
+          "recover": 1.4,
+          "power": 1.05,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            90,
+            59
+          ],
+          "style": "thunder",
+          "id": "b00_1",
+          "name": "掠云扑",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            195,
+            118
+          ],
+          "style": "thunder",
+          "id": "b00_2",
+          "name": "回音雷环",
+          "kind": "nova",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.85,
+      "poise": 140,
+      "rank": 1,
+      "max_hp": 3200,
+      "base_attack": 42.5,
+      "progression": {
+        "label": "初识",
+        "speed": 0.94,
+        "tell": 1.12,
+        "min_tell": 0.84,
+        "tempo": 1.05,
+        "combo": [
+          1,
+          1,
+          2
+        ],
+        "lead": 0.0,
+        "waves": [
+          1,
+          1,
+          1
+        ],
+        "hazards": false
+      }
+    },
+    "b01": {
+      "name": "朽梁",
+      "motion": "pursue",
+      "speed": 108,
+      "spacing": 125,
+      "tempo": 1.35,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 0.78,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 0.78,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            190,
+            108
+          ],
+          "style": "wood",
+          "id": "b01_0",
+          "name": "枯角横扫",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.0,
+          "active": 0.66,
+          "recover": 1.35,
+          "power": 1.18,
+          "reach": 650,
+          "width": 34,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "wood",
+          "id": "b01_1",
+          "name": "朽木奔袭",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            76,
+            49
+          ],
+          "count": 3,
+          "style": "roots",
+          "id": "b01_2",
+          "name": "断梁生根",
+          "kind": "eruption",
+          "min_stage": 1,
+          "residue": 1.5
+        }
+      ],
+      "vitality": 1.05,
+      "poise": 145,
+      "rank": 2,
+      "max_hp": 3928,
+      "base_attack": 48.125,
+      "progression": {
+        "label": "初识",
+        "speed": 0.9495,
+        "tell": 1.1105,
+        "min_tell": 0.8305,
+        "tempo": 1.0316,
+        "combo": [
+          1,
+          1,
+          2
+        ],
+        "lead": 0.0105,
+        "waves": [
+          1,
+          1,
+          1
+        ],
+        "hazards": false
+      }
+    },
+    "b02": {
+      "name": "涩节",
+      "motion": "strafe",
+      "speed": 146,
+      "spacing": 160,
+      "tempo": 1.18,
+      "minions": 0,
+      "moves": [
+        {
+          "tell": 1.0,
+          "active": 0.46,
+          "recover": 1.35,
+          "power": 1.18,
+          "reach": 650,
+          "width": 29,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "metal",
+          "id": "b02_0",
+          "name": "铜节突刺",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.72,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 0.78,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            190,
+            108
+          ],
+          "style": "metal",
+          "id": "b02_1",
+          "name": "关节回刃",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 25,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "metal",
+          "id": "b02_2",
+          "name": "锁节贯穿",
+          "kind": "beam",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.9,
+      "poise": 150,
+      "rank": 3,
+      "max_hp": 4672,
+      "base_attack": 53.75,
+      "progression": {
+        "label": "初识",
+        "speed": 0.9589,
+        "tell": 1.1011,
+        "min_tell": 0.8211,
+        "tempo": 1.0132,
+        "combo": [
+          1,
+          1,
+          2
+        ],
+        "lead": 0.0211,
+        "waves": [
+          1,
+          1,
+          1
+        ],
+        "hazards": false
+      }
+    },
+    "b03": {
+      "name": "窃荣",
+      "motion": "kite",
+      "speed": 137,
+      "spacing": 275,
+      "tempo": 1.3,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            76,
+            49
+          ],
+          "count": 3,
+          "style": "roots",
+          "id": "b03_0",
+          "name": "窃荣荆丛",
+          "kind": "eruption",
+          "min_stage": 0,
+          "residue": 1.5
+        },
+        {
+          "tell": 1.05,
+          "active": 0.65,
+          "recover": 1.4,
+          "power": 1.12,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "leaf",
+          "id": "b03_1",
+          "name": "落英跃袭",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 385,
+          "style": "leaf",
+          "id": "b03_2",
+          "name": "飞叶夺生",
+          "kind": "volley",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.95,
+      "poise": 155,
+      "rank": 4,
+      "max_hp": 5432,
+      "base_attack": 59.375,
+      "progression": {
+        "label": "初识",
+        "speed": 0.9684,
+        "tell": 1.0916,
+        "min_tell": 0.8116,
+        "tempo": 0.9947,
+        "combo": [
+          1,
+          1,
+          2
+        ],
+        "lead": 0.0316,
+        "waves": [
+          1,
+          1,
+          1
+        ],
+        "hazards": true
+      }
+    },
+    "b04": {
+      "name": "乱律",
+      "motion": "strafe",
+      "speed": 138,
+      "spacing": 215,
+      "tempo": 1.1,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            205,
+            120
+          ],
+          "style": "sound",
+          "id": "b04_0",
+          "name": "乱拍震鼓",
+          "kind": "nova",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 3,
+          "spread": 0.22,
+          "speed": 440,
+          "style": "fire",
+          "id": "b04_1",
+          "name": "赤翅三叠",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.15,
+          "active": 0.4,
+          "recover": 1.4,
+          "power": 1.15,
+          "reach": 880,
+          "width": 30,
+          "radius": [
+            270,
+            158
+          ],
+          "style": "sound",
+          "id": "b04_2",
+          "name": "离律重拍",
+          "kind": "cross",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.95,
+      "poise": 160,
+      "rank": 5,
+      "max_hp": 6208,
+      "base_attack": 65.0,
+      "progression": {
+        "label": "进阶",
+        "speed": 0.9779,
+        "tell": 1.0821,
+        "min_tell": 0.8021,
+        "tempo": 0.9763,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0421,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b05": {
+      "name": "窄焰",
+      "motion": "kite",
+      "speed": 158,
+      "spacing": 260,
+      "tempo": 1.22,
+      "minions": 0,
+      "moves": [
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 27,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "fire",
+          "id": "b05_0",
+          "name": "窄焰吐息",
+          "kind": "beam",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.0,
+          "active": 0.55,
+          "recover": 1.35,
+          "power": 1.18,
+          "reach": 650,
+          "width": 30,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "fire",
+          "id": "b05_1",
+          "name": "游焰穿行",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.16,
+          "speed": 440,
+          "style": "fire",
+          "id": "b05_2",
+          "name": "蛇信分火",
+          "kind": "volley",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.9,
+      "poise": 165,
+      "rank": 6,
+      "max_hp": 7000,
+      "base_attack": 70.625,
+      "progression": {
+        "label": "进阶",
+        "speed": 0.9874,
+        "tell": 1.0726,
+        "min_tell": 0.7926,
+        "tempo": 0.9579,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0526,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b06": {
+      "name": "赤棘",
+      "motion": "pursue",
+      "speed": 124,
+      "spacing": 110,
+      "tempo": 1.45,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 1.12,
+          "active": 0.55,
+          "recover": 1.35,
+          "power": 1.3,
+          "reach": 650,
+          "width": 34,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "crystal",
+          "id": "b06_0",
+          "name": "赤棘拱冲",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.78,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 0.95,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            190,
+            108
+          ],
+          "style": "crystal",
+          "id": "b06_1",
+          "name": "碎晶獠击",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            85,
+            52
+          ],
+          "count": 3,
+          "style": "crystal",
+          "id": "b06_2",
+          "name": "逆棘迸裂",
+          "kind": "eruption",
+          "min_stage": 1,
+          "residue": 1.5
+        }
+      ],
+      "vitality": 1.12,
+      "poise": 170,
+      "rank": 7,
+      "max_hp": 7808,
+      "base_attack": 76.25,
+      "progression": {
+        "label": "进阶",
+        "speed": 0.9968,
+        "tell": 1.0632,
+        "min_tell": 0.7832,
+        "tempo": 0.9395,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0632,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b07": {
+      "name": "积璧",
+      "motion": "strafe",
+      "speed": 96,
+      "spacing": 170,
+      "tempo": 1.55,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 1.0,
+          "active": 0.72,
+          "recover": 1.35,
+          "power": 1.18,
+          "reach": 650,
+          "width": 42,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "stone",
+          "id": "b07_0",
+          "name": "叠甲滚碾",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            245,
+            146
+          ],
+          "style": "stone",
+          "id": "b07_1",
+          "name": "积璧震壳",
+          "kind": "nova",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            76,
+            49
+          ],
+          "count": 4,
+          "style": "stone",
+          "id": "b07_2",
+          "name": "断渠石柱",
+          "kind": "eruption",
+          "min_stage": 1,
+          "residue": 1.5
+        }
+      ],
+      "vitality": 1.18,
+      "poise": 175,
+      "rank": 8,
+      "max_hp": 8632,
+      "base_attack": 81.875,
+      "progression": {
+        "label": "进阶",
+        "speed": 1.0063,
+        "tell": 1.0537,
+        "min_tell": 0.7737,
+        "tempo": 0.9211,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0737,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b08": {
+      "name": "薄丹",
+      "motion": "kite",
+      "speed": 148,
+      "spacing": 285,
+      "tempo": 1.3,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 345,
+          "style": "ember",
+          "id": "b08_0",
+          "name": "薄丹灯雨",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.65,
+          "recover": 1.4,
+          "power": 1.04,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "ember",
+          "id": "b08_1",
+          "name": "逐灯扑火",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            76,
+            49
+          ],
+          "count": 4,
+          "style": "ember",
+          "id": "b08_2",
+          "name": "烬灯落阵",
+          "kind": "eruption",
+          "min_stage": 1,
+          "residue": 1.5
+        }
+      ],
+      "vitality": 0.9,
+      "poise": 180,
+      "rank": 9,
+      "max_hp": 9472,
+      "base_attack": 87.5,
+      "progression": {
+        "label": "进阶",
+        "speed": 1.0158,
+        "tell": 1.0442,
+        "min_tell": 0.7642,
+        "tempo": 0.9026,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0842,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b09": {
+      "name": "失稷",
+      "motion": "pursue",
+      "speed": 103,
+      "spacing": 125,
+      "tempo": 1.52,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 0.95,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 1.05,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            190,
+            108
+          ],
+          "style": "grain",
+          "id": "b09_0",
+          "name": "仓角重掀",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.0,
+          "active": 0.7,
+          "recover": 1.35,
+          "power": 1.35,
+          "reach": 650,
+          "width": 34,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "grain",
+          "id": "b09_1",
+          "name": "失稷犁地",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.15,
+          "active": 0.4,
+          "recover": 1.4,
+          "power": 1.15,
+          "reach": 880,
+          "width": 33,
+          "radius": [
+            270,
+            158
+          ],
+          "style": "grain",
+          "id": "b09_2",
+          "name": "阡陌崩塌",
+          "kind": "cross",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.15,
+      "poise": 185,
+      "rank": 10,
+      "max_hp": 10328,
+      "base_attack": 93.125,
+      "progression": {
+        "label": "进阶",
+        "speed": 1.0253,
+        "tell": 1.0347,
+        "min_tell": 0.7547,
+        "tempo": 0.8842,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.0947,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b10": {
+      "name": "闭岚",
+      "motion": "pursue",
+      "speed": 120,
+      "spacing": 135,
+      "tempo": 1.38,
+      "minions": 0,
+      "moves": [
+        {
+          "tell": 1.0,
+          "active": 0.55,
+          "recover": 1.35,
+          "power": 1.3,
+          "reach": 650,
+          "width": 40,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "metal",
+          "id": "b10_0",
+          "name": "风箱撞阵",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 40,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "wind",
+          "id": "b10_1",
+          "name": "闭岚喷压",
+          "kind": "beam",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            250,
+            145
+          ],
+          "style": "wind",
+          "id": "b10_2",
+          "name": "铁肺震环",
+          "kind": "nova",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.12,
+      "poise": 190,
+      "rank": 11,
+      "max_hp": 11200,
+      "base_attack": 98.75,
+      "progression": {
+        "label": "进阶",
+        "speed": 1.0347,
+        "tell": 1.0253,
+        "min_tell": 0.7453,
+        "tempo": 0.8658,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.1053,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b11": {
+      "name": "灼羽",
+      "motion": "kite",
+      "speed": 162,
+      "spacing": 270,
+      "tempo": 1.22,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 410,
+          "style": "fire",
+          "id": "b11_0",
+          "name": "灼羽散灯",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.5,
+          "recover": 1.4,
+          "power": 1.28,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "fire",
+          "id": "b11_1",
+          "name": "火鹭折返",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 35,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "fire",
+          "id": "b11_2",
+          "name": "焦羽掠线",
+          "kind": "beam",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.92,
+      "poise": 195,
+      "rank": 12,
+      "max_hp": 12088,
+      "base_attack": 104.375,
+      "progression": {
+        "label": "进阶",
+        "speed": 1.0442,
+        "tell": 1.0158,
+        "min_tell": 0.7358,
+        "tempo": 0.8474,
+        "combo": [
+          1,
+          2,
+          2
+        ],
+        "lead": 0.1158,
+        "waves": [
+          1,
+          1,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b12": {
+      "name": "缄风",
+      "motion": "strafe",
+      "speed": 154,
+      "spacing": 225,
+      "tempo": 1.16,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 25,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "wind",
+          "id": "b12_0",
+          "name": "缄风裁线",
+          "kind": "beam",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.78,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 0.78,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            220,
+            120
+          ],
+          "style": "wind",
+          "id": "b12_1",
+          "name": "鹤翼回旋",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            265,
+            150
+          ],
+          "style": "wind",
+          "id": "b12_2",
+          "name": "封声风环",
+          "kind": "nova",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.95,
+      "poise": 200,
+      "rank": 13,
+      "max_hp": 12992,
+      "base_attack": 110.0,
+      "progression": {
+        "label": "破境",
+        "speed": 1.0537,
+        "tell": 1.0063,
+        "min_tell": 0.7263,
+        "tempo": 0.8289,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1263,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b13": {
+      "name": "沉砂",
+      "motion": "kite",
+      "speed": 94,
+      "spacing": 290,
+      "tempo": 1.55,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            90,
+            55
+          ],
+          "count": 3,
+          "style": "sand",
+          "id": "b13_0",
+          "name": "流砂陷涌",
+          "kind": "eruption",
+          "min_stage": 0,
+          "residue": 1.5
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 20,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 3,
+          "spread": 0.22,
+          "speed": 330,
+          "style": "sand",
+          "id": "b13_1",
+          "name": "沉珠抛射",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.2,
+          "active": 0.8,
+          "recover": 1.4,
+          "power": 1.4,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "sand",
+          "id": "b13_2",
+          "name": "合蚌坠砂",
+          "kind": "leap",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.08,
+      "poise": 205,
+      "rank": 14,
+      "max_hp": 13912,
+      "base_attack": 115.625,
+      "progression": {
+        "label": "破境",
+        "speed": 1.0632,
+        "tell": 0.9968,
+        "min_tell": 0.7168,
+        "tempo": 0.8105,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1368,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b14": {
+      "name": "滞潮",
+      "motion": "strafe",
+      "speed": 133,
+      "spacing": 180,
+      "tempo": 1.35,
+      "minions": 0,
+      "moves": [
+        {
+          "tell": 1.0,
+          "active": 0.6,
+          "recover": 1.35,
+          "power": 1.18,
+          "reach": 650,
+          "width": 34,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "water",
+          "id": "b14_0",
+          "name": "水轮辗潮",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            240,
+            140
+          ],
+          "style": "water",
+          "id": "b14_1",
+          "name": "逆潮涟环",
+          "kind": "nova",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 400,
+          "style": "water",
+          "id": "b14_2",
+          "name": "滞潮水矢",
+          "kind": "volley",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.05,
+      "poise": 210,
+      "rank": 15,
+      "max_hp": 14848,
+      "base_attack": 121.25,
+      "progression": {
+        "label": "破境",
+        "speed": 1.0726,
+        "tell": 0.9874,
+        "min_tell": 0.7074,
+        "tempo": 0.7921,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1474,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b15": {
+      "name": "壅川",
+      "motion": "pursue",
+      "speed": 86,
+      "spacing": 160,
+      "tempo": 1.65,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 1.05,
+          "active": 0.3,
+          "recover": 0.95,
+          "power": 1.12,
+          "reach": 205,
+          "width": 1.15,
+          "radius": [
+            190,
+            108
+          ],
+          "style": "stone",
+          "id": "b15_0",
+          "name": "负山压掌",
+          "kind": "slash",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.25,
+          "active": 0.9,
+          "recover": 1.4,
+          "power": 1.42,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "water",
+          "id": "b15_1",
+          "name": "镇川坠碑",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.15,
+          "active": 0.4,
+          "recover": 1.4,
+          "power": 1.15,
+          "reach": 880,
+          "width": 37,
+          "radius": [
+            270,
+            158
+          ],
+          "style": "water",
+          "id": "b15_2",
+          "name": "壅川裂岸",
+          "kind": "cross",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.2,
+      "poise": 215,
+      "rank": 16,
+      "max_hp": 15800,
+      "base_attack": 126.875,
+      "progression": {
+        "label": "破境",
+        "speed": 1.0821,
+        "tell": 0.9779,
+        "min_tell": 0.6979,
+        "tempo": 0.7737,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1579,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b16": {
+      "name": "漏夜",
+      "motion": "strafe",
+      "speed": 174,
+      "spacing": 200,
+      "tempo": 1.15,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 0.86,
+          "active": 0.48,
+          "recover": 1.4,
+          "power": 1.28,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            110,
+            70
+          ],
+          "style": "moon",
+          "id": "b16_0",
+          "name": "漏夜三更跃",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 420,
+          "style": "moon",
+          "id": "b16_1",
+          "name": "流时月砂",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            215,
+            127
+          ],
+          "style": "moon",
+          "id": "b16_2",
+          "name": "子夜回环",
+          "kind": "nova",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 0.88,
+      "poise": 220,
+      "rank": 17,
+      "max_hp": 16768,
+      "base_attack": 132.5,
+      "progression": {
+        "label": "破境",
+        "speed": 1.0916,
+        "tell": 0.9684,
+        "min_tell": 0.6884,
+        "tempo": 0.7553,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1684,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b17": {
+      "name": "失简",
+      "motion": "kite",
+      "speed": 143,
+      "spacing": 280,
+      "tempo": 1.25,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 380,
+          "style": "ink",
+          "id": "b17_0",
+          "name": "散简飞页",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.05,
+          "active": 0.38,
+          "recover": 1.3,
+          "power": 1.12,
+          "reach": 880,
+          "width": 34,
+          "radius": [
+            60,
+            40
+          ],
+          "style": "ink",
+          "id": "b17_1",
+          "name": "墨卷裁痕",
+          "kind": "beam",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.9,
+          "recover": 1.25,
+          "power": 0.92,
+          "reach": 880,
+          "width": 32,
+          "radius": [
+            76,
+            49
+          ],
+          "count": 4,
+          "style": "ink",
+          "id": "b17_2",
+          "name": "遗简墨阵",
+          "kind": "eruption",
+          "min_stage": 1,
+          "residue": 1.5
+        }
+      ],
+      "vitality": 0.94,
+      "poise": 225,
+      "rank": 18,
+      "max_hp": 17752,
+      "base_attack": 138.125,
+      "progression": {
+        "label": "破境",
+        "speed": 1.1011,
+        "tell": 0.9589,
+        "min_tell": 0.6789,
+        "tempo": 0.7368,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1789,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b18": {
+      "name": "晦鳞",
+      "motion": "pursue",
+      "speed": 146,
+      "spacing": 180,
+      "tempo": 1.2,
+      "minions": 1,
+      "moves": [
+        {
+          "tell": 1.0,
+          "active": 0.47,
+          "recover": 1.35,
+          "power": 1.24,
+          "reach": 650,
+          "width": 34,
+          "radius": [
+            50,
+            30
+          ],
+          "style": "thunder",
+          "id": "b18_0",
+          "name": "晦鳞穿云",
+          "kind": "charge",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.22,
+          "speed": 455,
+          "style": "thunder",
+          "id": "b18_1",
+          "name": "紫霆龙息",
+          "kind": "volley",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.1,
+          "active": 0.4,
+          "recover": 1.25,
+          "power": 1.0,
+          "reach": 320,
+          "width": 32,
+          "radius": [
+            270,
+            155
+          ],
+          "style": "thunder",
+          "id": "b18_2",
+          "name": "晦鳞雷潮",
+          "kind": "nova",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.1,
+      "poise": 230,
+      "rank": 19,
+      "max_hp": 18752,
+      "base_attack": 143.75,
+      "progression": {
+        "label": "破境",
+        "speed": 1.1105,
+        "tell": 0.9495,
+        "min_tell": 0.6695,
+        "tempo": 0.7184,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.1895,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    },
+    "b19": {
+      "name": "执衡",
+      "motion": "strafe",
+      "speed": 132,
+      "spacing": 230,
+      "tempo": 1.3,
+      "minions": 2,
+      "moves": [
+        {
+          "tell": 1.15,
+          "active": 0.4,
+          "recover": 1.4,
+          "power": 1.15,
+          "reach": 880,
+          "width": 30,
+          "radius": [
+            300,
+            165
+          ],
+          "style": "seal",
+          "id": "b19_0",
+          "name": "四象裁衡",
+          "kind": "cross",
+          "min_stage": 0
+        },
+        {
+          "tell": 1.2,
+          "active": 0.65,
+          "recover": 1.4,
+          "power": 1.4,
+          "reach": 620,
+          "width": 32,
+          "radius": [
+            130,
+            78
+          ],
+          "style": "seal",
+          "id": "b19_1",
+          "name": "星盘镇落",
+          "kind": "leap",
+          "min_stage": 0
+        },
+        {
+          "tell": 0.95,
+          "active": 1.65,
+          "recover": 1.1,
+          "power": 0.62,
+          "reach": 880,
+          "width": 14,
+          "radius": [
+            14,
+            14
+          ],
+          "count": 5,
+          "spread": 0.18,
+          "speed": 430,
+          "style": "seal",
+          "id": "b19_2",
+          "name": "五曜归位",
+          "kind": "volley",
+          "min_stage": 1
+        }
+      ],
+      "vitality": 1.15,
+      "poise": 235,
+      "rank": 20,
+      "max_hp": 19768,
+      "base_attack": 149.375,
+      "progression": {
+        "label": "破境",
+        "speed": 1.12,
+        "tell": 0.94,
+        "min_tell": 0.66,
+        "tempo": 0.7,
+        "combo": [
+          1,
+          2,
+          3
+        ],
+        "lead": 0.2,
+        "waves": [
+          1,
+          2,
+          2
+        ],
+        "hazards": true
+      }
+    }
+  },
+  "damage_tuning": {
+    "revision": "pr4_actions_v4",
+    "base_attack_multiplier": 1.25,
+    "player_initial_hp": 100,
+    "attack_geometry_visible": false
+  }
+}

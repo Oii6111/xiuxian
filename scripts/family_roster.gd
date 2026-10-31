@@ -393,6 +393,10 @@ func to_data() -> Dictionary:
 	return Privacy.clean({"schema": 8, "companion": Companions.clean(companion), "legacy_choice_made": legacy_choice_made, "account": account.duplicate(true), "owner": {"identity": owner_state.family_identity.duplicate(true), "progress": owner_state.to_data()}, "active_member_id": active_id, "members": records})
 
 func save_game() -> bool:
+	for state in [owner_state] + members.map(func(member): return member.state):
+		if state != null and not state.lifecycle_load_error.is_empty():
+			last_error = state.lifecycle_load_error
+			return false
 	if load_blocked:
 		return false
 	last_error = ""

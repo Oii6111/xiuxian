@@ -200,8 +200,10 @@ func refresh() -> void:
 	for entry in Catalogue.all():
 		var cleared = game.state.boss_cleared(entry.id)
 		status_labels[int(entry.index)].text = ("✓ 已通关" if cleared else "尚未挑战") + "  ·  建议 %d 档" % entry.tier
+		var best: Dictionary = game.state.best_boss_record(entry.id)
+		if not best.is_empty(): status_labels[int(entry.index)].text += " · 最快 %.1f秒" % float(best.time)
 		jump_buttons[int(entry.index)].text = "%02d" % (entry.index + 1)
-	progress_label.text = "%s  ·  %s  ·  首通 %d / 20  ·  每一扇门通往对应的独立战场" % [game.state.player_name, game.state.realm(), game.state.cleared_bosses.size()]
+	progress_label.text = "%s  ·  %s  ·  首通 %d / 20  ·  关卡依次增强 · 每扇门通往独立战场" % [game.state.player_name, game.state.realm(), game.state.cleared_bosses.size()]
 
 func focus_boss(index: int) -> void:
 	var selected = clampi(index, 0, 19)

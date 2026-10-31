@@ -50,7 +50,7 @@ func run() -> void:
 	state.complete_boss("b01", {"time": 15})
 	check(state.apply_health_baseline(sample).ok, "Confirmed interface baseline is accepted")
 	var stats = state.battle_stats()
-	check(stats.max_hp == 80 and stats.attack == 50 and stats.max_mp == 48 and stats.max_stamina == 50, "Interface units are used directly, with the new HP cap and no double scaling")
+	check(stats.max_hp == 100 and stats.attack == 50 and stats.max_mp == 48 and stats.max_stamina == 50, "Reports preserve their evidence while game health starts at 100")
 	check(state.heal_unlocked() and state.boss_records.b00.time == 10, "Health initialization preserves earned Boss progress")
 	check(not state.apply_health_profile(state.HealthProfile.mock(60, 2)).ok, "Locked report baseline rejects manual simulated edits")
 	check(not state.apply_health_baseline(sample).ok, "Repeated baseline cannot overwrite the same record")
@@ -75,7 +75,7 @@ func run() -> void:
 	var loaded = State.new()
 	loaded.save_file_override = state.save_file_override
 	loaded.load_game()
-	check(loaded.health_baseline == state.health_baseline and loaded.battle_stats().max_hp == 80 and loaded.heal_unlocked(), "Interface baseline, direct HP and Boss progress survive reload")
+	check(loaded.health_baseline == state.health_baseline and loaded.battle_stats().max_hp == 100 and loaded.heal_unlocked(), "Report evidence, 100 base HP and Boss progress survive reload")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(state.save_file_override))
 	var legacy = State.new()
 	legacy.apply_health_profile(legacy.HealthProfile.mock(45, 1))

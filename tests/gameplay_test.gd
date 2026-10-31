@@ -115,21 +115,32 @@ func _run() -> void:
 	scene.state.cultivator_id = ""
 	scene.ui.close_modal()
 	scene.ui.open_recovery()
-	var family = scene.ui.modal.find_children("*", "CheckBox", true, false)[0]
-	family.button_pressed = true
-	find_button(scene.ui.modal, "开启篇章").pressed.emit()
-	check(scene.state.recovery_status == "active" and scene.state.longterm_enabled, "Recovery UI activates a parallel chapter")
+	var care: Control = scene.ui.lifecycle_panel
+	care.request_confirmation("begin")
+	await care.confirm_pending()
+	check(scene.state.recovery_status == "active" and scene.state.longterm_enabled, "Recovery UI activates a parallel chapter through explicit family confirmation")
 	scene.ui.close_modal()
+	await process_frame
+	scene.ui.start_battle()
+	check(not is_instance_valid(scene.ui.combat), "An elder in tribulation cannot enter a game battle")
+	scene.ui.open_recovery()
+	care = scene.ui.lifecycle_panel
+	care.request_confirmation("celebrate")
+	await care.confirm_pending()
+	scene.ui.close_modal()
+	await process_frame
+
 	scene.ui.start_battle()
 	check(scene.ui.combat.mode == "practice" and scene.ui.combat.rules.practice, "The training entrance uses the four-skill battle")
 	scene.ui.combat.use_skill(0)
 	check(scene.ui.combat.rules.mp < scene.ui.combat.rules.max_mp and scene.ui.combat.cast_visual > 0, "Sword input consumes mana and produces a live effect")
 	scene.ui.close_modal()
 	scene.ui.start_boss(false)
-	check(scene.ui.combat.dragon_frames.size() == 1 and scene.ui.combat.boss_id == "b00" and scene.state.boss_attempts == 1, "Named pixel boss loads its own static atlas cell")
+	check(scene.ui.combat.dragon_frames.size() == 16 and scene.ui.combat.boss_id == "b00" and scene.state.boss_attempts == 1, "Named boss loads sixteen redrawn action frames")
 	scene.ui.combat.hero.position = Vector2(900, 575)
 	var boss_hp_before = scene.ui.combat.rules.boss_hp
 	scene.ui.combat.basic_attack()
+	await create_timer(.18).timeout
 	check(scene.ui.combat.rules.boss_hp < boss_hp_before and scene.ui.combat.cast_visual > 0, "Basic attack requires an actual nearby hit")
 	var town_position = scene.player.position
 	var hero_position = scene.ui.combat.hero.position
@@ -137,12 +148,20 @@ func _run() -> void:
 	await create_timer(0.18).timeout
 	Input.action_release("move_forward")
 	check(scene.ui.combat.hero.position.distance_to(hero_position) > 15 and scene.player.position.distance_to(town_position) < 1, "WASD moves the battle character while town character stays blocked")
-	scene.ui.combat.rules.phase = "windup"
-	scene.ui.combat.rules.phase_clock = 1.0
-	scene.ui.combat.rules.target_position = scene.ui.combat.hero.position
 	var hp_before = scene.ui.combat.rules.hp
-	await create_timer(0.22).timeout
-	check(scene.ui.combat.rules.hp < hp_before and scene.ui.combat.rules.phase == "breath", "The rendered boss actually attacks and damages the player")
+	# Observe the new named-enemy timeline: tell -> travelling volley -> recovery.
+	var combat: Control = scene.ui.combat
+	combat.set_process(false)
+	combat.hero.position = Vector2(700,575)
+	var saw_warning := false
+	var saw_projectile := false
+	for frame in range(900):
+		combat._process(1.0/60)
+		saw_warning = saw_warning or combat.rules.phase == "windup"
+		saw_projectile = saw_projectile or not combat.rules.brain.projectiles.is_empty()
+		if saw_projectile and combat.rules.hp<hp_before and combat.rules.phase == "breath":
+			break
+	check(saw_warning and saw_projectile and combat.rules.hp<hp_before and combat.rules.phase == "breath", "The rendered moving boss telegraphs, fires travelling shots and damages on contact")
 	scene.ui.close_modal()
 	check(not scene.ui.modal_open and not scene.player.blocked, "Returning from a battle restores town controls")
 	for index in range(3):

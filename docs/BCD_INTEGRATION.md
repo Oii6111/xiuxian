@@ -1,4 +1,4 @@
-# B / C / D 整合说明
+# A / B / C / D 整合说明
 
 更新日期：2026-10-31。合并依据：[C 合并指南](BACKEND_INTEGRATION.md)。玩法和数值采用 B 的设计（PR #4）；所有资源、奖励和身份由 C 的服务端确认；微信与健康资料由 D 负责。
 
@@ -32,6 +32,20 @@ C 的环境变量：`HEALTH_SERVICE_TOKEN`、`WEB_ROOT`（默认 `build/web`）�
 
 `integration-v1` 保留给已经派发的旧任务和 C 原有的回归测试。
 
+## A：战斗与生命周期（分支 codex/gacha-family-accounts）
+
+A 的四技能战斗、二十 Boss 招式与阶段、AI 陪练、渡劫台/闭关/飞升界面原样合入。战斗手感、数值与画面不变。正式账号的持久结果改由 C 确认：
+
+| 命令 | C 的行为 |
+|---|---|
+| `lifecycle.request_change` | 按 A 的迁移表（修行→渡劫；渡劫→修行/闭关/飞升；闭关→修行/飞升）签发 5 分钟确认令牌，绑定角色、目标和版本；飞升需要两次确认 |
+| `lifecycle.confirm_change` | 用令牌确认，`request_id` 幂等；过期返回 `TOKEN_EXPIRED`，确认期间状态已变化返回 `STALE_STATE` |
+| `lifecycle.update_stage` | 渡劫阶段（cardio/fracture/pneumonia 模板）可前进或回退，`confirmation_token` 作为一次性点击标识；到出院不会自动结束渡劫 |
+| `combat.start` | 只有修行状态的角色能开具名 Boss（b00–b19）会话 |
+| `combat.finish` | 会话唯一；胜利时长不能短于 3 秒，也不能超过会话实际经过时间；首通按（角色, Boss）唯一，保留最快时间。战斗不产生灵气或其他资源，也不改变生命周期 |
+
+角色快照新增 `progress`：`{state, version, template_id, stage_index, cleared_bosses}`。Godot 端的 `family_gateway` 对正式账号把确认转给 C，未登录的演示模式仍使用 A 原来的本机确认；`combat_view` 在具名 Boss 开始和结束时调用 C，再从快照同步首通与境界。护法灯、时间线、庆典卡片是纯画面数据，仍保存在本地。练习模式不调用服务端。
+
 ## 微信链路（D）
 
 1. 游戏向 C 申请一次性业务凭据，不向任何人展示，然后调用 D 的 `POST /api/v1/wechat/bind`。D 调用 iLink `get_bot_qrcode` 并打开二维码页。
@@ -50,7 +64,7 @@ cd server && npm run check && npm run demo && npm run test:d
 ```
 
 ```bash
-cd server && npm run test:godot -- <Godot控制台路径> && npm run test:godot-b -- <Godot控制台路径>
+cd server && npm run test:godot -- <Godot控制台路径> && npm run test:godot-b -- <Godot控制台路径> && npm run test:godot-b -- <Godot控制台路径> a_backend_test
 ```
 
-尚未验证：真实 iLink 扫码（需要真实账号和网络），以及老人通过 OpenClaw 与已扫码 Bot 的对接方式（D 需要确认 OpenClaw 读取 `ilink_accounts.json` 的方式）。A 的战斗进度仍保存在本地。
+尚未验证：真实 iLink 扫码（需要真实账号和网络），以及老人通过 OpenClaw 与已扫码 Bot 的对接方式（D 需要确认 OpenClaw 读取 `ilink_accounts.json` 的方式）。实时联机战斗、全服庆典仍未实现。

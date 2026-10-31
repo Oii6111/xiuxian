@@ -1,5 +1,6 @@
 extends RefCounted
 ## Adapter boundary: the future service supplies scores; this client never diagnoses.
+const INITIAL_HP = 100
 const KEYS = ["life", "attack", "defense", "spirit", "stamina"]
 const LABELS = {"life": "生命", "attack": "攻击", "defense": "防御", "spirit": "灵力", "stamina": "体力"}
 
@@ -28,4 +29,4 @@ static func mock(score: int, revision: int) -> Dictionary:
 
 static func battle_stats(values: Dictionary) -> Dictionary:
 	# Temporary GAME scaling only. Medical-record-to-score quantification belongs to the service.
-	return {"max_hp": 180 + int(values.life) * 8, "attack": 18 + int(values.attack) * 2, "damage_multiplier": 100.0 / (100.0 + float(values.defense) * 0.8), "max_mp": 40 + int(values.spirit) * 2, "max_stamina": 50 + int(values.stamina) * 1.5, "shield": 35 + int(values.defense) * 2}
+	return {"max_hp": INITIAL_HP, "attack": 18 + int(values.attack) * 2, "damage_multiplier": 100.0 / (100.0 + float(values.defense) * 0.8), "max_mp": 40 + int(values.spirit) * 2, "max_stamina": 50 + int(values.stamina) * 1.5, "shield": 35 + int(values.defense) * 2}

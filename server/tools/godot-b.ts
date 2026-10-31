@@ -11,7 +11,7 @@ try {
   await server.app.listen({ host: '127.0.0.1', port: 0 });
   const outputDirectory = join(repositoryRoot, 'work/backend');
   mkdirSync(outputDirectory, { recursive: true });
-  const log = join(outputDirectory, 'godot-b.log');
+  const log = join(outputDirectory, `godot-${process.argv[3] ?? 'account_test'}.log`);
   const child = spawn(executable, ['--headless', '--path', repositoryRoot, '--script', 'res://tests/' + (process.argv[3] ?? 'account_test') + '.gd', '--log-file', log, '--', '--kernel-ephemeral'], {
     windowsHide: true, env: { ...process.env, XIUXIAN_BACKEND_URL: server.app.listeningOrigin }, stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -25,6 +25,6 @@ try {
   finally { clearTimeout(timer); }
   const content = existsSync(log) ? readFileSync(log, 'utf8') : output;
   const errors = content.split(/\r?\n/).filter(line => /SCRIPT ERROR:|^ERROR:|FAIL:/.test(line) && line.trim() !== 'ERROR: Failed to read the root certificate store.');
-  if (timedOut || code !== 0 || errors.length || !/(ACCOUNT TESTS|DRAW TESTS): \d+ passed, 0 failed/.test(content)) throw new Error(`Godot 本地网络验证失败：${log}`);
+  if (timedOut || code !== 0 || errors.length || !/(ACCOUNT TESTS|A BACKEND TESTS): \d+ passed, 0 failed/.test(content)) throw new Error(`Godot 本地网络验证失败：${log}`);
   if (content.includes('Failed to read the root certificate store')) console.log('宿主证书库警告：本轮验证使用回环 HTTP，HTTPS 尚未验证。');
 } finally { await server.app.close(); }

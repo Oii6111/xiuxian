@@ -47,7 +47,7 @@ func _run() -> void:
 	var low = Boss.new(fresh(0))
 	var high = Boss.new(fresh(100))
 	check(low.max_hp > 0 and low.max_mp >= Boss.SWORD_COST and low.max_stamina >= Boss.DODGE_COST, "The score interface never performs a medical/death decision")
-	check(high.max_hp > low.max_hp and high.max_mp > low.max_mp and high.max_stamina > low.max_stamina, "Life, spirit and stamina independently scale battle limits")
+	check(high.max_hp == 100 and low.max_hp == 100 and high.max_mp > low.max_mp and high.max_stamina > low.max_stamina, "Base health stays 100 while spirit and stamina scale battle limits")
 	check(high.stats.attack > low.stats.attack and high.stats.shield > low.stats.shield and high.stats.damage_multiplier < low.stats.damage_multiplier, "Attack and defense affect damage and protection")
 	check(not state.stage_available("attack", 20) and state.stage_available("life", 10), "Each attribute track starts at tier ten")
 	check(not state.begin_boss(false, 25, "attack").ok and not state.begin_boss(false, 10, "unknown").ok, "Invalid track and tier requests are rejected")
@@ -114,7 +114,7 @@ func _run() -> void:
 	expire.step(3.3, Vector2(100, 450))
 	check(expire.shield_hp == 0, "Shield expires after its duration")
 	var healer = Boss.new(fresh())
-	healer.hp -= 100
+	healer.hp = maxi(1,healer.max_hp-60)
 	check(not healer.heal() and healer.mp == healer.max_mp, "Locked healing consumes no resources")
 	healer.state.complete_stage("attack", 10)
 	healer.state.complete_stage("attack", 20)
@@ -126,7 +126,7 @@ func _run() -> void:
 	healer.step(0.6, Vector2(100, 450))
 	check(healer.hp > health_before and healer.hp <= healer.max_hp, "Channel completion heals without exceeding max health")
 	var stopped = Boss.new(healer.state)
-	stopped.hp -= 150
+	stopped.hp = maxi(1,stopped.max_hp-60)
 	stopped.heal()
 	stopped.receive_damage(20)
 	health_before = stopped.hp
@@ -137,7 +137,7 @@ func _run() -> void:
 	var snapshot = Boss.new(combat_state)
 	var snapshot_hp = snapshot.max_hp
 	combat_state.apply_health_profile(Health.mock(70, 2))
-	check(snapshot.max_hp == snapshot_hp and Boss.new(combat_state).max_hp > snapshot_hp, "New assessments affect the next battle, not an active battle snapshot")
+	check(snapshot.max_hp == snapshot_hp and Boss.new(combat_state).max_hp == 100 and Boss.new(combat_state).stats.attack > snapshot.stats.attack, "New assessments affect the next battle, not an active battle snapshot")
 	var victor_state = fresh()
 	var victor = Boss.new(victor_state)
 	while not victor.finished:
@@ -197,10 +197,16 @@ func _run() -> void:
 	check(scene.ui.combat.vital_bars.size() == 3, "Battle HUD displays health, mana and stamina separately")
 	scene.ui.combat.use_skill(0)
 	check(scene.ui.combat.cast_visual > 0 and scene.ui.combat.sword_visual, "Sword input triggers a live pixel ink effect")
+	var roll_start: Vector2 = scene.ui.combat.hero.position
 	scene.ui.combat.use_skill(1)
-	check(scene.ui.combat.dodge_visual > 0 and scene.ui.combat.rules.stamina < scene.ui.combat.rules.max_stamina, "Cloud step changes position and consumes stamina in the live scene")
+	check(scene.ui.combat.dodge_visual > 0 and scene.ui.combat.rules.stamina < scene.ui.combat.rules.max_stamina, "Cloud step starts its animation and consumes stamina in the live scene")
+	check(scene.ui.combat.hero.position==roll_start and scene.ui.combat.roll_remaining==145,"Cloud step reserves continuous travel without teleporting")
 	scene.ui.combat.use_skill(2)
-	check(scene.ui.combat.rules.shield_hp > 0, "Cloud shield produces actual shield health in the live scene")
+	check(scene.ui.combat.rules.shield_hp==0,"Cloud shield waits until the dodge movement finishes")
+	await create_timer(.24).timeout
+	check(scene.ui.combat.hero.position.distance_to(roll_start)>120 and scene.ui.combat.roll_remaining==0,"Cloud step completes real continuous movement")
+	scene.ui.combat.use_skill(2)
+	check(scene.ui.combat.rules.shield_hp > 0, "Cloud shield produces actual shield health after dodge recovery")
 	scene.ui.close_modal()
 	await process_frame
 	check(not scene.player.blocked and not scene.ui.modal_open, "Leaving battle restores village controls")
@@ -210,7 +216,7 @@ func _run() -> void:
 	scene.state.complete_stage("attack", 10)
 	scene.state.complete_stage("attack", 20)
 	scene.ui.start_boss(false, 30, "attack")
-	scene.ui.combat.rules.hp -= 150
+	scene.ui.combat.rules.hp = maxi(1,scene.ui.combat.rules.max_hp-60)
 	scene.ui.combat.use_skill(3)
 	check(scene.ui.combat.rules.heal_cast > 0 and scene.ui.combat.skill_nodes[3].text.contains("吐纳"), "Unlocked recovery works through the actual fourth skill button")
 	var channel_start: Vector2 = scene.ui.combat.hero.position

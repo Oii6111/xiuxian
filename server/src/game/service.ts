@@ -1,6 +1,7 @@
 import { Database } from '../database.js';
 import { type Clock, dayKey, dayStart, id, requireCondition } from '../core.js';
 import { Ledger, idempotent } from './ledger.js';
+import { ProgressService } from './progress.js';
 import { type Character, type RuleProviders, type Template, allSlots, checkedRules, compensationTier, elements, initialScore, isPixel, legacyRules, pixelRarities, pixelRules, pixelSlots, profileElement, rollPixelRarity, rollRarity, slots } from './rules.js';
 
 export type Task = { id: string; cultivator_id: string; template_id: string; template_version: string; rule_version: string; period: string; window_start: number; window_end: number; template_snapshot: string; status: string; created_at: number };
@@ -49,8 +50,10 @@ const defaultCalendar: Season[] = [
 
 export class GameService {
   readonly ledger: Ledger;
+  readonly progress: ProgressService;
   constructor(readonly db: Database, readonly now: Clock, readonly rules: RuleProviders, private randomInt: (maximum: number) => number, readonly calendar = defaultCalendar, private extensions: GameExtensions = {}) {
     this.ledger = new Ledger(db, now);
+    this.progress = new ProgressService(db, now, (accountId, cultivarId) => this.own(accountId, cultivarId));
     checkedRules(rules, rules.currentVersion);
     const sorted = [...calendar].sort((left, right) => Date.parse(left.starts_at) - Date.parse(right.starts_at));
     requireCondition(new Set(calendar.map(season => season.id)).size === calendar.length && sorted.every((season, index) => {
@@ -87,6 +90,8 @@ export class GameService {
       days: this.db.get<{ days: number }>('SELECT COUNT(*) AS days FROM reward_groups WHERE cultivator_id = ?', character.id)!.days,
       pity: character.pity, compensation_tier: compensationTier(this.rules, character), draw_count: character.draw_count,
       initial_score: character.initial_score, initial_profile_id: character.initial_profile_id,
+      // A：生命周期投影与首通；战斗胜负不产生资源，也不改变生命周期。
+      progress: this.progress.view(character),
       baseline: baseline ? { baseline_id: baseline.baseline_id, confirmed_at: baseline.created_at, ...JSON.parse(baseline.projection) } : null,
       equipment: this.db.all('SELECT id AS equipment_id, catalogue_id, catalogue_version, slot, rarity, equipped FROM equipment WHERE cultivator_id = ? ORDER BY created_at, rowid', character.id),
     };
@@ -152,6 +157,12 @@ export class GameService {
         return isMember(character) ? this.pixelDraw(accountId, character, payload.count as number, text('request_id')) : this.draw(accountId, text('cultivator_id'), payload.count as number);
       });
       case 'quests.family_today': return this.familyTasks(accountId, text('date'));
+      // 扩展处理器优先，便于联调替换；默认由 A 的规则在 C 的事务内执行。
+      case 'lifecycle.request_change': if (this.extensions.commands?.[command]) break; return this.db.transaction(() => this.progress.requestChange(accountId, text('cultivator_id'), text('target_state')));
+      case 'lifecycle.confirm_change': if (this.extensions.commands?.[command]) break; return mutate(() => this.progress.confirmChange(accountId, text('cultivator_id'), text('confirmation_token')));
+      case 'lifecycle.update_stage': if (this.extensions.commands?.[command]) break; return idempotent(this.db, this.now, accountId, command, text('confirmation_token'), payload, () => this.progress.updateStage(accountId, text('cultivator_id'), text('stage_id')));
+      case 'combat.start': if (this.extensions.commands?.[command]) break; return this.db.transaction(() => this.progress.start(accountId, text('cultivator_id'), text('encounter_id')));
+      case 'combat.finish': if (this.extensions.commands?.[command]) break; return this.db.transaction(() => this.progress.finish(accountId, text('session_id'), payload.won as boolean, payload.duration_seconds as number));
       case 'quests.templates': return { templates: this.templates() };
       case 'quests.assign': return mutate(() => this.assign(accountId, text('cultivator_id'), text('template_id'), text('date')));
       case 'quests.list': {
@@ -172,6 +183,8 @@ export class GameService {
         requireCondition(season.current, 'SEASON_UNAVAILABLE', '当前日期没有已发布的赛季', 409);
         return { ...season, cultivator_id: text('cultivator_id'), checkup_status: 'not_integrated', checkup_reminder: '本赛季体检基线接入后更新，现有积累保持不变' };
       }
+    }
+    switch (command) {
       default:
         if (this.extensions.commands?.[command]) {
           const extension = this.extensions.commands[command];

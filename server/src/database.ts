@@ -129,6 +129,27 @@ CREATE TABLE baseline_tickets (
 CREATE TABLE legacy_claims (
   fingerprint TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), created_at INTEGER NOT NULL
 );
+`, String.raw`
+-- 3：A 的生命周期与战斗会话。生命周期需家属确认令牌；首通按 (角色, Boss) 唯一，战斗不产生资源。
+ALTER TABLE cultivators ADD COLUMN lifecycle_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cultivators ADD COLUMN stage_template TEXT NOT NULL DEFAULT '';
+ALTER TABLE cultivators ADD COLUMN stage_index INTEGER NOT NULL DEFAULT -1;
+CREATE TABLE lifecycle_tokens (
+  token_hash TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), target_state TEXT NOT NULL,
+  from_version INTEGER NOT NULL, confirmations INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL
+);
+CREATE TABLE lifecycle_events (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), kind TEXT NOT NULL,
+  value TEXT NOT NULL, version INTEGER NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE TABLE combat_sessions (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), encounter_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL, finished_at INTEGER, won INTEGER, duration_seconds REAL
+);
+CREATE TABLE boss_clears (
+  cultivator_id TEXT NOT NULL REFERENCES cultivators(id), boss_id TEXT NOT NULL, first_session_id TEXT NOT NULL,
+  best_seconds REAL NOT NULL, cleared_at INTEGER NOT NULL, PRIMARY KEY(cultivator_id, boss_id)
+);
 `];
 
 export class Database {

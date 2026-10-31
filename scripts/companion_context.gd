@@ -19,7 +19,10 @@ static func snapshot(game) -> Dictionary:
 	for member in game.family.members:
 		if member.state.family_identity.get("consent", false) == true:
 			characters.append(character(member.state, str(member.id), false))
-	return {"source": "local_game", "as_of_date": game.state.today(), "active_member_id": game.family.active_id, "characters": characters}
+	var context = {"source": "local_game", "as_of_date": game.state.today(), "active_member_id": game.family.active_id, "characters": characters}
+	if is_instance_valid(game.companion_tasks):
+		game.companion_tasks.overlay(context)
+	return context
 
 static func active(context: Dictionary) -> Dictionary:
 	for person in context.characters:
@@ -39,8 +42,14 @@ static func task_summary(context: Dictionary, everybody: bool) -> String:
 		if not everybody and person.member_id != context.active_member_id:
 			continue
 		lines.append("%s：" % person.label)
+		if person.get("task_source", "") == "wechat":
+			lines.append("  · " + person.sync_status)
+			if person.tasks.is_empty():
+				lines.append("  · 尚未确认适用的安排，暂未开启任务。" if person.sync_ready else "  · 等待同步后查看当前安排。")
 		for task in person.tasks:
 			var status = {"confirmed": "已确认", "unrecorded": "暂未收到记录", "not_applicable": "未安排，无需记录"}.get(task.status, "待核对")
+			if person.get("task_source", "") == "wechat":
+				status = {"confirmed": "老人已在微信确认完成", "unrecorded": "等待老人微信反馈", "cancelled": "已取消，不再需要反馈"}.get(task.status, "等待核对")
 			lines.append("  · %s：%s" % [task.title, status])
 		if person.reward_recorded:
 			lines.append("  · 今日有效记录奖励已记入。")
@@ -49,6 +58,20 @@ static func task_summary(context: Dictionary, everybody: bool) -> String:
 
 static func next_step(context: Dictionary) -> Dictionary:
 	var person = active(context)
+	if person.get("task_source", "") == "wechat":
+		if not person.sync_ready:
+			return response("微信记录暂时还没同步好，我会继续等候更新。", [action("record", "查看同步状态")])
+		if person.tasks.is_empty():
+			return response("目前还没有已确认、适用的安排。可以先在微信告诉聊天伙伴已有的生活安排，说清后再开启对应记录。", [action("record", "查看微信记录")])
+		var active_count = 0
+		for task in person.tasks:
+			active_count += int(task.status != "cancelled")
+		if active_count == 0:
+			return response("当前安排已取消或不再适用，暂时没有需要反馈的任务。", [action("record", "查看微信记录")])
+		for task in person.tasks:
+			if task.status == "unrecorded":
+				return response("还有「%s」等待反馈。请由老人按原有安排完成后，在微信告诉聊天伙伴，我会同步看到。" % task.title, [action("record", "查看微信记录")])
+		return response("今天适用的安排已经收到完成反馈啦。可以看看其他家人的近况，也可以休息一会儿。", [action("family", "查看家人")], "celebrate")
 	if not person.has_profile:
 		return response("先为当前角色确认一份健康档案吧。完成后，我就能陪你查看计划、装备与试炼安排。", [action("health", "查看健康档案"), action("family", "选择家人")])
 	for task in person.tasks:
@@ -66,6 +89,8 @@ static func local_reply(message: String, context: Dictionary, pet: Dictionary) -
 		return response(task_summary(context, true), [action("family", "查看我的家人"), action("record", "查看当前角色记录")])
 	var asking_status = "了吗" in message or "有没有" in message or "是否" in message or "怎么样" in message or "做没做" in message
 	if not asking_status and ("完成了" in message or "做完了" in message or "吃过" in message or "吃了" in message or "打卡" in message):
+		if active(context).get("task_source", "") == "wechat":
+			return response("这项安排由老人微信反馈完成。可以在微信向聊天伙伴说明，我会自动同步状态。", [action("record", "查看微信记录")])
 		return response("我听到了。可以打开记录页面，核对是哪位家人、今天的哪项计划，再由你确认。确认结果会出现在今日任务里。", [action("record", "去核对并确认")])
 	if "任务" in message or "记录" in message or "完成" in message or "今天" in message:
 		return response(task_summary(context, false), [action("record", "查看今日记录"), action("family", "看看家人")])

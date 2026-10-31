@@ -20,6 +20,7 @@ var account_panel: Control
 var return_to_health_entry = false
 var companion_panel: Control
 var companion_button: Button
+var wechat_task_label: Label
 
 func _ready() -> void:
 	super._ready()
@@ -53,6 +54,14 @@ func refresh() -> void:
 		medication = "无用药计划"
 	var recovery = {"not_started": "未开启", "active": "进行中", "recovered": "已确认结束"}.get(game.state.recovery_status, "未开启")
 	daily_label.text = "服药：%s\n计划：%s\n恢复篇章：%s" % [medication, "已确认" if game.state.task_done("planned_record") else "待记录", recovery]
+	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
+		var tasks = game.companion_tasks.members.get(game.family.active_id, [])
+		var done = 0
+		for task in tasks:
+			done += int(task.status == "confirmed")
+		daily_label.text = "微信安排：%d 项\n已反馈完成：%d 项\n%s" % [tasks.size(), done, "已同步" if game.companion_tasks.connected else "等待同步"]
+	if is_instance_valid(wechat_task_label):
+		wechat_task_label.text = wechat_record_text()
 
 func refresh_companion_button() -> void:
 	if not is_instance_valid(companion_button):
@@ -90,6 +99,7 @@ func close_modal(force: bool = false) -> void:
 		companion_panel.shutdown()
 		companion_panel.queue_free()
 	companion_panel = null
+	wechat_task_label = null
 	if is_instance_valid(health_entry):
 		health_entry.shutdown()
 		health_entry.queue_free()
@@ -252,7 +262,21 @@ func continue_game() -> void:
 		return
 	toast("欢迎回到仙村，" + game.state.player_name)
 
+func wechat_record_text() -> String:
+	var context = preload("res://scripts/companion_context.gd")
+	return game.companion_tasks.status_text() + "\n\n" + context.task_summary(context.snapshot(game), false)
+
+func open_wechat_record() -> void:
+	var content = _dialog("微信同步记录", "完成情况由老人微信反馈同步，这里可以查看最新状态。")
+	wechat_task_label = paragraph(content, wechat_record_text(), 18, BROWN)
+	wechat_task_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	button(content, "刷新微信记录", game.companion_tasks.refresh_now, true)
+	paragraph(content, "本地文字联调 · 仅展示任务状态，未接入正式奖励账本。" if "--wechat-link-demo" in OS.get_cmdline_user_args() else "老人明确反馈后，任务状态会自动刷新。", 14)
+
 func open_record() -> void:
+	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
+		open_wechat_record()
+		return
 	if require_family():
 		return
 	var state = game.state
@@ -732,6 +756,8 @@ func logout_account() -> void:
 
 func reset_logged_out() -> void:
 	close_modal(true)
+	if is_instance_valid(game.companion_tasks):
+		game.companion_tasks.clear_state()
 	game.companion_api.reset_session()
 	game.family.dispose()
 	if game.pending_account_roster != null:

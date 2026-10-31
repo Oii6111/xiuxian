@@ -20,12 +20,15 @@ var mode_label: Label
 var portrait: TextureRect
 var portrait_clock = 0.0
 var closed = false
+var task_sync_label: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	game.companion_api.reply_received.connect(on_reply)
 	game.companion_api.busy_changed.connect(on_busy)
+	if is_instance_valid(game.companion_tasks):
+		game.companion_tasks.changed.connect(on_tasks_changed)
 	choose_mode = choose_mode or not Catalogue.valid(str(game.family.companion.id))
 	build()
 
@@ -40,6 +43,7 @@ func build() -> void:
 	messages = null
 	thinking = null
 	portrait = null
+	task_sync_label = null
 	var shade = ColorRect.new()
 	shade.color = Color(0.08, 0.1, 0.08, 0.68)
 	add_child(shade)
@@ -182,6 +186,8 @@ func build_chat(content: VBoxContainer) -> void:
 	columns.add_child(right)
 	var context = Context.snapshot(game)
 	ui.label_into(right, context.as_of_date + "  ·  当前角色：" + Context.active(context).label, 15)
+	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
+		task_sync_label = ui.label_into(right, game.companion_tasks.status_text(), 13)
 	scroll = ScrollContainer.new()
 	scroll.custom_minimum_size.y = 380
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -210,7 +216,10 @@ func build_chat(content: VBoxContainer) -> void:
 	bottom.add_child(input)
 	send_button = ui.button(bottom, "发送", func(): send_message(input.text), true)
 	send_button.custom_minimum_size.x = 88
-	ui.paragraph(right, "按游戏中的记录陪你安排今天；确认记录请到对应页面完成。", 12)
+	var record_note = "按游戏中的记录陪你安排今天；确认记录请到对应页面完成。"
+	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
+		record_note = "由老人微信反馈完成，任务状态会自动同步。"
+	ui.paragraph(right, record_note, 12)
 	var has_current_history = false
 	for item in game.companion_api.history:
 		has_current_history = has_current_history or item.scope == game.companion_api.scope()
@@ -309,8 +318,14 @@ func _process(delta: float) -> void:
 		portrait.pivot_offset = portrait.size * 0.5
 		portrait.rotation = sin(portrait_clock * 2) * 0.025
 
+func on_tasks_changed() -> void:
+	if is_instance_valid(task_sync_label):
+		task_sync_label.text = game.companion_tasks.status_text()
+
 func shutdown() -> void:
 	closed = true
+	if is_instance_valid(game.companion_tasks) and game.companion_tasks.changed.is_connected(on_tasks_changed):
+		game.companion_tasks.changed.disconnect(on_tasks_changed)
 	if game.companion_api.reply_received.is_connected(on_reply):
 		game.companion_api.reply_received.disconnect(on_reply)
 	if game.companion_api.busy_changed.is_connected(on_busy):

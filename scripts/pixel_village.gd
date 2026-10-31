@@ -14,6 +14,7 @@ var account_api: Node
 var account_ready = false
 var companion_api: Node
 var companion_actor: Node2D
+var companion_tasks: Node
 var account_cache_root_override = ""
 var account_legacy_source_override = ""
 var pending_account_roster: RefCounted
@@ -74,6 +75,12 @@ func _ready() -> void:
 	companion_actor.set_script(preload("res://scripts/companion_actor.gd"))
 	companion_actor.game = self
 	add_child(companion_actor)
+	companion_tasks = Node.new()
+	companion_tasks.set_script(preload("res://scripts/companion_task_client.gd"))
+	companion_tasks.game = self
+	add_child(companion_tasks)
+	if "--wechat-link-demo" in OS.get_cmdline_user_args():
+		_setup_wechat_demo.call_deferred()
 	_handle_capture.call_deferred()
 
 func _setup_inputs() -> void:
@@ -462,3 +469,24 @@ func _handle_capture() -> void:
 			await get_tree().process_frame
 			await capture(arg.trim_prefix("--capture="))
 			get_tree().quit()
+
+func _setup_wechat_demo() -> void:
+	# Explicit preview flag: synthetic family, no writes to player saves or accounts.
+	family.persist_enabled = false
+	account_api.allow_autostart = false
+	if family.state_for("wechat-demo-father") == null:
+		var demo = State.new()
+		demo.cultivation = 0
+		demo.seals = 0
+		demo.days = 0
+		demo.medication_required = false
+		demo.choose_avatar("male", "联调守护者")
+		family.bind_state("wechat-demo-father", {"name": "演示家人", "relation": "父亲", "age": 68, "sex": "男", "mode": "family", "consent": true}, demo)
+	family.active_id = "wechat-demo-father"
+	state = family.active_state()
+	family.choose_companion("gourd_dragon", "团团")
+	sync_avatar_from_state()
+	companion_actor.refresh_pet()
+	ui.refresh()
+	companion_tasks.refresh_now()
+	ui.open_companion()

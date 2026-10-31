@@ -210,8 +210,8 @@ func _test_runtime() -> void:
 					"integer", "number": payload[field] = 1
 					"bool": payload[field] = true
 			var response: Dictionary = await runtime.dispatch(command, payload)
-			if command in IMPLEMENTED_COMMANDS:
-				# 已实现的命令在没有服务端确认或权威状态时必须显式失败，不能假成功。
+			if command == "season.refresh" or command in IMPLEMENTED_COMMANDS:
+				# 已定义的服务端边界在没有权威服务时必须显式失败，不能假成功。
 				expect(response.code in ["NOT_FOUND", "BACKEND_UNAVAILABLE"], "implemented command fails explicitly without authority: " + command)
 			else:
 				expect(response.code == "NOT_IMPLEMENTED", "explicit placeholder: " + command)

@@ -1,121 +1,25 @@
-# 游戏侧对接说明
+# 健康入口与 C 后端对接
 
-这份文档给游戏开发看：入口系统如何把长辈的健康资料换成游戏的初始角色状态，以及游戏怎么读这份数据。
+当前 `health-entry/` 是 D 的独立识别原型。C 的本地游戏服务和接缝已经实现，见 [服务启动说明](../server/README.md) 与 [A/B/D 合并指南](../docs/BACKEND_INTEGRATION.md)。
 
-## 1. 整体流程
+## 数据边界
 
-```
-上传体检报告 / 病历 / 用药单照片（可多张）+ 文字基本信息
-   ↓  视觉模型识别（recognizer.py）
-结构化健康指标 + 病史 + 用药（document）
-   ↓  确定性规则引擎（rules.py）
-初始角色状态（character_state）+ 守护准备度（readiness）
-   ↓  用户确认、锁定
-baseline JSON（锁定，不可手改）
-   ↓  游戏读取
-初始化角色 / 建立档案
-```
+原型的 baseline 文件包含健康来源、病史、用药和属性解释。**完整 baseline、source_document、attribute_notes、evidence 都必须留在健康域**，不能直接读入 Godot Store、发送到游戏 API 或放入社交展示。
 
-游戏只需要读最后产出的 **baseline JSON**，不需要关心识别过程。
+原型中的 character_state 使用十属性，产品 v2 使用五属性。C 本轮没有推测两者映射，也没有实现游戏侧 `/api/v1/game/baseline`。原型的同名接口目前只用于健康原型内部保存，不等于可信的游戏初始化接口。原型现有 `window.XIUXIAN_GAME_API` 完整 baseline 转发方式不适用于新游戏服务。
 
-> 哪些健康数据会被采用、如何换算成属性，见 [MAPPING.md](./MAPPING.md)。
+## D 接入任务链路
 
-## 2. 游戏需要关心的字段
+1. 从 C 游戏侧获取邀请；D 验证实际微信身份及老人授权后，通过 `/internal/v1/bindings/confirm` 消费邀请。
+2. D 自行持久保存图片、聊天、识别结果、授权凭证；从绑定待办接口读取任务。
+3. AI 只输出候选事实；D 的确定性规则完成证据、归属、时间与人工确认核验。
+4. 向 `/internal/v1/task-results` 提交不含健康原始内容的最小验证结果。
+5. C 核对授权并事务结算，D 从通知队列读取结果并回复老人。
 
-baseline JSON 里游戏真正要用的只有这几个：
+完整字段和可用 HealthClient 示例见团队合并指南。Python 原型可以直接通过 HTTP 调用，无须迁移语言。内部服务令牌只存于 D 的可信服务端，不能注入原型浏览器页面或模型。
 
-- `character_state` —— 10 个角色属性
-- `readiness` —— 守护准备度（0–100）
-- `attribute_notes` —— 每个属性由哪些具体数据算出（可选，用于展示「为什么是这个值」）
-- `evidence` —— 建模依据（资料完整度、活动能力等，可选）
+## 后续体检基线合并
 
-其余字段（`baseline_id`、`provider`、`model`、`input_mode`、`recognition_mode`、`source_document`、`source_priority`、`synced_at`）都是元数据，游戏可忽略。
+D 与 B 明确五属性/十属性映射及版本后，再由 C 增加独立游戏投影接口。投影仅包含角色与赛季标识、确认后的游戏属性/等级、版本及不透明授权引用；字段逐项白名单校验。医疗原因说明继续通过独立授权的健康入口查看。
 
-## 3. baseline JSON 结构（真实示例）
-
-见同目录 [sample-baseline.json](./sample-baseline.json)。核心部分：
-
-```json
-{
-  "character_state": {
-    "hp_max": 80, "hp_current": 80,
-    "attack": 50, "defense": 50, "spirit": 48,
-    "stamina": 50, "insight": 51, "mind": 50,
-    "speed": 50, "luck": 50
-  },
-  "attribute_notes": {
-    "spirit": "灵力 = 48（高血压病史 −5、氨氯地平 +3）"
-  },
-  "readiness": 49
-}
-```
-
-## 4. 属性映射表
-
-| JSON 字段 | 游戏属性 | 含义 | 由什么决定 |
-| --- | --- | --- | --- |
-| `hp_max` | 气血 HP | 生命上限（上限 100） | 营养/血象（BMI、血常规、贫血） |
-| `hp_current` | 当前 HP | 首日与 `hp_max` 相等 | — |
-| `attack` | 攻击 ATK | 攻 | 活动能力 |
-| `defense` | 防御 DEF | 防 | 呼吸系统（血氧、肺） |
-| `spirit` | 灵力 SPIRIT | 灵力 | 心脑血管（血压、心率） |
-| `stamina` | 体力 STA | 体力 | 泌尿骨骼（肾、肌酐、骨） |
-| `insight` | 洞察 INSIGHT | 洞察 | 资料完整度 |
-| `mind` | 心志 MIND | 心志 | 家族支持 |
-| `speed` | 身法 SPD | 身法 | 代谢糖脂（血糖、血脂、肝） |
-| `luck` | 气运 LUCK | 气运 | 固定 50 |
-
-数值范围大致在 20–100 之间（气血 HP 上限 100）。
-
-## 5. 两条重要约定（务必遵守）
-
-1. **异常只小幅调整**：体检异常只把对应属性做 −6 这类小幅下调，**不把老人角色写成残血**——气血最低也在 40。
-2. **锁定，只能补充**：`baseline_locked: true`、`supplementable: true`。用户只能继续补充资料生成新 baseline，不能直接改属性数值。
-
-## 6. 游戏如何拿到 baseline（两种方式）
-
-### 方式 A：读文件（最简单）
-
-入口后端把每次确认的 baseline 存到 `health-entry/baselines/{baseline_id}.json`。游戏在创建角色时读最新一个文件即可。
-
-### 方式 B：HTTP 实时推送
-
-入口前端支持注入一个游戏地址：
-
-```js
-window.XIUXIAN_GAME_API = 'http://localhost:8080'
-```
-
-确认后前端会向 `POST http://localhost:8080/api/v1/game/baseline` 发送完整 baseline JSON。游戏侧起一个 HTTP 接收端监听即可。
-
-## 7. Godot 4 接入示例（GDScript）
-
-```gdscript
-# 示例：把 baseline JSON 读进游戏状态（Godot 4）
-func apply_health_baseline(path: String) -> void:
-    if not FileAccess.file_exists(path):
-        return
-    var data = JSON.parse_string(FileAccess.get_file_as_string(path))
-    if not data is Dictionary:
-        return
-
-    var cs: Dictionary = data.get("character_state", {})
-    hp_max     = int(cs.get("hp_max", 100))
-    hp_current = int(cs.get("hp_current", hp_max))
-    attack     = int(cs.get("attack", 50))
-    defense    = int(cs.get("defense", 50))
-    spirit     = int(cs.get("spirit", 50))
-    stamina    = int(cs.get("stamina", 50))
-    insight    = int(cs.get("insight", 50))
-    mind       = int(cs.get("mind", 50))
-    speed      = int(cs.get("speed", 50))
-    luck       = int(cs.get("luck", 50))
-
-    readiness  = int(data.get("readiness", 50))
-```
-
-## 8. 联调最小步骤
-
-1. 起入口：`python server.py`，浏览器打开 http://127.0.0.1:8000 上传报告，点「确认并锁定初始状态」。
-2. 去 `health-entry/baselines/` 看有没有生成 `baseline_*.json`。
-3. 用 [sample-baseline.json](./sample-baseline.json) 先跑通游戏的初始化逻辑，再替换成实时数据。
+原型识别、锁定和补充资料流程继续在健康域使用。已有样例 baseline 只供健康原型测试，不作为新游戏 API 的请求样例。

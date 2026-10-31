@@ -208,7 +208,8 @@ func _test_runtime() -> void:
 					"integer", "number": payload[field] = 1
 					"bool": payload[field] = true
 			var response: Dictionary = await runtime.dispatch(command, payload)
-			expect(response.code == "NOT_IMPLEMENTED", "explicit placeholder: " + command)
+			var expected_code: String = "BACKEND_UNAVAILABLE" if command == "season.refresh" else "NOT_IMPLEMENTED"
+			expect(response.code == expected_code, "offline system boundary: " + command)
 	var unknown: Dictionary = await runtime.dispatch("not.a.command")
 	expect(unknown.code == "UNKNOWN_COMMAND", "unknown command rejected")
 	expect(runtime.save().ok, "runtime saves registered sections together")

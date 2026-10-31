@@ -6,3 +6,5 @@ var random: RefCounted
 var registry: RefCounted
 var store: RefCounted
 var audit: RefCounted
+## 可选传输依赖，由装配层注入。默认离线，不保存令牌到 Store。
+var backend: Object

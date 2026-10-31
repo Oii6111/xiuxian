@@ -67,4 +67,4 @@ cd server && npm run check && npm run demo && npm run test:d
 cd server && npm run test:godot -- <Godot控制台路径> && npm run test:godot-b -- <Godot控制台路径> && npm run test:godot-b -- <Godot控制台路径> a_backend_test
 ```
 
-尚未验证：真实 iLink 扫码（需要真实账号和网络），以及老人通过 OpenClaw 与已扫码 Bot 的对接方式（D 需要确认 OpenClaw 读取 `ilink_accounts.json` 的方式）。实时联机战斗、全服庆典仍未实现。
+微信消息收发改为 sidecar 内置的 iLink 长轮询网关（`wechat-sidecar/ilink_gateway.py`）：`getupdates` 游标与去重状态持久化在 `bot_data/ilink_state.json`，入站消息交给 `elder_assistant.handle_message`，回复走 `sendmessage`；任务提醒也从 openclaw CLI 改为同一网关发送。`openclaw-health-hook` 已删除，不再需要外部插件。尚未验证：真实账号扫码后的长时间收发与限流表现。实时联机战斗、全服庆典仍未实现。

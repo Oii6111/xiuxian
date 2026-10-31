@@ -1,0 +1,26 @@
+/** Fetch the exact official portable Godot build; verify GitHub's SHA-256. */
+import { mkdir, writeFile } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const directory = path.join(root, 'work/runtime');
+await mkdir(directory, { recursive: true });
+const response = await fetch('https://api.github.com/repos/godotengine/godot-builds/releases/tags/4.7.2-stable', { signal: AbortSignal.timeout(20_000) });
+if (!response.ok) throw new Error('Official Godot release metadata unavailable');
+const release = await response.json();
+const asset = release.assets.find(a => a.name === 'Godot_v4.7.2-stable_win64.exe.zip');
+if (!asset?.digest?.startsWith('sha256:')) throw new Error('Official SHA-256 missing');
+const archive = path.join(directory, asset.name);
+const download = await fetch(asset.url + '?download=1', { headers: { Accept: 'application/octet-stream' }, signal: AbortSignal.timeout(180_000) });
+if (!download.ok) throw new Error('Official download unavailable');
+if ((download.headers.get('content-type') || '').includes('json')) throw new Error('GitHub did not return the release archive');
+await pipeline(Readable.fromWeb(download.body), createWriteStream(archive));
+const hash = createHash('sha256');
+for await (const chunk of createReadStream(archive)) hash.update(chunk);
+if (hash.digest('hex') !== asset.digest.slice(7)) throw new Error('Godot archive checksum mismatch');
+await writeFile(path.join(directory, 'verified-runtime.json'), JSON.stringify({ source: asset.browser_download_url, sha256: asset.digest, archive }, null, 2));
+console.log(JSON.stringify({ verified: true, archive }));

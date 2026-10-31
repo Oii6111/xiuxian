@@ -169,6 +169,8 @@ func build_chat(content: VBoxContainer) -> void:
 	mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ui.paragraph(side, Catalogue.PETS[game.family.companion.id].intro, 15)
 	ui.line(side)
+	if OS.get_environment("XIUXIAN_WECHAT_LINK_ENABLED") == "1":
+		ui.button(side, "连接微信 / 查看连接", ui.open_wechat_link)
 	for entry in [["今日任务", "今天的任务怎么样？"], ["家人近况", "家人今天的记录怎么样？"], ["下一步做什么", "下一步做什么？"]]:
 		var question: String = entry[1]
 		quick_buttons.append(ui.button(side, entry[0], func(): send_message(question)))

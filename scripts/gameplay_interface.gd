@@ -21,6 +21,7 @@ var return_to_health_entry = false
 var companion_panel: Control
 var companion_button: Button
 var wechat_task_label: Label
+var wechat_link_panel: Control
 var lifecycle_panel: Control
 var lifecycle_gateway: Node
 
@@ -117,6 +118,9 @@ func close_modal(force: bool = false) -> void:
 		companion_panel.queue_free()
 	companion_panel = null
 	wechat_task_label = null
+	if is_instance_valid(wechat_link_panel):
+		wechat_link_panel.queue_free()
+	wechat_link_panel = null
 	if is_instance_valid(health_entry):
 		health_entry.shutdown()
 		health_entry.queue_free()
@@ -141,6 +145,19 @@ func close_modal(force: bool = false) -> void:
 		combat.queue_free()
 	combat = null
 	super.close_modal()
+
+func open_wechat_link() -> void:
+	if not game.account_ready or not game.account_api.is_authenticated():
+		toast("请先登录游戏账号。")
+		return
+	close_modal()
+	modal_open = true
+	game.player.blocked = true
+	wechat_link_panel = Control.new()
+	wechat_link_panel.set_script(preload("res://scripts/wechat_link_panel.gd"))
+	wechat_link_panel.game = game
+	wechat_link_panel.ui = self
+	add_child(wechat_link_panel)
 
 func _check(parent: Node, text: String, checked: bool = false) -> CheckBox:
 	var check = CheckBox.new()

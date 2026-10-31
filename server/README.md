@@ -93,3 +93,7 @@ D 合并时可新增 `server/channels/wechat_ilink/`、`server/health/`、`serve
 模板及规则版本随任务实例固定。新增规则必须保留旧版本提供方，不能修改旧版本语义。结算故障保存待处理事实并指数退避重试；授权失效等业务错误进入 blocked，必须重新授权、复核并提交新事件，不能静默恢复旧证据。
 
 详细接口样例、A/B/D 合并步骤、WebSocket 协议与测试标准见 [团队合并指南](../docs/BACKEND_INTEGRATION.md)。
+
+## 社交、世界频道与 PVP 房间
+
+社交迁移 v2 已加入社群、成员、动态、评论、互动、世界频道、世界 Boss 贡献和 `friendly_duel_v1` 房间事实。HTTP 入口统一位于 `/api/v2/social/*`，客户端命令入口见 `data/kernel/contracts.json`。所有写操作都要求幂等键；公开投影不包含健康资料、原图、资源余额或 PVP 的 HP/位置。世界 Boss 贡献和好友房结果当前只形成协作事实与榜单，不能直接发放资源或改变段位。详见 [社交系统 v1](../docs/SOCIAL_SYSTEM.md)。

@@ -90,6 +90,83 @@ CREATE TABLE realtime_tickets (
   token_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+`, String.raw`
+CREATE TABLE social_profiles (
+  account_id TEXT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+  visibility TEXT NOT NULL DEFAULT 'public' CHECK(visibility IN ('public', 'friends', 'private')),
+  blessings INTEGER NOT NULL DEFAULT 0 CHECK(blessings >= 0),
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE social_blessings (
+  id TEXT PRIMARY KEY, from_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  cultivator_id TEXT NOT NULL REFERENCES cultivators(id) ON DELETE CASCADE,
+  day TEXT NOT NULL, created_at INTEGER NOT NULL,
+  UNIQUE(from_account_id, cultivator_id, day)
+);
+CREATE INDEX social_blessings_target ON social_blessings(cultivator_id, created_at);
+CREATE TABLE communities (
+  id TEXT PRIMARY KEY, owner_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  name TEXT NOT NULL, visibility TEXT NOT NULL CHECK(visibility IN ('public', 'friends', 'private')),
+  max_members INTEGER NOT NULL CHECK(max_members BETWEEN 2 AND 200),
+  created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX communities_visibility ON communities(visibility, updated_at);
+CREATE TABLE community_members (
+  community_id TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK(role IN ('owner', 'moderator', 'member')),
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY(community_id, account_id)
+);
+CREATE INDEX community_members_account ON community_members(account_id, joined_at);
+CREATE TABLE community_posts (
+  id TEXT PRIMARY KEY, community_id TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 1000), created_at INTEGER NOT NULL
+);
+CREATE INDEX community_posts_feed ON community_posts(community_id, created_at DESC, id DESC);
+CREATE TABLE community_comments (
+  id TEXT PRIMARY KEY, post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 500), created_at INTEGER NOT NULL
+);
+CREATE INDEX community_comments_feed ON community_comments(post_id, created_at, id);
+CREATE TABLE community_reactions (
+  post_id TEXT NOT NULL REFERENCES community_posts(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK(kind IN ('like', 'support', 'cheer')),
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY(post_id, account_id, kind)
+);
+CREATE TABLE pvp_matches (
+  id TEXT PRIMARY KEY, community_id TEXT NOT NULL REFERENCES communities(id) ON DELETE CASCADE,
+  host_account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  guest_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+  room_code TEXT NOT NULL UNIQUE, mode TEXT NOT NULL CHECK(mode = 'friendly_duel_v1'),
+  status TEXT NOT NULL CHECK(status IN ('waiting', 'active', 'finished', 'cancelled')),
+  winner_account_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+  reason TEXT NOT NULL DEFAULT '', result_summary TEXT, created_at INTEGER NOT NULL,
+  started_at INTEGER, finished_at INTEGER
+);
+CREATE INDEX pvp_matches_community ON pvp_matches(community_id, created_at DESC);
+CREATE TABLE world_messages (
+  id TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK(length(body) BETWEEN 1 AND 500), created_at INTEGER NOT NULL
+);
+CREATE INDEX world_messages_feed ON world_messages(created_at DESC, id DESC);
+CREATE TABLE world_bosses (
+  id TEXT PRIMARY KEY, name TEXT NOT NULL, status TEXT NOT NULL CHECK(status IN ('active', 'defeated', 'expired')),
+  hp_total INTEGER NOT NULL CHECK(hp_total > 0), hp_remaining INTEGER NOT NULL CHECK(hp_remaining BETWEEN 0 AND hp_total),
+  starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX world_bosses_status ON world_bosses(status, starts_at DESC);
+CREATE TABLE world_boss_contributions (
+  boss_id TEXT NOT NULL REFERENCES world_bosses(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  damage INTEGER NOT NULL CHECK(damage >= 0), attempts INTEGER NOT NULL CHECK(attempts >= 0), updated_at INTEGER NOT NULL,
+  PRIMARY KEY(boss_id, account_id)
+);
+CREATE INDEX world_boss_rank ON world_boss_contributions(boss_id, damage DESC, account_id);
 `];
 
 export class Database {

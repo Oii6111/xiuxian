@@ -37,8 +37,12 @@ var player_name_label: Label
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	font = SystemFont.new()
+	# 网页没有系统中文字体，回退到随包的 Noto Sans SC（OFL）。
+	font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC"])
 	title_font = SystemFont.new()
+	# 网页没有系统中文字体，回退到随包的 Noto Sans SC（OFL）。
+	title_font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	title_font.font_names = PackedStringArray(["KaiTi", "STKaiti", "SimSun"])
 	_setup_inputs()
 	family.persist_enabled = false
@@ -49,8 +53,9 @@ func _ready() -> void:
 		state = family.owner_state
 	account_ready = "--preview" in OS.get_cmdline_user_args() or "--skip-intro" in OS.get_cmdline_user_args()
 	account_api = Node.new()
-	account_api.set_script(preload("res://scripts/account_client.gd"))
+	account_api.set_script(preload("res://scripts/net/backend_session.gd"))
 	add_child(account_api)
+	account_api.realtime.snapshot_received.connect(_on_backend_snapshot)
 	companion_api = Node.new()
 	companion_api.set_script(preload("res://scripts/companion_client.gd"))
 	companion_api.game = self
@@ -79,9 +84,16 @@ func _ready() -> void:
 	companion_tasks.set_script(preload("res://scripts/companion_task_client.gd"))
 	companion_tasks.game = self
 	add_child(companion_tasks)
-	if "--wechat-link-demo" in OS.get_cmdline_user_args():
-		_setup_wechat_demo.call_deferred()
 	_handle_capture.call_deferred()
+
+## C 推送新的权威快照时刷新当前账号全部角色；切换账号期间的旧快照不会写入新账号。
+func _on_backend_snapshot(_snapshot: Dictionary) -> void:
+	if not account_ready or not family.is_remote() or not account_api.is_authenticated():
+		return
+	var synced = await account_api.sync_family(family)
+	if synced.ok and is_instance_valid(ui):
+		state = family.active_state()
+		ui.refresh()
 
 func _setup_inputs() -> void:
 	for action in {"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN], "move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT], "sprint": [KEY_SHIFT], "interact": [KEY_E]}:
@@ -469,24 +481,3 @@ func _handle_capture() -> void:
 			await get_tree().process_frame
 			await capture(arg.trim_prefix("--capture="))
 			get_tree().quit()
-
-func _setup_wechat_demo() -> void:
-	# Explicit preview flag: synthetic family, no writes to player saves or accounts.
-	family.persist_enabled = false
-	account_api.allow_autostart = false
-	if family.state_for("wechat-demo-father") == null:
-		var demo = State.new()
-		demo.cultivation = 0
-		demo.seals = 0
-		demo.days = 0
-		demo.medication_required = false
-		demo.choose_avatar("male", "联调守护者")
-		family.bind_state("wechat-demo-father", {"name": "演示家人", "relation": "父亲", "age": 68, "sex": "男", "mode": "family", "consent": true}, demo)
-	family.active_id = "wechat-demo-father"
-	state = family.active_state()
-	family.choose_companion("gourd_dragon", "团团")
-	sync_avatar_from_state()
-	companion_actor.refresh_pet()
-	ui.refresh()
-	companion_tasks.refresh_now()
-	ui.open_companion()

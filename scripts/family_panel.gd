@@ -177,7 +177,7 @@ func build_members() -> void:
 		text(details, state.player_name + " · " + state.realm(), 17)
 		var age = int(identity.get("age", 0))
 		text(details, ("%d 岁  ·  " % age if age > 0 else "年龄待填写  ·  ") + str(identity.get("sex", "未选择性别")), 16, MUTED_TEXT)
-		text(column, "今日习惯：" + ("已确认 · 灵气已到账" if state.today() in state.rewarded_days else "待记录"), 18)
+		text(column, "每日记录：" + ("老人微信反馈同步" if state.is_remote() else ("已确认 · 灵气已到账" if state.today() in state.rewarded_days else "待记录")), 18)
 		text(column, "灵气 %d    装备 %d 件    首通 %d 关" % [state.equipment.qi, state.equipment.inventory.size(), state.cleared_bosses.size()], 18, GOLD_TEXT)
 		var ready = not state.health_profile_id.is_empty()
 		var id = str(member.id)
@@ -284,7 +284,12 @@ func build_form() -> void:
 
 func save_form() -> void:
 	var payload = {"name": name_input.text, "age": age_input.text, "sex": sex_input.get_item_text(sex_input.selected) if sex_input.selected > 0 else "", "relation": relation_input.text, "title": title_input.text, "avatar": "female" if avatar_input.selected == 1 else "male", "mode": "self" if mode_input.selected == 1 else "family", "consent": consent_input.button_pressed}
-	var result = game.family.add_member(payload) if editing_id.is_empty() else game.family.update_member(editing_id, payload)
+	var result: Dictionary
+	if game.family.is_remote():
+		var core = get_tree().root.get_node("GameKernel")
+		result = await game.family.remote_add_member(payload, core) if editing_id.is_empty() else await game.family.remote_update_member(editing_id, payload, core)
+	else:
+		result = game.family.add_member(payload) if editing_id.is_empty() else game.family.update_member(editing_id, payload)
 	if not result.ok:
 		status_label.text = result.message
 		return

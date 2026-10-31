@@ -102,7 +102,8 @@ func pristine_account() -> bool:
 func open_account(identity: Dictionary) -> Dictionary:
 	legacy_record.clear()
 	var pattern = RegEx.new()
-	pattern.compile("^[a-f0-9]{32}$")
+	# 旧本机账号为 32 位十六进制；C 统一账号为 account_<uuid>。
+	pattern.compile("^([a-f0-9]{32}|account_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$")
 	if pattern.search(str(identity.get("id", ""))) == null:
 		return {"ok": false, "message": "账号标识无效。"}
 	dispose()
@@ -275,6 +276,105 @@ func select_member(id: String) -> Dictionary:
 		active_id = before
 		return {"ok": false, "message": "切换保存失败，仍保留当前家人。"}
 	return {"ok": true, "id": id}
+
+func is_remote() -> bool:
+	return not owner_state.cultivator_id.is_empty()
+
+func id_for_cultivator(cultivator_id: String) -> String:
+	if owner_state.cultivator_id == cultivator_id:
+		return "self"
+	for member in members:
+		if member.state.cultivator_id == cultivator_id:
+			return str(member.id)
+	return ""
+
+static func remote_identity(character: Dictionary) -> Dictionary:
+	var profile = character.get("profile", {})
+	return {"name": str(character.get("name", "家人")).left(10), "relation": str(profile.get("relation", "")), "age": int(profile.get("age", 0)), "sex": str(profile.get("sex", "")), "title": str(profile.get("title", character.get("name", ""))).left(10), "avatar": "female" if profile.get("avatar", "male") == "female" else "male", "mode": str(profile.get("mode", "family")), "consent": profile.get("consent", false) == true}
+
+static func remote_profile(identity: Dictionary) -> Dictionary:
+	return {"title": identity.title, "avatar": identity.avatar, "relation": identity.relation, "age": int(identity.age), "sex": identity.sex, "mode": identity.mode, "consent": true}
+
+## C 是家族角色的权威来源：本人与两位老人按 cultivator_id 对应。只在本机存在的老人补建到 C，再用服务端快照刷新钱包、装备与初始投影。
+func apply_remote(cultivators: Array, core: Node) -> Dictionary:
+	var remote = {}
+	for character in cultivators:
+		if character is Dictionary and character.get("role") in ["self", "elder"]:
+			remote[str(character.cultivator_id)] = character
+	for character in remote.values():
+		if character.role == "self":
+			owner_state.cultivator_id = str(character.cultivator_id)
+	for member in members.duplicate():
+		if member.state.cultivator_id.is_empty() and core != null:
+			var identity = member.state.family_identity
+			var created = await core.dispatch("growth.create_member", {"role": "elder", "name": str(identity.get("name", "")), "profile": remote_profile(identity), "request_id": "member-" + str(account.id) + "-" + str(member.id)})
+			if not created.ok and created.get("code") != "MEMBER_EXISTS":
+				return created
+			if created.ok:
+				member.state.cultivator_id = str(created.data.cultivator_id)
+				remote[member.state.cultivator_id] = created.data
+	for character in remote.values():
+		if character.role == "elder" and id_for_cultivator(str(character.cultivator_id)).is_empty() and members.size() < MAX_MEMBERS:
+			var state = State.new()
+			state.cultivation = 0
+			state.seals = 0
+			state.days = 0
+			state.medication_required = false
+			var identity = remote_identity(character)
+			state.choose_avatar(identity.avatar, identity.title)
+			state.cultivator_id = str(character.cultivator_id)
+			bind_state(str(character.cultivator_id), identity, state)
+	for member in members.duplicate():
+		if not remote.has(member.state.cultivator_id):
+			# 服务端不再承认的角色不能继续持有本地奖励缓存。
+			member.state.family_save = Callable()
+			members.erase(member)
+	if state_for(active_id) == null:
+		active_id = "self"
+	owner_state.apply_remote(remote.get(owner_state.cultivator_id, {}))
+	for member in members:
+		member.state.apply_remote(remote[member.state.cultivator_id])
+	if not save_game():
+		return {"ok": false, "message": last_error}
+	return {"ok": true}
+
+func remote_add_member(payload: Dictionary, core: Node) -> Dictionary:
+	if members.size() >= MAX_MEMBERS:
+		return {"ok": false, "message": "当前最多照顾两位老人。"}
+	var checked = validate_identity(payload)
+	if not checked.ok:
+		return checked
+	var created = await core.dispatch("growth.create_member", {"role": "elder", "name": checked.identity.name, "profile": remote_profile(checked.identity), "request_id": "member-" + str(account.id) + "-" + checked.identity.name + "-" + str(checked.identity.age) + checked.identity.sex})
+	if not created.ok:
+		return {"ok": false, "message": str(created.message)}
+	var state = State.new()
+	state.cultivation = 0
+	state.seals = 0
+	state.days = 0
+	state.medication_required = false
+	state.choose_avatar(checked.identity.avatar, checked.identity.title)
+	state.cultivator_id = str(created.data.cultivator_id)
+	bind_state(state.cultivator_id, checked.identity, state)
+	state.apply_remote(created.data)
+	active_id = state.cultivator_id
+	if not save_game():
+		return {"ok": false, "message": "家人已在服务端建立，本机缓存保存失败，重新登录后会恢复。"}
+	return {"ok": true, "id": state.cultivator_id, "message": "家人已添加，可以开始代填健康资料。"}
+
+func remote_update_member(id: String, payload: Dictionary, core: Node) -> Dictionary:
+	var state = state_for(id)
+	if state == null or id == "self":
+		return {"ok": false, "message": "没有找到这位家人。"}
+	var checked = validate_identity(payload)
+	if not checked.ok:
+		return checked
+	var updated = await core.dispatch("growth.update_member", {"cultivator_id": state.cultivator_id, "name": checked.identity.name, "profile": remote_profile(checked.identity), "request_id": "update-" + state.cultivator_id + "-" + JSON.stringify(checked.identity, "", true).sha256_text()})
+	if not updated.ok:
+		return {"ok": false, "message": str(updated.message)}
+	state.family_identity = checked.identity
+	state.choose_avatar(checked.identity.avatar, checked.identity.title)
+	save_game()
+	return {"ok": true, "id": id, "message": "基本资料已保存，健康属性和成长进度保持原样。"}
 
 func choose_companion(id: String, nickname: String) -> Dictionary:
 	if not Companions.valid(id):

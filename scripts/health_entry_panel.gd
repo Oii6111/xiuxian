@@ -1,7 +1,7 @@
 extends Control
 ## Native report onboarding. Draft results never touch GameState before confirmation.
 const Baseline = preload("res://scripts/health_baseline.gd")
-const BASE_URL = "http://127.0.0.1:8000"
+const BASE_URL = "http://127.0.0.1:8001"
 var service_url = BASE_URL
 const ENTRY_REVISION = "1f356a0"
 var ui
@@ -56,6 +56,9 @@ var fill_mode: OptionButton
 
 func _ready() -> void:
 	target_state = game.state
+	# 网页版：健康入口经游戏服务同源代理，浏览器不直连其他端口。
+	if OS.has_feature("web"):
+		service_url = game.account_api.service_url
 	bound_member_id = target_state.family_member_id
 	bound_family = game.family
 	bound_account_id = str(game.family.account.get("id", ""))
@@ -344,7 +347,7 @@ func probe_completed(result: int, code: int, _headers: PackedStringArray, body: 
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if code != 200 or not data is Dictionary or data.get("service") != "xiuxian-health-entry" or int(data.get("api_version", 0)) < 3:
-		status.text = "请关闭 8000 端口的旧服务，使用新版 health-entry/start.bat 启动后重新连接。"
+		status.text = "请关闭 8001 端口的旧服务，使用新版 health-entry/start.bat 启动后重新连接。"
 		return
 	if data.get("source_revision") != ENTRY_REVISION:
 		status.text = "分析服务版本较旧。请重启 health-entry/start.bat 后重新连接。"
@@ -557,7 +560,19 @@ func confirm_draft() -> void:
 		status.text = "请重新连接并分析报告。"
 		return
 	status.text = "正在确认并保存初始档案…"
-	send_request("confirm", "/api/v1/game/projections/confirm", {"record_id": record_id, "recognition_mode": draft.recognition_mode, "baseline_locked": true})
+	var body = {"record_id": record_id, "recognition_mode": draft.recognition_mode, "baseline_locked": true}
+	# 正式账号：先向 C 申请该角色的一次性票据，健康服务确认后以服务身份写入 C。
+	if target_state.is_remote():
+		busy = true
+		update_buttons()
+		var ticket = await game.account_api.api.request_api("/api/v2/baselines/tickets", HTTPClient.METHOD_POST, {"cultivator_id": target_state.cultivator_id})
+		busy = false
+		if not ticket.ok or not context_matches():
+			status.text = "无法连接游戏服务，原有属性已保留，请重试。"
+			update_buttons()
+			return
+		body.baseline_ticket = ticket.data.baseline_ticket
+	send_request("confirm", "/api/v1/game/projections/confirm", body)
 
 func commit(payload: Dictionary) -> void:
 	if not context_matches():
@@ -565,6 +580,17 @@ func commit(payload: Dictionary) -> void:
 		return
 	if not consent.button_pressed:
 		status.text = "请先确认本次资料使用，再保存基础档案。"
+		return
+	if target_state.is_remote():
+		# 服务端已确认；从 C 拉取权威投影，不在本地另写一份。
+		var synced = await game.account_api.sync_family(game.family)
+		if not synced.ok:
+			status.text = "档案已提交，游戏同步稍后完成。"
+			return
+		committed = true
+		ui.refresh()
+		ui.close_modal()
+		ui.toast("基础状态已保存，开始修行吧！")
 		return
 	var old = target_state.health_snapshot()
 	var applied = target_state.apply_health_baseline(payload)

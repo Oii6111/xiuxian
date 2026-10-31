@@ -2,7 +2,7 @@ extends SceneTree
 const State = preload("res://scripts/game_state.gd")
 const Roster = preload("res://scripts/family_roster.gd")
 const Equipment = preload("res://scripts/equipment_rules.gd")
-const Account = preload("res://scripts/account_client.gd")
+const Account = preload("res://scripts/net/backend_session.gd")
 var passed = 0
 var failed = 0
 
@@ -71,21 +71,7 @@ func run() -> void:
 	check(family.open_account({"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}).ok and family.members.is_empty() and family.owner_state.equipment.qi == 0 and not family.load_blocked, "Reusing a roster for another account clears old members, balances and load errors")
 	family.dispose()
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(fixture))
-	var client = Account.new()
-	root.add_child(client)
-	check(Account.endpoint_allowed("https://game.example:8080") and Account.endpoint_allowed("http://127.0.0.1:8010") and not Account.endpoint_allowed("http://remote.example") and not Account.endpoint_allowed("https://game.example@other.example") and not Account.endpoint_allowed("https://game.example/path"), "Account credentials only use valid service roots with local HTTP or remote HTTPS")
-	client.begin_operation("login", {})
-	var old_generation = client.generation
-	client.service_url = "https://game.example"
-	client.begin_operation("login", {})
-	var response = {"ok": true, "account": {"id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}, "token": "fixture-session"}
-	client.on_response(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), JSON.stringify(response).to_utf8_buffer(), old_generation)
-	check(client.busy and client.account.is_empty() and client.token.is_empty(), "An old HTTP completion cannot authenticate a new service session")
-	client.on_response(HTTPRequest.RESULT_SUCCESS, 200, PackedStringArray(), JSON.stringify(response).to_utf8_buffer(), client.generation)
-	check(client.is_authenticated() and client.request.max_redirects == 0, "Current-session login still works and credential requests never follow redirects")
-	client.service_url = "https://other.example"
-	check(not client.is_authenticated() and client.token.is_empty(), "Changing backend address clears the prior token")
-	client.queue_free()
+	check(Account.endpoint_allowed("https://game.example:8080") and Account.endpoint_allowed("http://127.0.0.1:8080") and not Account.endpoint_allowed("http://remote.example") and not Account.endpoint_allowed("https://game.example@other.example") and not Account.endpoint_allowed("https://game.example/path"), "Account credentials only use valid service roots with local HTTP or remote HTTPS")
 	var game = load("res://scenes/main.tscn").instantiate()
 	root.add_child(game)
 	await process_frame

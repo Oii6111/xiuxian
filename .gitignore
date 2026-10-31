@@ -36,3 +36,4 @@ Desktop.ini
 /work/
 /outputs/*
 !/outputs/.gdignore
+/build/

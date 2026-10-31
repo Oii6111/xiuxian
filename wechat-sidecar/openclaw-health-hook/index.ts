@@ -1,4 +1,5 @@
 import { basename } from "node:path";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
 
@@ -143,8 +144,11 @@ export default definePluginEntry({
       }
       const senderId = String(event?.senderId ?? ctx?.senderId ?? "");
       const accountId = String(event?.accountId ?? ctx?.accountId ?? "");
-      const elderId = config.elderIdMap?.[JSON.stringify([accountId, senderId])];
-      if (!accountId || !senderId || !elderId || !config.sidecarToken) {
+      // 扫码绑定默认推导与侧车 ilink_binding.elder_ref 一致；仍可用 elderIdMap 覆盖。
+      const key = JSON.stringify([accountId, senderId]);
+      const elderId = config.elderIdMap?.[key] ?? (accountId && senderId ? "wx_" + createHash("sha256").update(key).digest("hex").slice(0, 24) : "");
+      const bound = elderId && config.sidecarToken ? await fetch(`${sidecarUrl}/api/v1/elder/bound?elder_id=${encodeURIComponent(elderId)}`, { headers: { "X-Elder-Sidecar-Token": config.sidecarToken } }).then(r => r.json()).then(d => d?.bound === true).catch(() => false) : false;
+      if (!accountId || !senderId || !elderId || !config.sidecarToken || !bound) {
         return { handled: true, text: "请先让家人协助完成账号绑定和授权，再使用健康助手。" };
       }
       // 图片交给侧车识别，文件只传元数据（侧车会引导老人改拍照片）；语音转写已经在 text 里了。

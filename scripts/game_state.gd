@@ -43,6 +43,10 @@ var equipment_rng = RandomNumberGenerator.new()
 var family_member_id: String = ""
 var family_identity: Dictionary = {}
 var family_save: Callable = Callable()
+# 正式模式：已登录 C 的角色 ID。非空时资源、装备与奖励只由服务端确认，本地只是读模型缓存。
+var cultivator_id: String = ""
+const REMOTE_RARITIES = ["common", "fine", "epic", "legendary", "mythic"]
+const REMOTE_ONLY = "正式账号的灵气、装备与每日奖励由游戏服务确认，请稍后重试。"
 
 func _init() -> void:
 	equipment_rng.randomize()
@@ -140,7 +144,52 @@ func lock_equipment_origin() -> void:
 		equipment.initial_score = Equipment.initial_score(health_attributes)
 		equipment.initial_profile_id = health_profile_id
 
+func is_remote() -> bool:
+	return not cultivator_id.is_empty()
+
+## 用 C 的角色快照覆盖本地读模型：钱包、修为、灵印、累计日、装备实例与冻结的初始支持值。
+func apply_remote(character: Dictionary) -> void:
+	if str(character.get("cultivator_id", "")) != cultivator_id:
+		return
+	var remote_baseline = character.get("baseline")
+	if remote_baseline is Dictionary and str(remote_baseline.get("baseline_id", "")) != health_profile_id:
+		var payload = {"baseline_id": remote_baseline.get("baseline_id"), "baseline_version": "char_baseline_v1", "baseline_locked": true, "recognition_mode": remote_baseline.get("recognition_mode"), "mapping_version": remote_baseline.get("mapping_version", ""), "character_state": remote_baseline.get("character_state"), "readiness": remote_baseline.get("readiness"), "display_name": ""}
+		var checked = HealthBaseline.validate(payload)
+		if checked.ok:
+			health_baseline = checked.baseline.duplicate(true)
+			health_attributes = HealthBaseline.attributes(health_baseline)
+			health_profile_id = health_baseline.baseline_id
+			health_revision += 1
+			health_simulated = health_baseline.recognition_mode in ["sample", "demo"]
+			health_source = HealthBaseline.source_label(health_baseline)
+	var resources = character.get("resources", {})
+	equipment.qi = int(resources.get("spirit_stones", 0))
+	cultivation = int(resources.get("realm_xp", 0))
+	seals = int(resources.get("seals", 0))
+	days = int(character.get("days", 0))
+	equipment.draw_count = int(character.get("draw_count", 0))
+	var score = character.get("initial_score")
+	equipment.initial_score = float(score) if score != null else -1.0
+	equipment.initial_profile_id = str(character.get("initial_profile_id", ""))
+	var inventory = []
+	var equipped = {}
+	for item in character.get("equipment", []):
+		if not item is Dictionary or item.get("catalogue_version") != Equipment.CATALOGUE_VERSION:
+			continue
+		var template = int(str(item.get("catalogue_id", "")).trim_prefix("pixel:"))
+		var rarity = REMOTE_RARITIES.find(str(item.get("rarity", "")))
+		if not str(item.get("catalogue_id", "")).begins_with("pixel:") or template < 0 or template >= Equipment.TEMPLATES.size() or rarity < 0:
+			continue
+		var entry = {"id": str(item.equipment_id), "template": template, "rarity": rarity}
+		inventory.append(entry)
+		if int(item.get("equipped", 0)) == 1:
+			equipped[Equipment.TEMPLATES[template].slot] = entry.id
+	equipment.inventory = inventory
+	equipment.equipped = equipped
+
 func draw_equipment(count: int, request_id: String) -> Dictionary:
+	if is_remote():
+		return {"ok": false, "message": REMOTE_ONLY}
 	if request_id.is_empty() or count not in [1, 10]:
 		return {"ok": false, "message": "祈愿请求无效。"}
 	if equipment.receipts.has(request_id):
@@ -178,6 +227,8 @@ func draw_equipment(count: int, request_id: String) -> Dictionary:
 	return receipt.duplicate(true)
 
 func equip_item(item_id: String) -> Dictionary:
+	if is_remote():
+		return {"ok": false, "message": REMOTE_ONLY}
 	for item in equipment.inventory:
 		if item.id == item_id:
 			var info = Equipment.detail(item)
@@ -190,6 +241,8 @@ func equip_item(item_id: String) -> Dictionary:
 	return {"ok": false, "message": "这件装备不在行囊中。"}
 
 func unequip_item(slot: String) -> Dictionary:
+	if is_remote():
+		return {"ok": false, "message": REMOTE_ONLY}
 	if slot not in Equipment.SLOTS:
 		return {"ok": false, "message": "装备槽位无效。"}
 	var before = equipment.duplicate(true)
@@ -274,6 +327,8 @@ func task_done(task: String, day: String = "") -> bool:
 	return daily_tasks.get(key, {}).get(task, false) == true
 
 func record_task(task: String, consent: bool) -> Dictionary:
+	if is_remote():
+		return {"ok": false, "rewarded": false, "message": "正式账号的每日记录由老人微信反馈、核验后自动结算，游戏内不再本地发放奖励。"}
 	if not consent:
 		return {"ok": false, "rewarded": false, "message": "请先由家属确认并授权本次演示记录。"}
 	if task not in ["medication", "planned_record"]:
@@ -338,6 +393,8 @@ func today() -> String:
 	return reward_day(int(Time.get_unix_time_from_system()))
 
 func confirm_event(event: Dictionary) -> Dictionary:
+	if is_remote():
+		return {"ok": false, "rewarded": false, "message": REMOTE_ONLY}
 	var day = today()
 	if event.get("review_status", "") != "confirmed":
 		return {"ok": false, "message": "请先确认演示记录，再领取奖励。"}
@@ -377,7 +434,7 @@ func realm() -> String:
 	return ["炼气", "筑基", "结丹", "元婴", "化神"][realm_index]
 
 func to_data() -> Dictionary:
-	return Privacy.clean({"schema": 6, "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared})
+	return Privacy.clean({"schema": 6, "cultivator_id": cultivator_id, "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared})
 
 func save_game() -> bool:
 	if not persist_enabled:
@@ -499,6 +556,7 @@ func load_data(data: Dictionary) -> void:
 	recovery_status = str(data.get("recovery_status", "not_started"))
 	trial_cleared = bool(data.get("trial_cleared", false))
 	equipment = Equipment.normalize(data.get("equipment", {}))
+	cultivator_id = str(data.get("cultivator_id", ""))
 	lock_equipment_origin()
 	# Upgrade only today's already-confirmed habit, without retroactive historical rewards.
 	if int(data.get("schema", 1)) < 6 and today() in rewarded_days:

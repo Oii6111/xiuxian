@@ -218,11 +218,43 @@ def game_baseline():
     return baseline_response(payload)
 
 
+def submit_to_game(payload, ticket):
+    """把确认后的最小投影交给 C（服务凭证只在本服务端）。未配置 C 时保持原有本地行为。"""
+    base = os.environ.get("GAME_API_BASE", "").rstrip("/")
+    token = os.environ.get("HEALTH_SERVICE_TOKEN", "")
+    if not ticket:
+        return None
+    if not base or not token:
+        raise ValueError("游戏服务未配置，初始属性尚未生效。")
+    projection = for_game(payload)
+    body = {"baseline_ticket": ticket, "baseline_id": payload["baseline_id"], "projection": {
+        "projection_version": "legacy-pixel-v1", "mapping_version": str(projection.get("mapping_version", ""))[:40],
+        "recognition_mode": "sample" if payload["recognition_mode"] in ("sample", "demo") else payload["recognition_mode"],
+        "character_state": {key: int(value) for key, value in projection["character_state"].items()}, "readiness": int(projection["readiness"])}}
+    import urllib.request, urllib.error
+    req = urllib.request.Request(base + "/internal/v1/baselines", data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + token})
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=10) as response:
+            result = json.load(response)
+    except urllib.error.HTTPError as error:
+        result = json.loads(error.read() or b"{}")
+    except OSError:
+        raise ValueError("游戏服务暂时不可用，请稍后重新确认。")
+    if result.get("ok") is not True:
+        raise ValueError(str(result.get("message") or "游戏服务未接受这份档案。"))
+    return result["data"]
+
+
 def baseline_response(payload):
+    try:
+        submit_to_game(payload, (request.get_json(silent=True) or {}).get("baseline_ticket"))
+    except ValueError as exc:
+        return jsonify(message=str(exc)), 409
     output = for_game(payload) if request.path == "/api/v1/game/projections/confirm" else payload
     return jsonify(mode=payload["recognition_mode"], baseline_id=payload["baseline_id"], baseline=output)
 
 
 if __name__ == "__main__":
     # The Godot client only connects to this loopback service.
-    app.run(host="127.0.0.1", port=8000, debug=False)
+    app.run(host="127.0.0.1", port=int(os.environ.get("HEALTH_ENTRY_PORT", "8001")), debug=False)

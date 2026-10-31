@@ -62,6 +62,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	font = SystemFont.new()
+	# 网页没有系统中文字体，回退到随包的 Noto Sans SC（OFL）。
+	font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	font.font_names = PackedStringArray(["Microsoft YaHei","Noto Sans CJK SC","KaiTi"])
 	_setup_input()
 	rules = Encounter.new(entry,snapshot,difficulty,selected_skill)

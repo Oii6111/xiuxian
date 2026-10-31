@@ -102,18 +102,17 @@ func _run() -> void:
 	scene.ui.select_avatar("male")
 	scene.ui.start_selected()
 	check(scene.player.walk_textures == scene.avatar_frames.male, "Male character can be selected again")
+	# 本地演示：游戏内只有一个演示记录按钮；正式账号由老人微信反馈，游戏内不能代填。
 	scene.ui.open_record()
 	var consent = scene.ui.modal.find_children("*", "CheckBox", true, false)[0]
-	var medication = find_button(scene.ui.modal, "确认今日服药")
-	check(medication != null and medication.disabled, "Medication UI requires an explicit family checkbox")
+	var demo = find_button(scene.ui.modal, "确认今日计划记录")
+	check(demo != null and find_button(scene.ui.modal, "确认今日服药") == null, "Elder medication entry is no longer filled in inside the game")
 	consent.button_pressed = true
-	medication.pressed.emit()
-	check(scene.state.task_done("medication") and scene.state.cultivation == 90, "Actual medication button records and awards")
-	scene.ui.open_record()
-	consent = scene.ui.modal.find_children("*", "CheckBox", true, false)[0]
-	consent.button_pressed = true
-	find_button(scene.ui.modal, "确认今日计划").pressed.emit()
-	check(scene.state.task_done("planned_record") and scene.state.cultivation == 90, "Actual second task UI cannot duplicate reward")
+	demo.pressed.emit()
+	check(scene.state.task_done("planned_record") and scene.state.cultivation == 90, "Local demo record awards once")
+	scene.state.cultivator_id = "cultivator_formal"
+	check(not scene.state.record_task("medication", true).ok and scene.state.cultivation == 90, "Formal accounts cannot record or reward inside the game")
+	scene.state.cultivator_id = ""
 	scene.ui.close_modal()
 	scene.ui.open_recovery()
 	var family = scene.ui.modal.find_children("*", "CheckBox", true, false)[0]

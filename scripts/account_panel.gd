@@ -52,8 +52,8 @@ func build() -> void:
 	action(top, "登录", func(): switch_mode(false), not register_mode)
 	action(top, "注册", func(): switch_mode(true), register_mode)
 	text(right, "注册子女账号" if register_mode else "欢迎回来", 30, GOLD_TEXT)
-	username_input = field(right, "用户名", "3—24 位字母、数字或下划线", "", 24)
-	password_input = field(right, "密码", "请输入密码（至少 8 位）", "", 128)
+	username_input = field(right, "用户名", "3—32 位字母、数字或下划线", "", 32)
+	password_input = field(right, "密码", "请输入密码（至少 12 位）", "", 128)
 	password_input.secret = true
 	password_input.text_submitted.connect(func(_value): submit())
 	if register_mode:
@@ -85,12 +85,12 @@ func submit() -> void:
 	if game.account_api.busy:
 		return
 	var pattern = RegEx.new()
-	pattern.compile("^[A-Za-z0-9_]{3,24}$")
+	pattern.compile("^[A-Za-z0-9_]{3,32}$")
 	if pattern.search(username_input.text.strip_edges()) == null:
-		status_label.text = "用户名请使用 3—24 位字母、数字或下划线。"
+		status_label.text = "用户名请使用 3—32 位字母、数字或下划线。"
 		return
-	if password_input.text.length() < 8:
-		status_label.text = "密码至少需要 8 位。"
+	if password_input.text.length() < 12:
+		status_label.text = "密码至少需要 12 位。"
 		return
 	var payload = {"username": username_input.text.strip_edges(), "password": password_input.text}
 	if register_mode:

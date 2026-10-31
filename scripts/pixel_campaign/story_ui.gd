@@ -25,6 +25,8 @@ func _ready() -> void:
 	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var font = SystemFont.new()
+	# 网页没有系统中文字体，回退到随包的 Noto Sans SC（OFL）。
+	font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei"])
 	var theme = Theme.new()
 	theme.default_font = font

@@ -10,6 +10,7 @@ const token = process.env.HEALTH_SERVICE_TOKEN;
 const server = await buildApp({
   databasePath: resolve(serverRoot, process.env.DATABASE_PATH ?? 'var/game.sqlite'),
   services: token ? [{ id: 'health', token, scopes: [...healthScopes] }] : [],
+  web: { root: resolve(repositoryRoot, process.env.WEB_ROOT ?? 'build/web'), wechatUrl: process.env.WECHAT_SERVICE_URL ?? 'http://127.0.0.1:8000', healthEntryUrl: process.env.HEALTH_ENTRY_URL ?? 'http://127.0.0.1:8001' },
   origins: process.env.CORS_ORIGINS?.split(',').map(value => value.trim()).filter(Boolean),
 });
 const port = Number(process.env.PORT ?? 8080);

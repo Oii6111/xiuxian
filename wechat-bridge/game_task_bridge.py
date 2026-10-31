@@ -32,9 +32,18 @@ class BridgeError(ValueError):
 def dry_run():
     return os.environ.get("OPENCLAW_DRY_RUN", "1").lower() not in {"0", "false", "no", "off"}
 
+def save_route(route):
+    """扫码绑定成功后持久保存路由；与 ELDER_BINDINGS 合并校验，冲突时拒绝。"""
+    with _store() as conn:
+        conn.execute("INSERT OR REPLACE INTO routes(binding_id, payload) VALUES (?, ?)", (route["binding_id"], _canonical(route)))
+    routes()
+
 def routes():
     """映射由真实绑定流程配置；禁止一个默认接收者承接所有账号通知。"""
     entries = json.loads(os.environ.get("ELDER_BINDINGS", "[]"))
+    if isinstance(entries, list) and STATE_PATH.exists():
+        with _store() as conn:
+            entries = entries + [json.loads(row["payload"]) for row in conn.execute("SELECT payload FROM routes")]
     if not isinstance(entries, list):
         raise BridgeError("ELDER_BINDINGS must be an array")
     required = {"binding_id", "elder_id", "sender_id", "channel_account_id", "target", "consent_version"}
@@ -53,6 +62,12 @@ def routes():
         elders.add(route["elder_id"])
         identities.add(identity)
     return entries
+
+def route_for_elder(elder_id):
+    matches = [route for route in routes() if route["elder_id"] == elder_id]
+    if len(matches) != 1:
+        raise BridgeError("Unknown elder route")
+    return matches[0]
 
 def route_for(binding_id):
     matches = [route for route in routes() if route["binding_id"] == binding_id]
@@ -117,6 +132,7 @@ def _store():
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("CREATE TABLE IF NOT EXISTS results (event_id TEXT PRIMARY KEY, payload TEXT NOT NULL, sent INTEGER NOT NULL DEFAULT 0)")
     conn.execute("CREATE TABLE IF NOT EXISTS delivered (id TEXT PRIMARY KEY)")
+    conn.execute("CREATE TABLE IF NOT EXISTS routes (binding_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
     try:
         with conn:
             yield conn

@@ -271,56 +271,85 @@ func open_wechat_record() -> void:
 	wechat_task_label = paragraph(content, wechat_record_text(), 18, BROWN)
 	wechat_task_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	button(content, "刷新微信记录", game.companion_tasks.refresh_now, true)
-	paragraph(content, "本地文字联调 · 仅展示任务状态，未接入正式奖励账本。" if "--wechat-link-demo" in OS.get_cmdline_user_args() else "老人明确反馈后，任务状态会自动刷新。", 14)
+	paragraph(content, "老人明确反馈后，任务状态会自动刷新。", 14)
 
 func open_record() -> void:
-	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
-		open_wechat_record()
-		return
 	if require_family():
 		return
+	if game.state.is_remote():
+		open_wechat_tasks()
+		return
+	open_local_record()
+
+## 老人在自己的微信里与健康助手聊天、反馈完成；这里只读取 C 结算后的任务状态，不提供代填。
+func open_wechat_tasks() -> void:
 	var state = game.state
-	var content = _dialog("每日修行 · 家人健康计划", state.member_label() + "  ·  " + state.today() + "  ·  以下为本地模拟记录")
-	var consent = _check(content, "我已了解这是模拟记录，并由家属确认完成及同意用于家族游戏")
-	var row = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
-	content.add_child(row)
-	var portrait_column = VBoxContainer.new()
-	portrait_column.custom_minimum_size.x = 215
-	row.add_child(portrait_column)
-	var elder_image = TextureRect.new()
-	elder_image.texture = Assets.texture("res://assets/gameplay/elder-meditating.png")
-	elder_image.custom_minimum_size = Vector2(215, 230)
-	elder_image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	elder_image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-	portrait_column.add_child(elder_image)
-	label_into(portrait_column, "家属确认，一同坚持", 18)
-	var tasks = VBoxContainer.new()
-	tasks.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	tasks.add_theme_constant_override("separation", 12)
-	row.add_child(tasks)
-	label_into(tasks, "长期管理 · 按个人计划记录", 23)
-	var medication_due = state.longterm_enabled and state.medication_required
-	label_into(tasks, "按医嘱用药    " + ("✓ 今日已确认" if state.task_done("medication") else ("待家属确认" if medication_due else "当前无用药计划")), 19)
-	var medication = button(tasks, "确认今日服药记录", func(): confirm_task("medication", consent.button_pressed), true)
-	line(tasks)
-	label_into(tasks, "个人计划记录    " + ("✓ 今日已确认" if state.task_done("planned_record") else "待家属确认"), 19)
-	var record = button(tasks, "确认今日计划记录", func(): confirm_task("planned_record", consent.button_pressed))
-	content.move_child(consent, content.get_child_count() - 1)
-	medication.disabled = true
-	record.disabled = true
-	consent.toggled.connect(func(checked: bool):
-		medication.disabled = not checked or not medication_due or state.task_done("medication")
-		record.disabled = not checked or state.task_done("planned_record")
-	)
-	paragraph(content, "每项每天只记录一次；两项共用每日奖励：修为 +10、灵印 +1、灵气 +100。七天可积攒一次十连，漏记不清零。", 15)
+	var content = _dialog("每日修行 · 微信记录", state.member_label() + "  ·  " + state.today())
+	if state.family_member_id == "self":
+		paragraph(content, "每日记录来自家人的微信健康助手。请切换到一位家人查看。", 20, BROWN)
+		button(content, "我的家人", open_family, true)
+		return
+	wechat_task_label = paragraph(content, "正在读取微信同步记录…", 18, BROWN)
+	wechat_task_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var actions = HBoxContainer.new()
 	actions.add_theme_constant_override("separation", 12)
 	content.add_child(actions)
-	button(actions, "管理个人计划", open_plan_settings)
-	button(actions, "阶段恢复篇章", open_recovery)
-	button(actions, "查看家族修行簿", open_records)
-	paragraph(content, "这里不识别真实服药，不给出药名或剂量；计划由家人按既有安排设置。", 13)
+	button(actions, "刷新", func(): refresh_wechat_tasks(state), true)
+	button(actions, "绑定老人微信（扫码）", func(): bind_wechat(state))
+	paragraph(content, "老人用微信扫码后，日常在微信里告诉健康助手完成情况即可；核验通过后灵气自动到账。两项记录每天共享一次奖励：修为 +10、灵印 +1、灵气 +100。", 15)
+	refresh_wechat_tasks(state)
+
+func refresh_wechat_tasks(state) -> void:
+	var result = await GameKernel.dispatch("quests.family_today", {"date": state.today()})
+	if not is_instance_valid(wechat_task_label) or game.state != state:
+		return
+	if not result.ok:
+		wechat_task_label.text = "暂时无法读取：" + str(result.message)
+		return
+	var lines: Array[String] = []
+	var names = {"daily_medication_record": "既有用药安排", "daily_planned_record": "个人计划", "daily_step_record": "步数记录", "daily_measurement_record": "计划内测量"}
+	var status_names = {"assigned": "等待老人微信反馈", "received": "已收到，核对中", "needs_supplement": "需要补充", "pending_confirmation": "等待确认", "verified": "已核验，结算中", "settled": "已完成", "rejected": "未通过"}
+	for member in result.data.members:
+		if member.cultivator_id != state.cultivator_id:
+			continue
+		for task in member.tasks:
+			var line = "· %s：%s" % [names.get(task.template_id, task.title), status_names.get(task.status, task.status)]
+			if task.settlement is Dictionary and int(task.settlement.spirit_stones) > 0:
+				line += "  灵气 +%d" % int(task.settlement.spirit_stones)
+			lines.append(line)
+	wechat_task_label.text = "\n".join(lines) if not lines.is_empty() else "今天还没有已确认的安排。老人在微信里确认现有计划后，任务会自动出现。"
+	await game.account_api.sync_family(game.family)
+	refresh()
+
+func bind_wechat(state) -> void:
+	var invite = await game.account_api.api.request_api("/api/v2/bindings/invitations", HTTPClient.METHOD_POST, {"cultivator_id": state.cultivator_id})
+	if not invite.ok:
+		toast(str(invite.message))
+		return
+	var health_url = OS.get_environment("XIUXIAN_WECHAT_URL").strip_edges().trim_suffix("/")
+	if health_url.is_empty():
+		health_url = game.account_api.service_url if OS.has_feature("web") else "http://127.0.0.1:8000"
+	var request = HTTPRequest.new()
+	request.timeout = 15
+	add_child(request)
+	request.request(health_url + "/api/v1/wechat/bind", PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, JSON.stringify({"invite_token": invite.data.invite_token}))
+	var done = await request.request_completed
+	request.queue_free()
+	var data = JSON.parse_string(done[3].get_string_from_utf8()) if done[0] == HTTPRequest.RESULT_SUCCESS else null
+	if not data is Dictionary or data.get("ok") != true:
+		toast("微信助手暂时无法生成二维码，请稍后重试。")
+		return
+	OS.shell_open(health_url + "/wechat/bind/" + str(data.data.bind_id))
+	toast("已打开二维码页面，请老人用自己的微信扫一扫。")
+
+## 未登录 C 的本地演示存档沿用原记录页。
+func open_local_record() -> void:
+	var state = game.state
+	var content = _dialog("每日修行 · 家人健康计划", state.member_label() + "  ·  " + state.today() + "  ·  本地演示")
+	paragraph(content, "本地演示模式。正式账号的每日记录由老人微信反馈同步，不在游戏里代填。", 18, BROWN)
+	var consent = _check(content, "我已了解这是模拟记录")
+	var record = button(content, "确认今日计划记录（演示）", func(): confirm_task("planned_record", consent.button_pressed), true)
+	record.disabled = state.task_done("planned_record")
 
 func confirm_task(task: String, consent: bool) -> void:
 	var result = game.state.record_task(task, consent)
@@ -332,7 +361,6 @@ func confirm_task(task: String, consent: bool) -> void:
 		open_reward(result.message)
 	else:
 		open_record()
-		toast("记录已保存 · 今日奖励已领取")
 
 func open_plan_settings() -> void:
 	var content = _dialog("个人计划设置", "只配置演示任务，不生成医疗建议。")
@@ -701,6 +729,11 @@ func on_account_result(action: String, result: Dictionary) -> void:
 	roster.cache_root_override = game.account_cache_root_override
 	roster.legacy_source_override = game.account_legacy_source_override
 	var prepared = roster.open_account(result.account)
+	if prepared.ok:
+		# C 是本人与两位老人的权威来源；本机文件只作展示缓存。
+		var synced = await game.account_api.sync_family(roster)
+		if not synced.ok:
+			prepared = {"ok": false, "message": str(synced.get("message", "无法读取游戏服务中的家族角色。"))}
 	if not prepared.ok:
 		roster.dispose()
 		account_panel.status_label.text = prepared.message

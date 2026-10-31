@@ -207,8 +207,10 @@ func _test_runtime() -> void:
 					"string": payload[field] = "example"
 					"integer", "number": payload[field] = 1
 					"bool": payload[field] = true
+					"object": payload[field] = {}
 			var response: Dictionary = await runtime.dispatch(command, payload)
-			var expected_code: String = "BACKEND_UNAVAILABLE" if command == "season.refresh" else "NOT_IMPLEMENTED"
+			# growth/quests/season 已接入 C：离线时明确失败，绝不本地成功；其余模块仍等待负责人接入。
+			var expected_code: String = "BACKEND_UNAVAILABLE" if command.get_slice(".", 0) in ["season", "growth", "quests"] else "NOT_IMPLEMENTED"
 			expect(response.code == expected_code, "offline system boundary: " + command)
 	var unknown: Dictionary = await runtime.dispatch("not.a.command")
 	expect(unknown.code == "UNKNOWN_COMMAND", "unknown command rejected")
@@ -239,6 +241,6 @@ func _test_runtime() -> void:
 	root.add_child(scene)
 	await process_frame
 	await scene._probe_command()
-	expect(scene._output.text.contains("NOT_IMPLEMENTED"), "workbench exercises the real command path")
+	expect(scene._output.text.contains("BACKEND_UNAVAILABLE"), "workbench exercises the real command path")
 	scene.queue_free()
 	await process_frame

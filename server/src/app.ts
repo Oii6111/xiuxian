@@ -14,6 +14,7 @@ import { BindingService, type ConfirmBinding } from './integration/bindings.js';
 import { HealthBridge, type SubmissionUpdate, type VerifiedResult } from './integration/health.js';
 import { Outbox } from './integration/outbox.js';
 import { RealtimeHub } from './realtime/hub.js';
+import { type WebOptions, registerWeb } from './web.js';
 
 export const healthScopes = ['binding:confirm', 'binding:connection', 'task:read', 'task:assign', 'submission:write', 'result:write', 'notification:deliver', 'baseline:write'] as const;
 export type ServiceCredential = { id: string; token: string; scopes: string[] };
@@ -22,6 +23,7 @@ export type AppOptions = {
   providers?: RuleProviders; calendar?: Season[]; extensions?: GameExtensions;
   services?: ServiceCredential[]; origins?: string[]; worker?: boolean;
   beforeSettlementCommit?: () => void;
+  web?: WebOptions;
 };
 
 export async function buildApp(options: AppOptions = {}) {
@@ -158,6 +160,7 @@ export async function buildApp(options: AppOptions = {}) {
   app.post('/internal/v1/notifications/claim', { schema: routeSchema('internal', '领取 30 秒通知租约；最多 20 条', objectSchema({ limit: { type: 'integer', minimum: 1, maximum: 20 } }), true) }, async request => success(outbox.claim(internal(request, 'notification:deliver'), (request.body as { limit: number }).limit)));
   for (const action of ['ack', 'nack'] as const) app.post(`/internal/v1/notifications/:id/${action}`, { schema: { ...routeSchema('internal', action === 'ack' ? '确认通知已送达；重复确认安全' : '通知失败后退避重试', objectSchema({ lease_token: stringField }), true), params: objectSchema({ id: stringField }) } }, async request => success(outbox.complete(internal(request, 'notification:deliver'), (request.params as { id: string }).id, (request.body as { lease_token: string }).lease_token, action === 'ack')));
 
+  registerWeb(app, options.web ?? {});
   await app.ready();
   if (options.worker !== false) {
     worker = setInterval(() => { health.processPending(); realtime.flush(); }, 1000);

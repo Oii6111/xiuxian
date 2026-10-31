@@ -1385,6 +1385,8 @@ def register_elder_assistant_routes(app) -> None:
         conn.execute("CREATE TABLE IF NOT EXISTS game_event_identity (event_id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, channel_account_id TEXT NOT NULL)")
     from game_integration import register_game_routes
     register_game_routes(app, _db)
+    from ilink_binding import register_binding_routes
+    register_binding_routes(app, _db)
 
     @app.before_request
     def _elder_sidecar_auth():

@@ -286,7 +286,7 @@ func summon(count: int) -> void:
 	busy = true
 	# A receipt is committed before presentation. Reopening always shows that same result.
 	var request_id = "wish_%d_%d_%d" % [Time.get_unix_time_from_system(), Time.get_ticks_usec(), game.state.equipment.next_id]
-	var receipt = game.state.draw_equipment(count, request_id)
+	var receipt = await remote_draw(count, request_id) if game.state.is_remote() else game.state.draw_equipment(count, request_id)
 	if not receipt.ok:
 		busy = false
 		status_label.text = receipt.message
@@ -299,6 +299,37 @@ func summon(count: int) -> void:
 	for i in range(result_cards.size()):
 		reveal_tween.tween_property(result_cards[i], "modulate:a", 1.0, 0.3).set_delay(i * 0.08)
 	reveal_tween.chain().tween_callback(finish_reveal)
+
+## 由 C 扣费并生成装备；成功后刷新本角色读模型，并按原卡片样式展示同一回执。
+func remote_draw(count: int, request_id: String) -> Dictionary:
+	var state = game.state
+	var core = get_tree().root.get_node("GameKernel")
+	var result = await core.dispatch("growth.draw", {"cultivator_id": state.cultivator_id, "count": count, "request_id": request_id})
+	if not result.ok:
+		return {"ok": false, "message": str(result.message)}
+	state.apply_remote(result.data.character)
+	var items = []
+	for item in result.data.items:
+		items.append({"id": str(item.equipment_id), "template": int(item.template), "rarity": int(item.rarity_index)})
+	var receipt = {"ok": true, "request_id": request_id, "count": count, "cost": int(result.data.cost), "items": items, "guaranteed": result.data.guaranteed == true}
+	state.equipment.receipts[request_id] = receipt
+	state.equipment.last_request = request_id
+	state.save_game()
+	return receipt
+
+func remote_wear(info: Dictionary, equipped: bool) -> Dictionary:
+	var state = game.state
+	var core = get_tree().root.get_node("GameKernel")
+	var result: Dictionary
+	if equipped:
+		result = await core.dispatch("growth.unequip", {"cultivator_id": state.cultivator_id, "slot": info.slot, "request_id": "off-%s-%d" % [info.id, Time.get_ticks_usec()]})
+	else:
+		result = await core.dispatch("growth.equip", {"cultivator_id": state.cultivator_id, "equipment_id": info.id, "slot": info.slot})
+	if not result.ok:
+		return {"ok": false, "message": str(result.message)}
+	state.apply_remote(result.data)
+	state.save_game()
+	return {"ok": true, "message": ("已卸下装备" if equipped else "已穿戴「%s」" % info.name) + "，下一场战斗生效。"}
 
 func finish_reveal() -> void:
 	if is_instance_valid(reveal_tween) and reveal_tween.is_running():
@@ -395,7 +426,7 @@ func build_detail(parent: Node) -> void:
 	text(description, comparison, 15, MUTED_TEXT)
 	var equipped = game.state.equipment.equipped.get(info.slot, "") == info.id
 	action(row, "卸下装备" if equipped else "穿戴装备", func():
-		var result = game.state.unequip_item(info.slot) if equipped else game.state.equip_item(info.id)
+		var result = await remote_wear(info, equipped) if game.state.is_remote() else (game.state.unequip_item(info.slot) if equipped else game.state.equip_item(info.id))
 		ui.toast(result.message)
 		ui.refresh()
 		build()

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { Database } from '../src/database.js';
-import { defaultProviders, integrationRules, integrationTemplates, calculateReward } from '../src/game/rules.js';
+import { defaultProviders, integrationProviders, integrationRules, integrationTemplates, calculateReward } from '../src/game/rules.js';
 import { commands, contract } from '../src/contracts.js';
 import { dayKey, dayStart, secret } from '../src/core.js';
 import { buildApp, healthScopes } from '../src/app.js';
@@ -191,7 +191,7 @@ test('奖励倍率、补偿、向下取整与上限顺序', () => {
 
 test('日上限、同类滚动 24 小时和完成零奖励仍被记录', async context => {
   const templates = [0, 1, 2, 3].map(index => ({ ...integrationTemplates[0]!, id: `template_${index}`, event_type: index === 3 ? 'type_0' : `type_${index}`, base_stones: 25 }));
-  const app = await fixture(context, { providers: { ...defaultProviders, templates: () => templates } });
+  const app = await fixture(context, { providers: { ...integrationProviders, templates: () => templates } });
   const account = await app.account();
   const character = await app.character(account.token);
   const binding = await app.bind(account.token, character.cultivator_id);
@@ -242,7 +242,7 @@ test('抽卡事务、十连保底、重复转换和幂等并发扣费', async co
 
 test('仙品保底四档和角色保底隔离', async context => {
   for (const tier of [0, 1, 2, 3]) {
-    const app = await fixture(context, { providers: { ...defaultProviders, compensation: () => tier } });
+    const app = await fixture(context, { providers: { ...integrationProviders, compensation: () => tier } });
     const account = await app.account();
     const character = await app.character(account.token);
     const other = await app.character(account.token);
@@ -273,7 +273,7 @@ test('服务重启保留会话、幂等结果、待结算事实和通知', async
   const folder = mkdtempSync(join(tmpdir(), 'xiuxian-backend-'));
   context.after(() => rmSync(folder, { recursive: true, force: true }));
   const token = secret();
-  const options = { databasePath: join(folder, 'game.sqlite'), now: () => Date.parse('2026-10-31T10:00:00+08:00') / 1000, worker: false, services: [{ id: 'health', token, scopes: [...healthScopes] }] };
+  const options = { databasePath: join(folder, 'game.sqlite'), now: () => Date.parse('2026-10-31T10:00:00+08:00') / 1000, worker: false, providers: integrationProviders, services: [{ id: 'health', token, scopes: [...healthScopes] }] };
   const first = await buildApp(options);
   const account = await first.auth.register({ username: 'persist', password: 'secure-password-123' });
   const login = await first.auth.login({ username: 'persist', password: 'secure-password-123' });

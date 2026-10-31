@@ -39,7 +39,12 @@ def main():
         credentials = {"username": f"d_smoke_{index}", "password": "local-test-password-123"}
         request("/api/v2/auth/register", credentials)
         token = request("/api/v2/auth/login", credentials)["token"]
-        character = command(token, "growth.create", {"name": "测试", "element": "water"}, f"create-{index}")
+        character = command(token, "growth.create_member", {"role": "elder", "name": "测试", "request_id": f"create-{index}",
+            "profile": {"title": "测试化身", "avatar": "male", "relation": "父亲", "age": 70, "sex": "男", "mode": "family", "consent": True}})
+        ticket = request("/api/v2/baselines/tickets", {"cultivator_id": character["cultivator_id"]}, token)
+        stats = {key: 50 for key in ("hp_max", "hp_current", "attack", "defense", "spirit", "stamina", "insight", "mind", "speed", "luck")}
+        bridge.game_post("/internal/v1/baselines", {"baseline_ticket": ticket["baseline_ticket"], "baseline_id": f"baseline-{index}",
+            "projection": {"projection_version": "legacy-pixel-v1", "mapping_version": "body_system_v2", "recognition_mode": "sample", "character_state": stats, "readiness": 60}})
         invite = request("/api/v2/bindings/invitations", {"cultivator_id": character["cultivator_id"]}, token)
         binding = bridge.game_post("/internal/v1/bindings/confirm", {"invite_token": invite["invite_token"],
             "channel": "wechat_ilink", "channel_account_id": "test-bot", "sender_id": f"sender-{index}",
@@ -49,15 +54,16 @@ def main():
                        "channel_account_id": "test-bot", "target": f"target-{index}", "consent_version": binding["consent_version"]})
         accounts.append(token)
         characters.append(character)
-        tasks.append(command(token, "quests.assign", {"cultivator_id": character["cultivator_id"],
-            "template_id": "daily_step_record", "date": today, "request_id": f"assign-{index}"}))
     os.environ["ELDER_BINDINGS"] = json.dumps(routes)
+    for route in routes:
+        tasks.append(bridge.enable_task(route["binding_id"], "daily_medication_record", today))
+        assert bridge.enable_task(route["binding_id"], "daily_medication_record", today) == tasks[-1]
     with tempfile.TemporaryDirectory() as temp:
         bridge.STATE_PATH = Path(temp) / "bridge.sqlite3"
         def submit(index, task, event):
             route = routes[index]
             return bridge.submit_confirmed(route["binding_id"], task["task_instance_id"], event,
-                now.isoformat(), "photo", route["sender_id"], route["channel_account_id"])
+                now.isoformat(), "self_report", route["sender_id"], route["channel_account_id"])
         for index in range(2):
             result = submit(index, tasks[index], f"health-{index}")
             bridge.game_post(f"/internal/v1/task-results/{result['event_id']}/settle", {})
@@ -67,14 +73,15 @@ def main():
             assert bridge.claim_notifications() == 1
             assert bridge.claim_notifications() == 1
         assert set(targets) == {"target-0", "target-1"}, targets
-        extra = command(accounts[0], "quests.assign", {"cultivator_id": characters[0]["cultivator_id"],
-            "template_id": "daily_measurement_record", "date": today, "request_id": "measure"})
+        # 同日第二项记录只更新完成状态，日奖励组不重复发放。
+        extra = bridge.enable_task(routes[0]["binding_id"], "daily_planned_record", today)
         result = submit(0, extra, "health-measure")
-        bridge.game_post(f"/internal/v1/task-results/{result['event_id']}/settle", {})
+        second = bridge.game_post(f"/internal/v1/task-results/{result['event_id']}/settle", {})
+        assert (second["spirit_stones"], second["reason"]) == (0, "daily_group_claimed"), second
         draw = command(accounts[0], "growth.draw", {"cultivator_id": characters[0]["cultivator_id"], "count": 1, "request_id": "draw"})
-        assert draw["character"]["resources"]["spirit_stones"] == 5, draw
+        assert draw["character"]["resources"]["spirit_stones"] == 30, draw
         other = command(accounts[1], "growth.snapshot", {"cultivator_id": characters[1]["cultivator_id"]})
-        assert other["resources"]["spirit_stones"] == 6, other
+        assert other["resources"]["spirit_stones"] == 100 and other["resources"]["seals"] == 1, other
         request(f"/api/v2/bindings/{routes[0]['binding_id']}/revoke", {}, accounts[0])
         try:
             submit(0, extra, "health-measure")

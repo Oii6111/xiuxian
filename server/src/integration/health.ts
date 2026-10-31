@@ -1,7 +1,7 @@
 import { Database } from '../database.js';
 import { type Clock, DomainError, canonical, dayKey, digest, id, parseTime, requireCondition } from '../core.js';
 import { GameService, type Task } from '../game/service.js';
-import { type Template, type Verification, calculateReward, checkedRules, compensationTier } from '../game/rules.js';
+import { type Template, type Verification, calculateReward, checkedRules, compensationTier, isPixel } from '../game/rules.js';
 import { BindingService } from './bindings.js';
 
 export type VerifiedResult = {
@@ -11,7 +11,7 @@ export type VerifiedResult = {
 };
 export type SubmissionUpdate = { submission_id: string; task_instance_id: string; binding_id: string; consent_version: number; sequence: number; status: 'received' | 'needs_supplement' | 'pending_confirmation' | 'rejected' };
 type StoredResult = { service_id: string; event_id: string; task_id: string; binding_id: string; consent_version: number; fingerprint: string; payload: string; status: string; error_code: string; attempts: number };
-export type Settlement = { id: string; task_id: string; cultivator_id: string; event_type: string; rule_version: string; verification_level: string; spirit_stones: number; realm_xp: number; settled_at: number; day: string; reason: string };
+export type Settlement = { id: string; task_id: string; cultivator_id: string; event_type: string; rule_version: string; verification_level: string; spirit_stones: number; realm_xp: number; settled_at: number; day: string; reason: string; seals: number };
 
 export class HealthBridge {
   // 故障注入仅供构造时的测试依赖使用，不从 HTTP 或环境变量接收。
@@ -77,15 +77,27 @@ export class HealthBridge {
       const template = JSON.parse(task.template_snapshot) as Template;
       const rules = checkedRules(this.game.rules, task.rule_version);
       const today = dayKey(this.now());
-      const used = this.db.get<{ amount: number }>('SELECT COALESCE(SUM(spirit_stones), 0) AS amount FROM settlements WHERE cultivator_id = ? AND day = ?', character.id, today)!.amount;
-      // 用服务端结算时间计算滚动窗口，客户端不能通过修改图片日期绕过限额。
-      const sameType = this.db.get("SELECT id FROM settlements WHERE cultivator_id = ? AND event_type = ? AND settled_at > ? AND reason != 'same_type_limit'", character.id, template.event_type, this.now() - 86400);
-      const reward = sameType ? { spirit_stones: 0, realm_xp: 0 } : calculateReward(rules, template, input.verification_level, compensationTier(this.game.rules, character), Math.max(0, rules.daily_limit - used));
-      const reason = sameType ? 'same_type_limit' : used >= rules.daily_limit ? 'daily_stone_limit' : 'verified_task';
       const settlementId = id('settlement');
-      this.db.run('INSERT INTO settlements VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', settlementId, task.id, character.id, template.event_type, rules.version, input.verification_level, reward.spirit_stones, reward.realm_xp, this.now(), today, reason);
+      let reward = { spirit_stones: 0, realm_xp: 0, seals: 0 };
+      let reason: string;
+      if (isPixel(rules)) {
+        // B 的日奖励组：同角色、同组、同一北京时间任务日只发一次；另一项任务仍记为完成。核验级别只决定能否成立，不改奖励量。
+        requireCondition(template.reward_group, 'INVALID_RULES', '像素任务模板缺少奖励组', 500);
+        const claimed = this.db.get('SELECT settlement_id FROM reward_groups WHERE cultivator_id = ? AND reward_group = ? AND day = ?', character.id, template.reward_group, task.period);
+        reason = claimed ? 'daily_group_claimed' : 'daily_group_reward';
+        if (!claimed) reward = { ...rules.daily_reward };
+      } else {
+        const used = this.db.get<{ amount: number }>('SELECT COALESCE(SUM(spirit_stones), 0) AS amount FROM settlements WHERE cultivator_id = ? AND day = ?', character.id, today)!.amount;
+        // 用服务端结算时间计算滚动窗口，客户端不能通过修改图片日期绕过限额。
+        const sameType = this.db.get("SELECT id FROM settlements WHERE cultivator_id = ? AND event_type = ? AND settled_at > ? AND reason != 'same_type_limit'", character.id, template.event_type, this.now() - 86400);
+        reward = { ...(sameType ? { spirit_stones: 0, realm_xp: 0 } : calculateReward(rules, template, input.verification_level, compensationTier(this.game.rules, character), Math.max(0, rules.daily_limit - used))), seals: 0 };
+        reason = sameType ? 'same_type_limit' : used >= rules.daily_limit ? 'daily_stone_limit' : 'verified_task';
+      }
+      this.db.run('INSERT INTO settlements (id, task_id, cultivator_id, event_type, rule_version, verification_level, spirit_stones, realm_xp, settled_at, day, reason, seals) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', settlementId, task.id, character.id, template.event_type, rules.version, input.verification_level, reward.spirit_stones, reward.realm_xp, this.now(), isPixel(rules) ? task.period : today, reason, reward.seals);
+      if (reason === 'daily_group_reward') this.db.run('INSERT INTO reward_groups VALUES (?, ?, ?, ?)', character.id, template.reward_group!, task.period, settlementId);
       this.game.ledger.change(binding.account_id, character.id, 'spirit_stones', reward.spirit_stones, settlementId, reason);
       this.game.ledger.change(binding.account_id, character.id, 'realm_xp', reward.realm_xp, settlementId, reason);
+      if (reward.seals) this.game.ledger.change(binding.account_id, character.id, 'seals', reward.seals, settlementId, reason);
       this.db.run("UPDATE tasks SET status = 'settled' WHERE id = ?", task.id);
       this.db.run("UPDATE verified_results SET status = 'settled', error_code = '' WHERE service_id = ? AND event_id = ?", serviceId, eventId);
       const settlement = this.db.get<Settlement>('SELECT * FROM settlements WHERE id = ?', settlementId)!;
@@ -127,6 +139,6 @@ export class HealthBridge {
   }
 
   private view(settlement: Settlement) {
-    return { settlement_id: settlement.id, task_instance_id: settlement.task_id, cultivator_id: settlement.cultivator_id, spirit_stones: settlement.spirit_stones, realm_xp: settlement.realm_xp, rule_version: settlement.rule_version, verification_level: settlement.verification_level, settled_at: settlement.settled_at, reason: settlement.reason };
+    return { settlement_id: settlement.id, task_instance_id: settlement.task_id, cultivator_id: settlement.cultivator_id, spirit_stones: settlement.spirit_stones, realm_xp: settlement.realm_xp, seals: settlement.seals, rule_version: settlement.rule_version, verification_level: settlement.verification_level, settled_at: settlement.settled_at, reason: settlement.reason };
   }
 }

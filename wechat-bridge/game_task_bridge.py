@@ -20,6 +20,8 @@ STATE_PATH = Path(os.environ.get("BRIDGE_STATE", str(BASE_DIR / "bot_data/bridge
 ELDER_DB = Path(os.environ.get("ELDER_DB_PATH", str(BASE_DIR.parent / "wechat-sidecar/bot_data/elder_assistant.sqlite3")))
 # C 已发布的模板是唯一来源；新增模板须发布新版本，不能修改旧任务规则。
 TASK_TEMPLATES = {
+    "daily_medication_record": {"time": "19:30", "text": "按您原来的用药安排完成后，跟我说一声就好；没吃或不确定也可以告诉我。"},
+    "daily_planned_record": {"time": "10:00", "text": "今天的个人计划完成后，跟我说一声就记上。"},
     "daily_step_record": {"time": "09:00", "text": "如果今天已记录步数，可以把记录发来，确认后再同步给家人。"},
     "daily_measurement_record": {"time": "08:00", "text": "请按已有测量计划记录，方便时把记录发来；不需要额外增加测量。"},
 }
@@ -83,6 +85,13 @@ def game_request(method, path, body=None):
     if not isinstance(result, dict) or result.get("ok") is not True:
         raise BridgeError("INVALID_RESULT")
     return result["data"]
+
+def enable_task(binding_id, template_id, date):
+    """老人已确认当前适用的安排后，为该绑定启用当日任务；同一模板同一日重复调用返回原实例。"""
+    route_for(binding_id)
+    if template_id not in TASK_TEMPLATES:
+        raise BridgeError("TEMPLATE_UNAVAILABLE")
+    return game_post(f"/internal/v1/bindings/{quote(binding_id, safe='')}/tasks", {"template_id": template_id, "date": date})
 
 def game_get(path):
     return game_request("GET", path)

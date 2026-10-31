@@ -308,7 +308,10 @@ def create_app(config: Config | None = None) -> Flask:
 
     def authorized() -> bool:
         if not config.service_token:
-            return request.remote_addr in ("127.0.0.1", "::1")
+            # 本机直连与 Docker 网桥（容器内看到的来源是 172.x）都视为内网调用；
+            # 对外只暴露经 nginx 的同源路径，端口本身绑定在 127.0.0.1。
+            address = request.remote_addr or ""
+            return address in ("127.0.0.1", "::1") or address.startswith("172.")
         header = request.headers.get("Authorization", "")
         return header == f"Bearer {config.service_token}"
 

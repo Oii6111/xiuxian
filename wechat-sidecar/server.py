@@ -152,6 +152,24 @@ def game_baseline():
 # 不会看到游戏字段；确认后的结构化事件可通过 HEALTH_EVENT_SINK_URL 转发。
 register_elder_assistant_routes(app)
 
+# 直接用 iLink 长轮询收微信消息，不再依赖 openclaw-health-hook。
+try:
+    import ilink_gateway
+
+    ilink_gateway.start_background()
+except Exception as error:  # noqa: BLE001 - 网关故障不能拖垮健康入口
+    print(f"[ilink] gateway disabled: {error}")
+
+
+@app.get("/api/v1/wechat/gateway")
+def wechat_gateway_status():
+    try:
+        import ilink_gateway
+
+        return jsonify({"ok": True, "data": ilink_gateway.status()})
+    except Exception as error:  # noqa: BLE001
+        return jsonify({"ok": False, "message": str(error)})
+
 
 if __name__ == "__main__":
     host = os.environ.get("HOST", "127.0.0.1")

@@ -213,14 +213,20 @@ def complete_task_from_reply(binding_id, text, has_photo, message_id=""):
     return {"ok": False, "reason": "explicit_task_and_verified_evidence_required"}
 
 def send_wechat(route, text):
+    """直接走 iLink 网关发消息；不再依赖 openclaw CLI。"""
     if dry_run():
         return False
-    args = [os.environ.get("OPENCLAW_BIN", "openclaw"), "message", "send", "--channel",
-            os.environ.get("OPENCLAW_SEND_CHANNEL", "openclaw-weixin"),
-            "--account", route["channel_account_id"], "--target", route["target"], "--message", text]
-    # 不拼接 shell 字符串；失败不能确认 C 的租约。
-    result = subprocess.run(args, shell=False, capture_output=True, timeout=8)
-    return result.returncode == 0
+    try:
+        import sys
+        from pathlib import Path
+        sidecar = str(Path(__file__).resolve().parent.parent / "wechat-sidecar")
+        if sidecar not in sys.path:
+            sys.path.insert(0, sidecar)
+        import ilink_gateway
+        result = ilink_gateway.send_to(str(route.get("channel_account_id", "")), str(route.get("target", "")), text)
+        return bool(result.get("ok"))
+    except (ImportError, OSError):
+        return False
 
 def claim_notifications():
     if dry_run():

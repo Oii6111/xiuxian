@@ -22,6 +22,16 @@ var online = false
 func _ready() -> void:
 	endpoint_url = OS.get_environment("XIUXIAN_COMPANION_API_URL").strip_edges()
 	trusted_auth_origin = OS.get_environment("XIUXIAN_COMPANION_AUTH_ORIGIN").strip_edges().trim_suffix("/")
+	if endpoint_url.is_empty():
+		# 默认直接接灵宠聊天服务（deepseek-flash）。网页走同源，桌面走本机 8031。
+		if OS.has_feature("web"):
+			var origin = str(JavaScriptBridge.eval("location.origin")).strip_edges().trim_suffix("/")
+			if not origin.is_empty():
+				endpoint_url = origin + "/api/v1/companion/chat"
+				trusted_auth_origin = origin
+		else:
+			endpoint_url = "http://127.0.0.1:8031/api/v1/companion/chat"
+			trusted_auth_origin = "http://127.0.0.1:8031"
 	create_request()
 	reset_session()
 

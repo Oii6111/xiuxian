@@ -1377,6 +1377,15 @@ def confirm_family_link(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": True, "status": "confirmed", "elder_id": row["elder_id"], "family_user_id": row["family_user_id"]}
 
 
+def _ilink_gateway_status() -> Dict[str, Any]:
+    try:
+        import ilink_gateway
+
+        return ilink_gateway.status()
+    except Exception:  # noqa: BLE001 - 健康检查不能因为网关未启动而失败
+        return {"configured": False, "polling": False, "bots": []}
+
+
 def register_elder_assistant_routes(app) -> None:
     init_db()
     # 只追加 D 数据库的身份引用表；旧记录缺少来源时不允许自动进入游戏。
@@ -1410,7 +1419,7 @@ def register_elder_assistant_routes(app) -> None:
         return {
             "ok": True,
             "mode": "elder_only",
-            "openclaw_gateway_configured": bool(os.environ.get("OPENCLAW_GATEWAY_URL") and os.environ.get("OPENCLAW_GATEWAY_TOKEN")),
+            "ilink_gateway": _ilink_gateway_status(),
             "text_fallback_enabled": os.environ.get("HEALTH_CHAT_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
             "text_fallback_model": os.environ.get("HEALTH_CHAT_MODEL", "qwen-plus"),
             "vision_configured": bool(key),

@@ -238,6 +238,26 @@ class HealthEntryTest(unittest.TestCase):
         self.assertEqual(document["groups"], DOCUMENT["groups"])
         session.post.assert_called_once()
 
+    def test_game_projection_endpoint_never_exposes_health_explanations(self):
+        profile = dict(name="投影测试", age=68, sex="男", relation="父亲")
+        response = self.client.post("/api/v1/game/projections/parse", json=dict(profile=profile, history_text="高血压", medications_text="氨氯地平"))
+        self.assertEqual(response.status_code, 200)
+        parsed = response.get_json()
+        serialized = json.dumps(parsed, ensure_ascii=False)
+        for forbidden in ("高血压", "氨氯地平", "attribute_notes", "evidence", "document", "provider"):
+            self.assertNotIn(forbidden, serialized)
+        self.assertEqual(parsed["game_projection"]["character_state"]["spirit"], 48)
+        request = dict(record_id=parsed["record_id"], recognition_mode="text", baseline_locked=True)
+        first = self.client.post("/api/v1/game/projections/confirm", json=request)
+        repeated = self.client.post("/api/v1/game/projections/confirm", json=request)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.get_json(), repeated.get_json())
+        game_data = json.dumps(first.get_json(), ensure_ascii=False)
+        for forbidden in ("高血压", "氨氯地平", "attribute_notes", "evidence", "document", "provider"):
+            self.assertNotIn(forbidden, game_data)
+        stored = next(Path(self.tmp.name).glob("*.json")).read_text(encoding="utf8")
+        self.assertIn("attribute_notes", stored)  # This is the separate health-domain store.
+
     def test_config_refresh_and_default_model(self):
         # Never read or modify the user's real key in this test.
         self.config.stop()

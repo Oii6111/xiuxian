@@ -124,7 +124,10 @@ func run() -> void:
 	check(health.name_input.text == "张建国" and health.age_input.text == "68" and health.relation_input.text == "父亲" and health.sex_input.selected == 1, "Delegated health entry pre-fills the selected elder's basic information")
 	health.history_input.text = "父亲资料草稿"
 	game.ui.close_modal()
-	check(game.family.health_drafts.has(father_id), "Closing health entry retains a session draft under the correct elder")
+	var keeps_medical_cache = false
+	for property in game.family.get_property_list():
+		keeps_medical_cache = keeps_medical_cache or property.name == "health_drafts"
+	check(not keeps_medical_cache, "Family Store contains no shared medical draft cache")
 	var mother_added = game.family.add_member(person(true))
 	check(game.ui.activate_family(mother_added.id, true), "The second elder can be selected for delegated entry")
 	await process_frame
@@ -136,7 +139,7 @@ func run() -> void:
 	game.ui.close_modal()
 	game.ui.activate_family(father_id, true)
 	await process_frame
-	check(game.ui.health_entry.history_input.text == "父亲资料草稿" and game.player_name_label.text == "青松真人", "Returning restores father's draft and cultivation title")
+	check(game.ui.health_entry.history_input.text.is_empty() and game.player_name_label.text == "青松真人", "Returning restores only father's basic identity and cultivation title")
 	var stale_panel = game.ui.health_entry
 	var mother_state = game.family.state_for(mother_added.id)
 	var father_state = game.state
@@ -156,7 +159,7 @@ func run() -> void:
 	sample.display_name = "张建国"
 	stale_panel.commit(sample)
 	check(father_state.family_identity.name == "张建国" and father_state.player_name == "青松真人" and not father_state.health_baseline.is_empty(), "Confirming delegated health data preserves the separate cultivation title")
-	check(mother_state.health_baseline.is_empty() and not game.family.health_drafts.has(father_id), "Confirmation clears only the owning elder's input draft")
+	check(mother_state.health_baseline.is_empty() and not father_state.health_baseline.has("attribute_notes"), "Confirmation applies only the owning elder's sanitized game projection")
 	game.ui.open_health_entry()
 	var failed_panel = game.ui.health_entry
 	var old_snapshot = father_state.health_snapshot()

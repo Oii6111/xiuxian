@@ -161,7 +161,7 @@ func run() -> void:
 		var hp = panel.draft.character_state.hp_max
 		panel.confirm_button.pressed.emit()
 		await wait_idle(panel)
-		check(scene.state.health_baseline.get("rules_revision") == "1f356a0" and scene.state.health_baseline.get("model") == "test-fixture" and scene.state.battle_stats().max_hp == hp and scene.state.player_name == "新姓名", "Confirm button obtains authoritative baseline and initializes game state")
+		check(scene.state.health_baseline.get("rules_revision") == "1f356a0" and not scene.state.health_baseline.has("model") and scene.state.battle_stats().max_hp == hp and scene.state.player_name == "新姓名", "Confirm button obtains authoritative baseline and initializes game state")
 		check(not is_instance_valid(scene.ui.health_entry) and not scene.player.blocked, "Successful confirmation returns control to the pixel village")
 	# Verify a real text-only HTTP request and a subsequent edit invalidating its draft.
 	scene.ui.open_health_entry()
@@ -177,7 +177,7 @@ func run() -> void:
 	check(not panel.analyze_button.disabled, "Text-only submissions work without a model key")
 	panel.analyze_button.pressed.emit()
 	await wait_idle(panel)
-	check(panel.draft.get("recognition_mode") == "text" and panel.draft.character_state.spirit == 48 and panel.draft.has("attribute_notes") and not panel.draft.has("five_elements"), "Text mode follows current body-system rules and keeps calculation notes")
+	check(panel.draft.get("recognition_mode") == "text" and panel.draft.character_state.spirit == 48 and not panel.draft.has("attribute_notes") and not panel.draft.has("evidence") and not panel.draft.has("five_elements"), "Text mode follows current body-system rules and excludes medical explanations")
 	panel.history_input.text = "已修改病史"
 	panel.confirm_draft()
 	check(panel.draft.is_empty() and panel.confirm_button.disabled, "Editing submitted inputs invalidates the old preview")

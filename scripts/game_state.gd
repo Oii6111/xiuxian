@@ -6,12 +6,16 @@ const HealthProfile = preload("res://scripts/health_profile.gd")
 const HealthBaseline = preload("res://scripts/health_baseline.gd")
 const Equipment = preload("res://scripts/equipment_rules.gd")
 
-const SAVE_PATH = "res://output/local-save.json"
+const Privacy = preload("res://scripts/game_save_privacy.gd")
+const LegacySaves = preload("res://scripts/legacy_saves.gd")
+const SAVE_PATH = LegacySaves.EDITOR_SAVE
+const DAILY_CULTIVATION = 10
+const DAILY_SEALS = 1
 
 func save_path() -> String:
 	if save_file_override != "":
 		return save_file_override
-	return SAVE_PATH if OS.has_feature("editor") else "user://songfeng_pixel_progress.json"
+	return LegacySaves.primary(OS.has_feature("editor"))
 var save_file_override: String = ""
 var cultivation: int = 80
 var qi: int = 24
@@ -76,6 +80,16 @@ func apply_health_profile(payload: Dictionary) -> Dictionary:
 	lock_equipment_origin()
 	return {"ok": true, "message": "健康属性已更新，下一场挑战生效。已通关进度完整保留。"}
 
+func save_health_profile(payload: Dictionary) -> Dictionary:
+	var before = health_snapshot()
+	var result = apply_health_profile(payload)
+	if not result.ok:
+		return result
+	if not save_game():
+		restore_health_snapshot(before)
+		return {"ok": false, "message": "存档写入失败，原有属性已保留，请重试。"}
+	return result
+
 func health_snapshot() -> Dictionary:
 	return {"player_name": player_name, "health_baseline": health_baseline.duplicate(true), "health_attributes": health_attributes.duplicate(true), "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "equipment": equipment.duplicate(true), "family_identity": family_identity.duplicate(true)}
 
@@ -99,7 +113,7 @@ func apply_health_baseline(payload: Dictionary) -> Dictionary:
 		else:
 			family_identity.name = str(health_baseline.display_name).left(10)
 	health_simulated = health_baseline.recognition_mode in ["sample", "demo"]
-	health_source = "离线示例 · 未调用模型" if health_simulated else ("文字资料 · 未调用模型" if health_baseline.recognition_mode == "text" else health_baseline.provider + " · " + health_baseline.model)
+	health_source = HealthBaseline.source_label(health_baseline)
 	lock_equipment_origin()
 	return {"ok": true, "message": "初始属性已确认，已通关进度完整保留。"}
 
@@ -266,9 +280,9 @@ func record_task(task: String, consent: bool) -> Dictionary:
 		return {"ok": false, "rewarded": false, "message": "未知计划任务。"}
 	if task == "medication" and (not longterm_enabled or not medication_required):
 		return {"ok": false, "rewarded": false, "message": "当前未启用个人用药计划，无需记录服药。"}
-	if task_done(task):
-		return {"ok": false, "rewarded": false, "message": "今天这项计划已经确认，无需重复记录。"}
 	var day = today()
+	if task_done(task, day):
+		return {"ok": false, "rewarded": false, "message": "今天这项计划已经确认，无需重复记录。"}
 	var previous_tasks = daily_tasks.duplicate(true)
 	if not daily_tasks.has(day):
 		daily_tasks[day] = {}
@@ -316,10 +330,15 @@ func begin_boss(_use_support: bool = false, tier: int = 0, track: String = "") -
 	boss_attempts += 1
 	return {"ok": true, "support_damage": 0}
 
+static func reward_day(unix_seconds: int) -> String:
+	# Natural reward days follow Beijing time, including on overseas hosts.
+	return Time.get_date_string_from_unix_time(unix_seconds + 8 * 3600)
+
 func today() -> String:
-	return Time.get_date_string_from_system()
+	return reward_day(int(Time.get_unix_time_from_system()))
 
 func confirm_event(event: Dictionary) -> Dictionary:
+	var day = today()
 	if event.get("review_status", "") != "confirmed":
 		return {"ok": false, "message": "请先确认演示记录，再领取奖励。"}
 	if event.get("event_id", "") == "" or event.get("plan_id", "") != "daily_plan":
@@ -328,16 +347,16 @@ func confirm_event(event: Dictionary) -> Dictionary:
 		return {"ok": false, "message": "这条记录尚未获得家族游戏使用授权。"}
 	if event["event_id"] in confirmed_events:
 		return {"ok": false, "message": "这条记录已经领取过奖励。"}
-	if event.get("observed_day", "") != today():
+	if event.get("observed_day", "") != day:
 		return {"ok": false, "message": "快速演示只结算今日的计划记录。"}
-	if today() in rewarded_days:
+	if day in rewarded_days:
 		return {"ok": false, "message": "今日主行为奖励已领取。无需重复记录，仍可继续探索和试炼。"}
 	var before = {"cultivation": cultivation, "seals": seals, "days": days, "last_reward_day": last_reward_day, "confirmed_events": confirmed_events.duplicate(), "rewarded_days": rewarded_days.duplicate(), "equipment": equipment.duplicate(true)}
 	confirmed_events.append(event["event_id"])
-	rewarded_days.append(today())
-	last_reward_day = today()
-	cultivation += 10
-	seals += 1
+	rewarded_days.append(day)
+	last_reward_day = day
+	cultivation += DAILY_CULTIVATION
+	seals += DAILY_SEALS
 	days += 1
 	equipment.qi += Equipment.DAILY_QI
 	if not save_game():
@@ -358,7 +377,7 @@ func realm() -> String:
 	return ["炼气", "筑基", "结丹", "元婴", "化神"][realm_index]
 
 func to_data() -> Dictionary:
-	return {"schema": 6, "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared}
+	return Privacy.clean({"schema": 6, "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared})
 
 func save_game() -> bool:
 	if not persist_enabled:
@@ -379,30 +398,30 @@ func save_game() -> bool:
 	return false
 
 func load_game() -> void:
-	var source_path = save_path()
-	if not FileAccess.file_exists(source_path):
-		if save_file_override == "" and not OS.has_feature("editor") and FileAccess.file_exists("user://family_cultivation_demo.json"):
-			source_path = "user://family_cultivation_demo.json"
-		else:
-			return
-	var original_text = FileAccess.get_file_as_string(source_path)
-	var data = JSON.parse_string(original_text)
-	if not data is Dictionary:
+	var candidates = PackedStringArray([save_file_override]) if not save_file_override.is_empty() else LegacySaves.candidates(OS.has_feature("editor"))
+	var source_path = LegacySaves.resolve(candidates)
+	if source_path.is_empty():
 		return
+	var document = Privacy.read(source_path, persist_enabled, true)
+	if not document.ok:
+		push_error(document.message)
+		return
+	var original_text = document.text
+	var data = document.data
 	if int(data.get("schema", 1)) < 6 and persist_enabled:
-		var equipment_backup = save_path().trim_suffix(".json") + "-before-equipment-v6.json"
+		var equipment_backup = source_path.trim_suffix(".json") + "-before-equipment-v6.json"
 		if not FileAccess.file_exists(equipment_backup):
 			var backup = FileAccess.open(equipment_backup, FileAccess.WRITE)
 			if backup:
 				backup.store_string(original_text)
 	if int(data.get("schema", 1)) < 4 and persist_enabled:
-		var backup_path = save_path().trim_suffix(".json") + "-before-corridor-v4.json"
+		var backup_path = source_path.trim_suffix(".json") + "-before-corridor-v4.json"
 		if not FileAccess.file_exists(backup_path):
 			var backup_file = FileAccess.open(backup_path, FileAccess.WRITE)
 			if backup_file:
 				backup_file.store_string(original_text)
 	if int(data.get("schema", 1)) == 4 and persist_enabled:
-		var health_backup = save_path().trim_suffix(".json") + "-before-health-v5.json"
+		var health_backup = source_path.trim_suffix(".json") + "-before-health-v5.json"
 		if not FileAccess.file_exists(health_backup):
 			var backup_file = FileAccess.open(health_backup, FileAccess.WRITE)
 			if backup_file:
@@ -410,6 +429,8 @@ func load_game() -> void:
 	load_data(data)
 
 func load_data(data: Dictionary) -> void:
+	data = Privacy.clean(data)
+	health_baseline.clear()
 	var saved_profile = HealthProfile.validate({"profile_id": data.get("health_profile_id", ""), "revision": data.get("health_revision", 0), "source": data.get("health_source", "external"), "simulated": data.get("health_simulated", false), "attributes": data.get("health_attributes", {})})
 	if saved_profile.ok:
 		health_attributes = saved_profile.attributes
@@ -426,7 +447,7 @@ func load_data(data: Dictionary) -> void:
 			health_profile_id = health_baseline.baseline_id
 			health_revision = maxi(1, int(data.get("health_revision", 1)))
 			health_simulated = health_baseline.recognition_mode in ["sample", "demo"]
-			health_source = "离线示例 · 未调用模型" if health_simulated else ("文字资料 · 未调用模型" if health_baseline.recognition_mode == "text" else health_baseline.provider + " · " + health_baseline.model)
+			health_source = HealthBaseline.source_label(health_baseline)
 	selected_boss_id = str(data.get("selected_boss_id", "b00"))
 	if TrialCatalogue.entry(selected_boss_id).is_empty():
 		selected_boss_id = "b00"

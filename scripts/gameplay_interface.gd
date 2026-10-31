@@ -18,6 +18,8 @@ var treasure: Control
 var family_panel: Control
 var account_panel: Control
 var return_to_health_entry = false
+var companion_panel: Control
+var companion_button: Button
 
 func _ready() -> void:
 	super._ready()
@@ -29,12 +31,19 @@ func _ready() -> void:
 	var profile_button = button(self, "健康档案 / 五项属性", open_home, true)
 	profile_button.position = Vector2(16, 382)
 	profile_button.size.x = 276
+	companion_button = button(self, "选择你的灵宠  →", open_companion)
+	companion_button.position = Vector2(16, 440)
+	companion_button.size = Vector2(276, 59)
+	companion_button.expand_icon = true
+	companion_button.add_theme_constant_override("icon_max_width", 39)
+	refresh_companion_button()
 	var args = OS.get_cmdline_user_args()
 	if "--skip-intro" not in args and "--preview" not in args:
 		open_game_entry.call_deferred()
 
 func refresh() -> void:
 	super.refresh()
+	refresh_companion_button()
 	if is_instance_valid(hud_avatar_image):
 		hud_avatar_image.texture = game.portrait
 		hud_name_label.text = game.state.player_name
@@ -45,6 +54,29 @@ func refresh() -> void:
 	var recovery = {"not_started": "未开启", "active": "进行中", "recovered": "已确认结束"}.get(game.state.recovery_status, "未开启")
 	daily_label.text = "服药：%s\n计划：%s\n恢复篇章：%s" % [medication, "已确认" if game.state.task_done("planned_record") else "待记录", recovery]
 
+func refresh_companion_button() -> void:
+	if not is_instance_valid(companion_button):
+		return
+	var catalogue = preload("res://scripts/companion_catalogue.gd")
+	var pet = game.family.companion
+	var chosen = catalogue.valid(str(pet.id)) and game.account_ready
+	companion_button.text = "灵宠相伴 · " + catalogue.nickname(pet) if chosen else "选择你的灵宠  →"
+	companion_button.icon = catalogue.texture(pet.id) if chosen else null
+
+func open_companion(choose: bool = false) -> void:
+	if require_family() or not can_change_family():
+		return
+	close_modal()
+	modal_open = true
+	game.player.blocked = true
+	game.player.route.clear()
+	companion_panel = Control.new()
+	companion_panel.set_script(preload("res://scripts/companion_panel.gd"))
+	companion_panel.game = game
+	companion_panel.ui = self
+	companion_panel.choose_mode = choose
+	add_child(companion_panel)
+
 func close_modal(force: bool = false) -> void:
 	if is_instance_valid(account_panel) and not game.account_ready and not force:
 		return
@@ -54,6 +86,10 @@ func close_modal(force: bool = false) -> void:
 	account_panel = null
 	if is_instance_valid(start_screen):
 		return
+	if is_instance_valid(companion_panel):
+		companion_panel.shutdown()
+		companion_panel.queue_free()
+	companion_panel = null
 	if is_instance_valid(health_entry):
 		health_entry.shutdown()
 		health_entry.queue_free()
@@ -409,11 +445,10 @@ func improve_mock_profile() -> void:
 	apply_profile(payload)
 
 func apply_profile(payload: Dictionary) -> void:
-	var result = game.state.apply_health_profile(payload)
+	var result = game.state.save_health_profile(payload)
 	if not result.ok:
 		toast(result.message)
 		return
-	game.state.save_game()
 	refresh()
 	open_home()
 	toast(result.message)
@@ -656,8 +691,11 @@ func on_account_result(action: String, result: Dictionary) -> void:
 func import_old_account() -> void:
 	if game.pending_account_roster == null or game.account_api.busy:
 		return
-	var path = game.pending_account_roster.legacy_path()
-	var fingerprint = FileAccess.get_file_as_string(path).sha256_text()
+	var source = game.pending_account_roster.legacy_snapshot()
+	if not source.ok:
+		account_panel.status_label.text = source.message
+		return
+	var fingerprint = source.fingerprint
 	account_panel.submit_button.disabled = true
 	game.account_api.claim_legacy(fingerprint)
 
@@ -665,6 +703,8 @@ func finish_account_setup(import_old: bool) -> void:
 	var roster = game.pending_account_roster
 	if roster == null:
 		return
+	if not import_old:
+		roster.legacy_choice_made = true
 	if not (roster.import_legacy() if import_old else roster.save_game()):
 		account_panel.status_label.text = roster.last_error
 		return
@@ -674,9 +714,13 @@ func finish_account_setup(import_old: bool) -> void:
 	game.pending_account_roster = null
 	game.account_ready = true
 	game.state = roster.active_state()
+	game.companion_api.reset_session()
 	game.sync_avatar_from_state()
 	refresh()
-	open_family()
+	if game.family.companion.id.is_empty() and "--skip-intro" not in OS.get_cmdline_user_args():
+		open_companion(true)
+	else:
+		open_family()
 
 func logout_account() -> void:
 	if not can_change_family() or game.account_api.busy:
@@ -688,6 +732,7 @@ func logout_account() -> void:
 
 func reset_logged_out() -> void:
 	close_modal(true)
+	game.companion_api.reset_session()
 	game.family.dispose()
 	if game.pending_account_roster != null:
 		game.pending_account_roster.dispose()

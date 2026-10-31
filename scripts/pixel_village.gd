@@ -12,6 +12,8 @@ var state = State.new()
 var family = FamilyRoster.new()
 var account_api: Node
 var account_ready = false
+var companion_api: Node
+var companion_actor: Node2D
 var account_cache_root_override = ""
 var account_legacy_source_override = ""
 var pending_account_roster: RefCounted
@@ -48,6 +50,10 @@ func _ready() -> void:
 	account_api = Node.new()
 	account_api.set_script(preload("res://scripts/account_client.gd"))
 	add_child(account_api)
+	companion_api = Node.new()
+	companion_api.set_script(preload("res://scripts/companion_client.gd"))
+	companion_api.game = self
+	add_child(companion_api)
 	if "--female" in OS.get_cmdline_user_args():
 		state.avatar_id = "female"
 		state.player_name = "清岚"
@@ -64,6 +70,10 @@ func _ready() -> void:
 	ui.game = self
 	layer.add_child(ui)
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	companion_actor = Node2D.new()
+	companion_actor.set_script(preload("res://scripts/companion_actor.gd"))
+	companion_actor.game = self
+	add_child(companion_actor)
 	_handle_capture.call_deferred()
 
 func _setup_inputs() -> void:
@@ -437,6 +447,16 @@ func _handle_capture() -> void:
 				if "--show-equipment" in args:
 					ui.treasure.selected_id = state.equipment.inventory[0].id
 					ui.treasure.build()
+			if "--show-companion-choice" in args:
+				ui.open_companion(true)
+			if "--show-companion-map" in args or "--show-companion-chat" in args:
+				family.choose_companion("gourd_dragon", "团团")
+				companion_actor.refresh_pet()
+				ui.refresh()
+				if "--show-companion-chat" in args:
+					ui.open_companion()
+					ui.companion_panel.send_message("下一步做什么？")
+					await get_tree().process_frame
 			if "--show-reward" in args:
 				ui.open_reward("家人的坚持，化作你的守护。\n修为 +10  ·  灵印 +1")
 			await get_tree().process_frame

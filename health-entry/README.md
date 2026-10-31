@@ -64,3 +64,8 @@
 创建状态必须提供 `profile.name`、`profile.age`、`profile.sex`、`profile.relation`；年龄为 1—120 的整数，性别为男或女。缺少必填项会在模型调用前返回 400。Godot 仅显示最终属性，不显示 `attribute_notes` 的公式或依据。
 
 模型网络路由支持 `LLM_USE_SYSTEM_PROXY=auto/true/false`。auto 对通义千问使用直连，其他兼容服务沿用系统代理；不更改 Windows 代理，也不关闭 TLS 校验。网络、超时、鉴权和模型权限错误会分别提示，日志不记录密钥或报告内容。
+
+
+## 游戏域白名单边界
+
+Godot 改用 `/api/v1/game/projections/parse` 和 `/api/v1/game/projections/confirm`，只接收固定游戏数值与必要引用/版本。医疗解释、病史、药名、evidence 和原文不进入游戏状态或存档。完整 baseline 仅留在本健康服务；它不是 C 的正式游戏 API。详见 [PR #5 适配状态](../docs/merge-compatibility-review.md)。

@@ -92,7 +92,7 @@ func run() -> void:
 	game.ui.import_old_account()
 	await wait_api()
 	check(game.account_ready and game.family.owner_state.equipment.qi == 222 and game.family.members.is_empty(), "Old player progress imports into self and leaves both elder slots free")
-	check(FileAccess.file_exists(legacy_path.trim_suffix(".json") + "-before-accounts-v8.json"), "Legacy import retains an untouched original backup")
+	check(FileAccess.file_exists(legacy_path.trim_suffix(".json") + "-before-accounts-v8.json"), "Legacy import retains a sanitized backup of game progress")
 	game.ui.logout_account()
 	await wait_api()
 	await register_user("d")

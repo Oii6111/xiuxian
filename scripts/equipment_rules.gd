@@ -1,5 +1,7 @@
 extends RefCounted
 ## Pure game rules. Initial health-derived scores are frozen separately from gear bonuses.
+const RULES_VERSION = "pixel-local-v1"
+const CATALOGUE_VERSION = "pixel-equipment-v1"
 const DAILY_QI = 100
 const SINGLE_COST = 70
 const TEN_COST = 700
@@ -104,17 +106,22 @@ static func normalize(payload) -> Dictionary:
 	if receipts is Dictionary:
 		for request in receipts:
 			var receipt = receipts[request]
-			if not receipt is Dictionary or not receipt.get("items", []) is Array or int(receipt.get("count", 0)) not in [1, 10]:
+			if not receipt is Dictionary or not receipt.get("items") is Array or not valid_draw_count(receipt.get("count")):
 				continue
 			var items = []
+			var receipt_ids = {}
 			for item in receipt.items:
-				if item is Dictionary and ids.has(str(item.get("id", ""))):
+				if item is Dictionary and ids.has(str(item.get("id", ""))) and not receipt_ids.has(str(item.get("id", ""))):
 					for owned in result.inventory:
 						if owned.id == item.id:
 							items.append(owned.duplicate())
+							receipt_ids[owned.id] = true
 			if items.size() == int(receipt.count):
 				result.receipts[str(request)] = {"ok": true, "request_id": str(request), "count": int(receipt.count), "cost": SINGLE_COST * int(receipt.count), "items": items, "guaranteed": receipt.get("guaranteed", false) == true}
 	var last_request = str(payload.get("last_request", ""))
 	if result.receipts.has(last_request):
 		result.last_request = last_request
 	return result
+
+static func valid_draw_count(value) -> bool:
+	return typeof(value) in [TYPE_INT, TYPE_FLOAT] and is_finite(float(value)) and float(value) in [1.0, 10.0]

@@ -1,20 +1,25 @@
 extends RefCounted
 ## Local child account, at most two elders. Every member owns a separate GameState.
 const State = preload("res://scripts/game_state.gd")
+const Privacy = preload("res://scripts/game_save_privacy.gd")
+const LegacySaves = preload("res://scripts/legacy_saves.gd")
 const MAX_MEMBERS = 2
+const Companions = preload("res://scripts/companion_catalogue.gd")
+var companion: Dictionary = Companions.clean({})
 var members: Array = []
 var active_id = "self"
 var owner_state: RefCounted
 var account_bound = false
 var cache_root_override = ""
 var legacy_source_override = ""
+var legacy_candidates_override = PackedStringArray()
+var legacy_record: Dictionary = {}
+var legacy_choice_made = false
 var account = {"id": "local-child", "name": "我的守护账号"}
 var persist_enabled = true
 var save_file_override = ""
 var last_error = ""
 var load_blocked = false
-# Raw report text and paths are session drafts only, never part of the game save.
-var health_drafts: Dictionary = {}
 
 func _init() -> void:
 	reset_owner()
@@ -48,19 +53,67 @@ func cache_root() -> String:
 		return cache_root_override
 	return "res://output/accounts" if OS.has_feature("editor") else "user://accounts"
 
-func legacy_path() -> String:
+func legacy_candidates() -> PackedStringArray:
 	if not legacy_source_override.is_empty():
-		return legacy_source_override
-	return State.SAVE_PATH if OS.has_feature("editor") else "user://songfeng_pixel_progress.json"
+		return PackedStringArray([legacy_source_override])
+	if not legacy_candidates_override.is_empty():
+		return legacy_candidates_override
+	return LegacySaves.candidates(OS.has_feature("editor"))
+
+func legacy_path() -> String:
+	return str(legacy_record.path) if not legacy_record.is_empty() else LegacySaves.resolve(legacy_candidates())
+
+func discover_legacy() -> Dictionary:
+	legacy_record.clear()
+	var path = LegacySaves.resolve(legacy_candidates())
+	if path.is_empty():
+		return {"ok": true, "found": false}
+	var document = Privacy.read(path, persist_enabled, true)
+	if not document.ok:
+		last_error = document.message
+		return {"ok": false, "message": last_error}
+	var digest = FileAccess.get_file_as_string(path).sha256_text()
+	if digest != document.disk_digest:
+		last_error = "旧存档在检查期间发生变化，请重新登录后确认。"
+		return {"ok": false, "message": last_error}
+	var fingerprint = str(document.data.get("legacy_import_fingerprint", digest))
+	var pattern = RegEx.new()
+	pattern.compile("^[a-f0-9]{64}$")
+	if pattern.search(fingerprint) == null:
+		fingerprint = digest
+	legacy_record = {"path": path, "digest": digest, "fingerprint": fingerprint}
+	return {"ok": true, "found": true}
+
+func legacy_snapshot() -> Dictionary:
+	if legacy_record.is_empty():
+		var found = discover_legacy()
+		if not found.ok:
+			return found
+	if legacy_record.is_empty() or not FileAccess.file_exists(legacy_record.path):
+		return {"ok": false, "message": "旧存档已不存在，请重新登录后检查。"}
+	if FileAccess.get_file_as_string(legacy_record.path).sha256_text() != legacy_record.digest:
+		return {"ok": false, "message": "旧存档已发生变化，请重新登录后确认导入。"}
+	return {"ok": true, "path": legacy_record.path, "fingerprint": legacy_record.fingerprint}
+
+func pristine_account() -> bool:
+	var state = owner_state
+	return members.is_empty() and state.health_profile_id.is_empty() and state.health_baseline.is_empty() and state.cultivation == 0 and state.seals == 0 and state.days == 0 and state.contribution == 0 and state.boss_attempts == 0 and state.cleared_bosses.is_empty() and state.cleared_stages.is_empty() and state.rewarded_days.is_empty() and state.daily_tasks.is_empty() and state.equipment.qi == 0 and state.equipment.inventory.is_empty() and state.equipment.receipts.is_empty()
 
 func open_account(identity: Dictionary) -> Dictionary:
+	legacy_record.clear()
 	var pattern = RegEx.new()
 	pattern.compile("^[a-f0-9]{32}$")
 	if pattern.search(str(identity.get("id", ""))) == null:
 		return {"ok": false, "message": "账号标识无效。"}
+	dispose()
+	members.clear()
+	load_blocked = false
+	last_error = ""
+	legacy_choice_made = false
 	account = identity.duplicate(true)
 	account.name = str(identity.get("display_name", identity.get("username", "我的账号")))
 	account_bound = true
+	companion = Companions.clean({})
 	reset_owner(identity)
 	active_id = "self"
 	if FileAccess.file_exists(save_path()):
@@ -73,20 +126,34 @@ func open_account(identity: Dictionary) -> Dictionary:
 		account = authenticated
 		if load_blocked:
 			return {"ok": false, "message": last_error}
+		if not legacy_choice_made and pristine_account():
+			var recoverable = discover_legacy()
+			if not recoverable.ok:
+				return recoverable
+			if recoverable.found:
+				return {"ok": true, "needs_import": true, "existing": true}
 		return {"ok": true, "needs_import": false, "existing": true}
-	return {"ok": true, "needs_import": FileAccess.file_exists(legacy_path()), "existing": false}
+	var legacy = discover_legacy()
+	if not legacy.ok:
+		return legacy
+	return {"ok": true, "needs_import": legacy.found, "existing": false}
 
 func import_legacy() -> bool:
+	var source = legacy_snapshot()
+	if not source.ok:
+		last_error = source.message
+		return false
 	var authenticated = account.duplicate(true)
 	var old_override = save_file_override
-	save_file_override = legacy_path()
+	save_file_override = source.path
 	account_bound = false
-	load_game(owner_state)
+	load_game(owner_state, legacy_record.digest)
 	save_file_override = old_override
 	account_bound = true
 	account = authenticated
 	if load_blocked:
 		return false
+	legacy_choice_made = true
 	return save_game()
 
 func save_path() -> String:
@@ -94,7 +161,7 @@ func save_path() -> String:
 		return save_file_override
 	if account_bound:
 		return cache_root().path_join(str(account.id) + ".json")
-	return State.SAVE_PATH if OS.has_feature("editor") else "user://songfeng_pixel_progress.json"
+	return LegacySaves.primary(OS.has_feature("editor"))
 
 func state_for(id: String):
 	if id == "self":
@@ -209,11 +276,21 @@ func select_member(id: String) -> Dictionary:
 		return {"ok": false, "message": "切换保存失败，仍保留当前家人。"}
 	return {"ok": true, "id": id}
 
+func choose_companion(id: String, nickname: String) -> Dictionary:
+	if not Companions.valid(id):
+		return {"ok": false, "message": "请选择一位同行灵宠。"}
+	var before = companion.duplicate(true)
+	companion = Companions.clean({"id": id, "nickname": nickname})
+	if not save_game():
+		companion = before
+		return {"ok": false, "message": "灵宠选择保存失败，已保留原来的伙伴，请重试。"}
+	return {"ok": true, "message": "你的同行灵宠已经准备好啦。"}
+
 func to_data() -> Dictionary:
 	var records = []
 	for member in members:
 		records.append({"id": member.id, "identity": member.state.family_identity.duplicate(true), "progress": member.state.to_data()})
-	return {"schema": 8, "account": account.duplicate(true), "owner": {"identity": owner_state.family_identity.duplicate(true), "progress": owner_state.to_data()}, "active_member_id": active_id, "members": records}
+	return Privacy.clean({"schema": 8, "companion": Companions.clean(companion), "legacy_choice_made": legacy_choice_made, "account": account.duplicate(true), "owner": {"identity": owner_state.family_identity.duplicate(true), "progress": owner_state.to_data()}, "active_member_id": active_id, "members": records})
 
 func save_game() -> bool:
 	if load_blocked:
@@ -244,20 +321,60 @@ func adopt_legacy(state) -> void:
 	bind_owner(state, {"name": name, "relation": "本人", "age": 0, "sex": "", "title": state.player_name, "avatar": state.avatar_id, "mode": "self", "consent": false})
 	active_id = "self"
 
-func load_game(fallback_state) -> void:
+func load_game(fallback_state, expected_digest: String = "") -> void:
+	# Validate into a detached roster; never append to or partly overwrite live state.
+	var staged = get_script().new()
+	staged.persist_enabled = persist_enabled
+	staged.save_file_override = save_file_override
+	staged.cache_root_override = cache_root_override
+	staged.legacy_source_override = legacy_source_override
+	staged.legacy_candidates_override = legacy_candidates_override
+	staged.account_bound = account_bound
+	staged.account = account.duplicate(true)
+	var fallback = State.new()
+	fallback.load_data(fallback_state.to_data())
+	staged.load_staged(fallback, expected_digest)
+	if staged.load_blocked:
+		load_blocked = true
+		last_error = staged.last_error
+		staged.dispose()
+		return
+	dispose()
+	members = staged.members
+	owner_state = staged.owner_state
+	active_id = staged.active_id
+	account = staged.account
+	companion = staged.companion
+	legacy_choice_made = staged.legacy_choice_made
+	load_blocked = false
+	last_error = ""
+	owner_state.family_save = save_game
+	for member in members:
+		member.state.family_save = save_game
+	staged.members = []
+	staged.owner_state = null
+
+func load_staged(fallback_state, expected_digest: String = "") -> void:
 	var path = save_path()
-	if not FileAccess.file_exists(path) and save_file_override.is_empty() and not OS.has_feature("editor") and FileAccess.file_exists("user://family_cultivation_demo.json"):
-		path = "user://family_cultivation_demo.json"
-	if not FileAccess.file_exists(path):
-		if not fallback_state.health_profile_id.is_empty() or fallback_state.profile_created:
+	if save_file_override.is_empty() and not account_bound:
+		path = LegacySaves.resolve(legacy_candidates())
+	if path.is_empty() or not FileAccess.file_exists(path):
+		if not account_bound and (not fallback_state.health_profile_id.is_empty() or fallback_state.profile_created):
 			adopt_legacy(fallback_state)
 		return
-	var original = FileAccess.get_file_as_string(path)
-	var data = JSON.parse_string(original)
-	if not data is Dictionary:
-		last_error = "存档格式异常，原文件已保留。"
+	var document = Privacy.read(path, persist_enabled, not account_bound)
+	if not document.ok:
+		last_error = document.message
 		load_blocked = true
 		return
+	if not expected_digest.is_empty() and document.disk_digest != expected_digest:
+		last_error = "旧存档在导入期间发生变化，请重新登录后确认。"
+		load_blocked = true
+		return
+	var original = document.text
+	var data = document.data
+	legacy_choice_made = data.get("legacy_choice_made", false) == true
+	companion = Companions.clean(data.get("companion", {}))
 	if int(data.get("schema", 1)) > 8:
 		last_error = "存档版本较新，请使用对应版本的游戏。"
 		load_blocked = true
@@ -267,7 +384,7 @@ func load_game(fallback_state) -> void:
 			last_error = "家人存档格式异常，原文件已保留。"
 			load_blocked = true
 			return
-		var ids = {}
+		var ids = {"self": true} if int(data.schema) == 8 else {}
 		var moved_self_id = ""
 		if int(data.schema) == 8:
 			var own = data.get("owner", {})
@@ -288,6 +405,10 @@ func load_game(fallback_state) -> void:
 			var state = State.new()
 			state.load_data(record.progress)
 			var is_self = int(data.schema) == 7 and ((str(record.id) == "elder_legacy" and str(record.identity.get("relation", "")).is_empty()) or str(record.identity.get("relation", "")) in ["本人", "自己", "我", "self"])
+			if (int(data.schema) == 8 and str(record.identity.get("relation", "")) in ["本人", "自己", "我", "self"]) or (is_self and not moved_self_id.is_empty()):
+				last_error = "本人和家人存档归属冲突，原文件已保留。"
+				load_blocked = true
+				return
 			if is_self and moved_self_id.is_empty():
 				bind_owner(state, record.identity)
 				moved_self_id = str(record.id)
@@ -297,8 +418,8 @@ func load_game(fallback_state) -> void:
 		active_id = str(data.get("active_member_id", "self"))
 		if active_id == moved_self_id or state_for(active_id) == null:
 			active_id = "self"
-		if int(data.schema) == 7 and persist_enabled:
-			backup_legacy(path, original)
+		if int(data.schema) == 7 and persist_enabled and not backup_legacy(path, original):
+			return
 		if data.get("account") is Dictionary:
 			account = {"id": str(data.account.get("id", "local-child")), "name": str(data.account.get("name", "我的守护账号")).left(20)}
 		return
@@ -310,7 +431,12 @@ func load_game(fallback_state) -> void:
 func backup_legacy(path: String, original: String) -> bool:
 	var backup_path = path.trim_suffix(".json") + "-before-accounts-v8.json"
 	if FileAccess.file_exists(backup_path):
-		return true
+		var cleaned = Privacy.read(backup_path, true, true)
+		if cleaned.ok:
+			return true
+		last_error = cleaned.message
+		load_blocked = true
+		return false
 	var backup = FileAccess.open(backup_path, FileAccess.WRITE)
 	if backup != null:
 		backup.store_string(original)
@@ -327,4 +453,3 @@ func dispose() -> void:
 	# Clear callback references so the RefCounted roster and states can be released.
 	for member in members:
 		member.state.family_save = Callable()
-	health_drafts.clear()

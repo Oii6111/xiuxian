@@ -43,12 +43,25 @@ var tried_start = false
 var disposed = false
 var target_state: RefCounted
 var bound_member_id = ""
+var bound_family: RefCounted
+var bound_account_id = ""
+var bound_generation = 0
+var bound_health_revision = 0
+var bound_health_profile_id = ""
+var probe_service_url = ""
+var verified_service_url = ""
+var pending_service_url = ""
 var committed = false
 var fill_mode: OptionButton
 
 func _ready() -> void:
 	target_state = game.state
 	bound_member_id = target_state.family_member_id
+	bound_family = game.family
+	bound_account_id = str(game.family.account.get("id", ""))
+	bound_generation = game.account_api.generation
+	bound_health_revision = target_state.health_revision
+	bound_health_profile_id = target_state.health_profile_id
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var shade = ColorRect.new()
 	shade.color = Color(0.08, 0.07, 0.06, 0.8)
@@ -193,16 +206,18 @@ func _ready() -> void:
 	analyze_button = ui.button(right, "分析资料 · 生成初始属性", analyze, true)
 	confirm_button = ui.button(right, "确认初始属性并进入仙村", confirm_draft, true)
 	probe = HTTPRequest.new()
+	probe.max_redirects = 0
 	probe.timeout = 4
 	probe.body_size_limit = 65536
 	add_child(probe)
 	probe.request_completed.connect(probe_completed)
 	work = HTTPRequest.new()
+	work.max_redirects = 0
 	work.timeout = 150
 	work.body_size_limit = 2 * 1024 * 1024
 	add_child(work)
 	work.request_completed.connect(work_completed)
-	restore_input_draft()
+	prefill_member_identity()
 	update_buttons()
 	if "--preview" in OS.get_cmdline_user_args():
 		status.text = "请填写基础信息，上传报告或补充文字资料后开始分析。"
@@ -238,7 +253,7 @@ func text_area(parent: Node, placeholder: String) -> TextEdit:
 	return field
 
 func input_changed() -> void:
-	if busy or not is_instance_valid(result_box):
+	if disposed or busy or not is_instance_valid(result_box):
 		return
 	if not draft.is_empty():
 		draft = {}
@@ -303,12 +318,13 @@ func connect_service() -> void:
 	service_verified = false
 	status.text = "正在连接本地分析服务…"
 	update_buttons()
-	var error = probe.request(service_url + "/api/v1/health")
+	probe_service_url = service_url
+	var error = probe.request(probe_service_url + "/api/v1/health")
 	if error != OK:
 		status.text = "无法连接服务，请运行 health-entry/start.bat 后重试。"
 
 func probe_completed(result: int, code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
-	if disposed:
+	if disposed or probe_service_url != service_url:
 		return
 	if result != HTTPRequest.RESULT_SUCCESS:
 		if not tried_start and not OS.has_feature("web"):
@@ -333,7 +349,11 @@ func probe_completed(result: int, code: int, _headers: PackedStringArray, body: 
 	if data.get("source_revision") != ENTRY_REVISION:
 		status.text = "分析服务版本较旧。请重启 health-entry/start.bat 后重新连接。"
 		return
+	if data.get("game_projection_version") != "legacy-pixel-v1":
+		status.text = "健康服务需要更新，请重新启动 health-entry/start.bat。"
+		return
 	service_verified = true
+	verified_service_url = service_url
 	configured = data.get("configured", false) == true
 	model_name = str(data.get("model", "qwen3-vl-plus"))
 	provider = str(data.get("provider_label", "通义千问视觉"))
@@ -438,9 +458,13 @@ func analyze() -> void:
 	show_placeholder()
 	status.text = "正在使用 " + model_name + " 读取 %d 张图片…\n通常需要十几秒至两分钟。" % data_urls.size() if not data_urls.is_empty() else "正在根据文字资料计算初始属性…\n本次不调用大模型。"
 	submitted_inputs = input_signature()
-	send_request("parse", "/api/v1/records/parse", {"data_urls": data_urls, "profile": current_profile(), "history_text": history_input.text.strip_edges(), "medications_text": medication_input.text.strip_edges()})
+	send_request("parse", "/api/v1/game/projections/parse", {"data_urls": data_urls, "profile": current_profile(), "history_text": history_input.text.strip_edges(), "medications_text": medication_input.text.strip_edges()})
 
 func send_request(next_phase: String, endpoint: String, payload: Dictionary) -> void:
+	if not context_matches() or not service_verified or verified_service_url != service_url:
+		status.text = "角色、档案或服务已变更，请重新打开资料页并连接服务。"
+		return
+	pending_service_url = service_url
 	busy = true
 	phase = next_phase
 	update_buttons()
@@ -454,8 +478,8 @@ func work_completed(result: int, code: int, _headers: PackedStringArray, body: P
 	if disposed:
 		return
 	busy = false
-	if not context_matches():
-		status.text = "当前家人已切换，本次结果未写入任何档案。"
+	if not context_matches() or (not pending_service_url.is_empty() and pending_service_url != service_url):
+		status.text = "角色、档案或服务已变更，本次结果未写入任何档案。"
 		return
 	var data = JSON.parse_string(body.get_string_from_utf8())
 	if result != HTTPRequest.RESULT_SUCCESS or not data is Dictionary:
@@ -477,7 +501,7 @@ func work_completed(result: int, code: int, _headers: PackedStringArray, body: P
 			update_buttons()
 			return
 		var candidate = projection.duplicate(true)
-		candidate.merge({"baseline_id": "preview", "baseline_version": "char_baseline_v1", "baseline_locked": true, "recognition_mode": data.get("recognition_mode", "live"), "mapping_version": "body_system_v2", "rules_revision": data.get("source_revision", ""), "display_name": data.get("display_name", name_input.text.strip_edges()), "provider": data.get("provider", provider), "model": data.get("model", model_name)}, true)
+		candidate.merge({"baseline_id": "preview", "baseline_version": "char_baseline_v1", "baseline_locked": true, "recognition_mode": data.get("recognition_mode", "live"), "mapping_version": "body_system_v2", "rules_revision": data.get("source_revision", ""), "display_name": data.get("display_name", name_input.text.strip_edges()), "projection_version": "legacy-pixel-v1"}, true)
 		var checked = Baseline.validate(candidate)
 		if not checked.ok:
 			status.text = checked.message
@@ -533,7 +557,7 @@ func confirm_draft() -> void:
 		status.text = "请重新连接并分析报告。"
 		return
 	status.text = "正在确认并保存初始档案…"
-	send_request("confirm", "/api/v1/game/baseline", {"record_id": record_id, "recognition_mode": draft.recognition_mode, "baseline_locked": true})
+	send_request("confirm", "/api/v1/game/projections/confirm", {"record_id": record_id, "recognition_mode": draft.recognition_mode, "baseline_locked": true})
 
 func commit(payload: Dictionary) -> void:
 	if not context_matches():
@@ -558,8 +582,6 @@ func commit(payload: Dictionary) -> void:
 		update_buttons()
 		return
 	committed = true
-	if not bound_member_id.is_empty():
-		game.family.health_drafts.erase(bound_member_id)
 	ui.refresh()
 	ui.close_modal()
 	ui.toast("基础状态已保存，开始修行吧！")
@@ -567,8 +589,19 @@ func commit(payload: Dictionary) -> void:
 func shutdown() -> void:
 	if disposed:
 		return
-	stash_input_draft()
 	disposed = true
+	# Raw medical inputs belong only to this health form, never to the family Store.
+	draft.clear()
+	record_id = ""
+	submitted_inputs = ""
+	chosen_path = ""
+	chosen_paths.clear()
+	if is_instance_valid(history_input):
+		history_input.text = ""
+	if is_instance_valid(medication_input):
+		medication_input.text = ""
+	if is_instance_valid(preview):
+		preview.texture = null
 	if is_instance_valid(probe):
 		probe.cancel_request()
 	if is_instance_valid(work):
@@ -579,30 +612,15 @@ func _exit_tree() -> void:
 
 
 func context_matches() -> bool:
-	return is_instance_valid(game) and game.state == target_state and target_state.family_member_id == bound_member_id
+	return not disposed and is_instance_valid(game) and game.state == target_state and game.family == bound_family and str(game.family.account.get("id", "")) == bound_account_id and game.account_api.generation == bound_generation and target_state.family_member_id == bound_member_id and target_state.health_revision == bound_health_revision and target_state.health_profile_id == bound_health_profile_id
 
-func stash_input_draft() -> void:
-	if committed or bound_member_id.is_empty() or not is_instance_valid(name_input) or not is_instance_valid(history_input):
-		return
-	game.family.health_drafts[bound_member_id] = {"name": name_input.text, "age": age_input.text, "relation": relation_input.text, "sex_index": sex_input.selected, "mode_index": fill_mode.selected, "history": history_input.text, "medications": medication_input.text, "paths": chosen_paths.duplicate()}
-
-func restore_input_draft() -> void:
+func prefill_member_identity() -> void:
 	if bound_member_id.is_empty():
 		return
 	var identity = target_state.family_identity
-	var cached = game.family.health_drafts.get(bound_member_id, {})
-	name_input.text = str(cached.get("name", identity.get("name", "")))
-	age_input.text = str(cached.get("age", str(int(identity.get("age", 0))))) if int(identity.get("age", 0)) > 0 or cached.has("age") else ""
-	relation_input.text = str(cached.get("relation", identity.get("relation", "")))
-	var sex_index = int(cached.get("sex_index", ["", "男", "女"].find(str(identity.get("sex", "")))))
-	sex_input.select(clampi(sex_index, 0, 2))
-	fill_mode.select(clampi(int(cached.get("mode_index", 1 if identity.get("mode", "family") == "self" else 0)), 0, 1))
-	history_input.text = str(cached.get("history", ""))
-	medication_input.text = str(cached.get("medications", ""))
-	var paths = PackedStringArray()
-	for path in cached.get("paths", []):
-		if FileAccess.file_exists(str(path)):
-			paths.append(str(path))
-	if not paths.is_empty():
-		select_files(paths)
+	name_input.text = str(identity.get("name", ""))
+	age_input.text = str(int(identity.get("age", 0))) if int(identity.get("age", 0)) > 0 else ""
+	relation_input.text = str(identity.get("relation", ""))
+	sex_input.select(clampi(["", "男", "女"].find(str(identity.get("sex", ""))), 0, 2))
+	fill_mode.select(1 if identity.get("mode", "family") == "self" else 0)
 	consent.button_pressed = false

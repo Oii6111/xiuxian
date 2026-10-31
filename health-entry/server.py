@@ -18,6 +18,7 @@ from PIL import Image
 import recognizer
 import rules
 from baseline import normalize_baseline
+from game_projection import for_game
 
 app = Flask(__name__, static_folder=None)
 app.config["MAX_CONTENT_LENGTH"] = 45 * 1024 * 1024
@@ -34,7 +35,7 @@ def index():
 @app.get("/api/v1/health")
 def health():
     key, base_url, model = recognizer.load_config()
-    return jsonify(service="xiuxian-health-entry", api_version=3, source_revision="1f356a0",
+    return jsonify(service="xiuxian-health-entry", api_version=3, game_projection_version="legacy-pixel-v1", source_revision="1f356a0",
                    configured=bool(key), model=model,
                    provider=base_url if key else "",
                    provider_label=recognizer.provider_label(base_url))
@@ -109,6 +110,7 @@ def validate_profile(profile):
                 age=int(age), sex=profile["sex"])
 
 
+@app.post("/api/v1/game/projections/parse")
 @app.post("/api/v1/records/parse")
 def parse_record():
     data = request.get_json(silent=True)
@@ -168,11 +170,15 @@ def parse_record():
         # Keep only the game projection, never the report image or identifying document.
         RECORDS[record_id] = dict(expires=time.time() + 1800, projection=copy.deepcopy(projection),
                                  provider=provider, model=model, display_name=display_name, recognition_mode=mode, confirmed=None)
+    if request.path == "/api/v1/game/projections/parse":
+        return jsonify(source_revision="1f356a0", record_id=record_id, recognition_mode=mode,
+                       display_name=display_name, game_projection=for_game(projection))
     return jsonify(source_revision="1f356a0", record_id=record_id, provider=provider, model=model,
                    confidence=rules.estimate_confidence(document), document=document, recognition_mode=mode, display_name=display_name,
                    game_projection=projection)
 
 
+@app.post("/api/v1/game/projections/confirm")
 @app.post("/api/v1/game/baseline")
 def game_baseline():
     data = request.get_json(silent=True)
@@ -187,7 +193,7 @@ def game_baseline():
             if record["recognition_mode"] != mode:
                 return jsonify(message="资料模式不匹配，请重新分析。"), 409
             if record["confirmed"]:
-                return jsonify(mode=mode, baseline=record["confirmed"], baseline_id=record["confirmed"]["baseline_id"])
+                return baseline_response(record["confirmed"])
             # Authoritative rules output; do not accept client-edited stats.
             payload = dict(record["projection"], recognition_mode=mode, display_name=record["display_name"], provider=record["provider"],
                            model=record["model"], baseline_locked=True)
@@ -209,7 +215,12 @@ def game_baseline():
         os.replace(out_path + ".tmp", out_path)
         if record is not None:
             record["confirmed"] = payload
-    return jsonify(mode=payload["recognition_mode"], baseline_id=payload["baseline_id"], baseline=payload)
+    return baseline_response(payload)
+
+
+def baseline_response(payload):
+    output = for_game(payload) if request.path == "/api/v1/game/projections/confirm" else payload
+    return jsonify(mode=payload["recognition_mode"], baseline_id=payload["baseline_id"], baseline=output)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ import re
 import sqlite3
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -63,11 +64,16 @@ def _load_json(value: Optional[str], default: Any) -> Any:
         return default
 
 
-def _db() -> sqlite3.Connection:
+@contextmanager
+def _db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def init_db() -> None:
@@ -617,7 +623,7 @@ def _candidate_from_intent(intent: str, text: str, facts: Dict[str, Any], recogn
     return None
 
 
-def _save_session(elder_id: str, channel: str, sender_id: str) -> str:
+def _save_session(elder_id: str, channel: str, sender_id: str, channel_account_id: str = "") -> str:
     session_id = _new_id("ses")
     now = _now()
     with _db() as conn:
@@ -625,6 +631,7 @@ def _save_session(elder_id: str, channel: str, sender_id: str) -> str:
             "INSERT INTO sessions(session_id, elder_id, channel, sender_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
             (session_id, elder_id, channel, sender_id, now, now),
         )
+        conn.execute("INSERT INTO game_session_identity VALUES (?, ?)", (session_id, channel_account_id))
     return session_id
 
 
@@ -659,6 +666,8 @@ def _save_pending(
 
 
 def _send_event_sink(event: Dict[str, Any]) -> Optional[str]:
+    if not event.get("family_share"):
+        return None
     url = os.environ.get("HEALTH_EVENT_SINK_URL", "").strip()
     if not url:
         return None
@@ -990,11 +999,14 @@ def confirm_pending(event_id: str, decision: str) -> Dict[str, Any]:
     decision = str(decision or "").lower().strip()
     accepted = decision in {"confirm", "confirmed", "yes", "是", "对", "记录", "好的"}
     with _db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         row = conn.execute("SELECT * FROM pending_events WHERE event_id = ?", (event_id,)).fetchone()
         if not row:
             return {"ok": False, "message": "这条待确认信息已不存在或已过期"}
         if row["status"] != "pending_confirmation":
             return {"ok": False, "message": "这条信息已经处理过了", "status": row["status"]}
+        if row["expires_at"] <= _now():
+            return {"ok": False, "status": "expired", "message": "这条待确认信息已过期"}
         if not accepted:
             conn.execute("UPDATE pending_events SET status = 'rejected' WHERE event_id = ?", (event_id,))
             return {"ok": True, "status": "rejected", "reply": "好，那这条就先不记了。要不再拍张清楚点的，或者你直接跟我说说咋回事。"}
@@ -1025,9 +1037,13 @@ def confirm_pending(event_id: str, decision: str) -> Dict[str, Any]:
                 None,
             ),
         )
+        conn.execute("""INSERT INTO game_event_identity(event_id, sender_id, channel_account_id)
+            SELECT ?, sessions.sender_id, game_session_identity.channel_account_id
+            FROM sessions JOIN game_session_identity USING(session_id) WHERE session_id = ?""",
+            (event["event_id"], row["session_id"]))
     _remember_from_event(event["elder_id"], event)
     sync_status = _send_event_sink(event)
-    if sync_status:
+    if sync_status == "synced":
         with _db() as conn:
             conn.execute("UPDATE health_events SET synced_at = ? WHERE event_id = ?", (_now(), event["event_id"]))
     return {
@@ -1060,7 +1076,7 @@ def handle_message(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not text:
         text = " ".join(a.get("transcript", "") for a in attachments if a.get("transcript")).strip()
 
-    session_id = _save_session(elder_id, channel, sender_id)
+    session_id = _save_session(elder_id, channel, sender_id, str(payload.get("channel_account_id") or ""))
     # 老人提到要去看病/复查/挂号：记下来，供任务桥接器判断「复查/复诊」提醒要不要发。
     if not attachments and re.search(r"复查|复诊|去看病|看医生|去医院|挂号|约了医生|要去看", text):
         _remember(elder_id, "要去看病", text)
@@ -1361,14 +1377,33 @@ def confirm_family_link(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"ok": True, "status": "confirmed", "elder_id": row["elder_id"], "family_user_id": row["family_user_id"]}
 
 
+def _ilink_gateway_status() -> Dict[str, Any]:
+    try:
+        import ilink_gateway
+
+        return ilink_gateway.status()
+    except Exception:  # noqa: BLE001 - 健康检查不能因为网关未启动而失败
+        return {"configured": False, "polling": False, "bots": []}
+
+
 def register_elder_assistant_routes(app) -> None:
     init_db()
+    # 只追加 D 数据库的身份引用表；旧记录缺少来源时不允许自动进入游戏。
+    with _db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS game_session_identity (session_id TEXT PRIMARY KEY, channel_account_id TEXT NOT NULL)")
+        conn.execute("CREATE TABLE IF NOT EXISTS game_event_identity (event_id TEXT PRIMARY KEY, sender_id TEXT NOT NULL, channel_account_id TEXT NOT NULL)")
+    from game_integration import register_game_routes
+    register_game_routes(app, _db)
+    from ilink_binding import register_binding_routes
+    register_binding_routes(app, _db)
 
     @app.before_request
     def _elder_sidecar_auth():
         expected = os.environ.get("ELDER_SIDECAR_TOKEN", "").strip()
-        if not expected or not request.path.startswith("/api/v1/elder"):
+        if not request.path.startswith("/api/v1/elder"):
             return None
+        if not expected:
+            return jsonify({"message": "Configure ELDER_SIDECAR_TOKEN before accepting health data"}), 503
         provided = request.headers.get("X-Elder-Sidecar-Token", "")
         if not provided:
             auth = request.headers.get("Authorization", "")
@@ -1384,7 +1419,7 @@ def register_elder_assistant_routes(app) -> None:
         return {
             "ok": True,
             "mode": "elder_only",
-            "openclaw_gateway_configured": bool(os.environ.get("OPENCLAW_GATEWAY_URL") and os.environ.get("OPENCLAW_GATEWAY_TOKEN")),
+            "ilink_gateway": _ilink_gateway_status(),
             "text_fallback_enabled": os.environ.get("HEALTH_CHAT_ENABLED", "false").lower() in {"1", "true", "yes", "on"},
             "text_fallback_model": os.environ.get("HEALTH_CHAT_MODEL", "qwen-plus"),
             "vision_configured": bool(key),

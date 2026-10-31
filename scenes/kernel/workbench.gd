@@ -10,7 +10,7 @@ func _ready() -> void:
 	column.add_theme_constant_override("separation", 16)
 	add_child(column)
 	var title := Label.new()
-	title.text = "家族修真录 v2 · 内核接入工作台"
+	title.text = "疯狂修仙，中 v2 · 内核接入工作台"
 	title.add_theme_font_size_override("font_size", 28)
 	column.add_child(title)
 	_output = Label.new()
@@ -40,3 +40,4 @@ func _on_state_changed(_event: Dictionary) -> void:
 
 func _exit_tree() -> void:
 	GameKernel.unsubscribe(_subscription)
+

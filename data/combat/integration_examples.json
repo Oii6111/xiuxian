@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "combat.start": {
+    "request": {
+      "cultivator_id": "c_001",
+      "encounter_id": "trial_wood"
+    },
+    "success": {
+      "ok": true,
+      "code": "OK",
+      "message": "",
+      "data": {
+        "session_id": "server_session_001",
+        "player": {
+          "hp": 300,
+          "attack": 28,
+          "defense": 8,
+          "crit_rate": 0.15,
+          "element": "wood"
+        },
+        "enemy": {
+          "hp": 230,
+          "attack": 16,
+          "defense": 4,
+          "crit_rate": 0,
+          "element": "wood"
+        }
+      }
+    },
+    "failure": {
+      "ok": false,
+      "code": "NOT_ALLOWED",
+      "message": "该修仙者不在修行状态",
+      "data": {}
+    }
+  },
+  "combat.finish": {
+    "request": {
+      "session_id": "server_session_001",
+      "won": true,
+      "duration_seconds": 125.6
+    },
+    "success": {
+      "ok": true,
+      "code": "OK",
+      "message": "",
+      "data": {
+        "won": true,
+        "duration_seconds": 125.6,
+        "replayed": false
+      }
+    },
+    "failure": {
+      "ok": false,
+      "code": "NETWORK_ERROR",
+      "message": "请使用相同会话和战果重试",
+      "data": {}
+    }
+  },
+  "lifecycle.request_change": {
+    "request": {
+      "cultivator_id": "c_001",
+      "target_state": "tribulation"
+    },
+    "success": {
+      "ok": true,
+      "code": "OK",
+      "message": "",
+      "data": {
+        "confirmation_token": "example_token",
+        "confirmations_required": 1
+      }
+    },
+    "failure": {
+      "ok": false,
+      "code": "FORBIDDEN",
+      "message": "没有家属确认权限",
+      "data": {}
+    }
+  },
+  "lifecycle.confirm_change": {
+    "request": {
+      "cultivator_id": "c_001",
+      "confirmation_token": "example_token",
+      "request_id": "request_001"
+    },
+    "success": {
+      "ok": true,
+      "code": "OK",
+      "message": "",
+      "data": {
+        "state": "tribulation",
+        "complete": true,
+        "version": 2
+      }
+    },
+    "failure": {
+      "ok": false,
+      "code": "TOKEN_EXPIRED",
+      "message": "请重新发起确认",
+      "data": {}
+    }
+  },
+  "lifecycle.update_stage": {
+    "request": {
+      "cultivator_id": "c_001",
+      "stage_id": "cardio.admission",
+      "confirmation_token": "example_stage_token"
+    },
+    "success": {
+      "ok": true,
+      "code": "OK",
+      "message": "",
+      "data": {
+        "version": 3
+      }
+    },
+    "failure": {
+      "ok": false,
+      "code": "INVALID_STAGE",
+      "message": "阶段与当前模板不一致",
+      "data": {}
+    }
+  },
+  "ascension_partial": {
+    "ok": true,
+    "code": "OK",
+    "message": "",
+    "data": {
+      "state": "ascended",
+      "complete": false,
+      "remaining": 1
+    }
+  },
+  "content": {
+    "owner": "D",
+    "success_path": "res://data/combat/encounters.json",
+    "failure": {
+      "element": "wood",
+      "waves": [
+        [
+          "unknown"
+        ]
+      ]
+    }
+  }
+}

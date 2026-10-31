@@ -14,7 +14,7 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="家族修真录 · 像素仙村"
+config/name="疯狂修仙，中"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"
@@ -22,6 +22,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameKernel="*res://scripts/autoload/game_kernel.gd"
+TouchControls="*res://scripts/ui/touch_controls.gd"
 _mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
@@ -36,6 +37,10 @@ window/stretch/mode="canvas_items"
 
 enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg")
 
+[gui]
+
+theme/custom_font="res://assets/fonts/NotoSansSC-Regular.otf"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -46,3 +51,4 @@ rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 environment/defaults/default_clear_color=Color(0.79, 0.88, 0.86, 1)
+

@@ -7,6 +7,7 @@ const WOOD = Color("342922")
 var counters: Array[Label] = []
 var hud_avatar_image: TextureRect
 var hud_name_label: Label
+var hud_family_label: Label
 
 class FrameTrim extends Control:
 	func _ready() -> void:
@@ -99,7 +100,7 @@ func button(parent: Node, text: String, callback: Callable, primary: bool = fals
 
 func _build_hud() -> void:
 	var title = card(Rect2(16, 14, 294, 65), self, WOOD)
-	var name_label = label_into(title, "家族修真录", 34, Color("f3d19a"))
+	var name_label = label_into(title, "疯狂修仙，中", 34, Color("f3d19a"))
 	name_label.add_theme_font_override("font", game.title_font)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var resources = card(Rect2(326, 14, 655, 62), self, Color("302b28"))
@@ -152,19 +153,21 @@ func _build_hud() -> void:
 	realm_style.content_margin_right = 8
 	realm_label.add_theme_stylebox_override("normal", realm_style)
 	day_label = label_into(details, "", 16)
-	label_into(details, "家人：青松真人", 12, MUTED)
+	hud_family_label = label_into(details, "家人待选择", 12, MUTED)
+	hud_family_label.clip_text = true
+	hud_family_label.custom_minimum_size.x = 124
 	var tasks = card(Rect2(1160, 14, 264, 217))
 	var task_title = label_into(tasks, "今日修行", 25)
 	task_title.add_theme_font_override("font", game.title_font)
 	task_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	daily_label = label_into(tasks, "", 16)
 	button(tasks, "记下一次坚持  +", open_record, true)
-	label_into(tasks, "模拟记录 · 确认后领取奖励", 12, MUTED)
+	label_into(tasks, "每日有效记录 · 灵气 +100", 12, MUTED)
 	var utility = HBoxContainer.new()
 	utility.position = Vector2(16, 258)
 	utility.add_theme_constant_override("separation", 8)
 	add_child(utility)
-	button(utility, "风格画册", open_gallery)
+	button(utility, "四式说明", open_battle)
 	button(utility, "重置演示", reset_demo)
 	var tips = card(Rect2(16, 818, 452, 63), self, WOOD)
 	tips.add_theme_constant_override("separation", 4)
@@ -175,10 +178,10 @@ func _build_hud() -> void:
 	label_into(tips, "W A S D  移动   ·   Shift 奔跑   ·   E 交互", 16, Color("fae6bd"))
 	label_into(tips, "点击地点自动前往 · 点击村民交谈 · Esc 关闭", 12, Color("c2aa88"))
 	var navigation = HBoxContainer.new()
-	navigation.position = Vector2(677, 831)
+	navigation.position = Vector2(573, 831)
 	navigation.add_theme_constant_override("separation", 8)
 	add_child(navigation)
-	for entry in [["家族洞府", "home"], ["渡劫试炼", "battle"], ["世界首领", "boss"], ["天机碑", "records"]]:
+	for entry in [["健康档案", "home"], ["技能练习", "battle"], ["属性闯关", "boss"], ["聚宝阁", "gacha"], ["天机碑", "records"]]:
 		var id: String = entry[1]
 		button(navigation, entry[0], func(): game.travel_to(id))
 	hint = label_into(self, "", 17, Color("ffe7a4"))
@@ -194,25 +197,29 @@ func _build_hud() -> void:
 	toast_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	toast_label.add_theme_stylebox_override("normal", style(WOOD))
 	toast_label.hide()
-	var footer = label_into(self, "本地像素试玩 · 健康记录与世界首领均为模拟", 11, Color("f4e5ca"))
+	var footer = label_into(self, "本地像素试玩 · 健康档案为模拟 · 像素闯关试玩", 11, Color("f4e5ca"))
 	footer.position = Vector2(1135, 883)
 	footer.add_theme_color_override("font_outline_color", Color("2e2c23"))
 	footer.add_theme_constant_override("outline_size", 4)
 
 func refresh() -> void:
 	var state = game.state
-	var values = [state.cultivation, state.qi, state.charms, state.seals]
+	var values = [state.cultivation, state.equipment.qi, state.cleared_bosses.size(), state.seals]
 	for i in range(counters.size()):
-		counters[i].text = ["修为", "灵气", "守护符", "灵印"][i] + " " + str(values[i])
+		counters[i].text = ["修为", "灵气", "首通", "灵印"][i] + " " + str(values[i])
 	realm_label.text = state.realm()
 	day_label.text = "修行 %d 天" % state.days
+	hud_family_label.text = state.member_label() if not state.family_member_id.is_empty() else "我的账号"
 	daily_label.text = "✓  个人计划已确认\n✓  今日奖励已领取" if state.today() in state.rewarded_days else "□  按计划完成记录\n□  确认后领取奖励"
 
 func update_proximity(id: String) -> void:
-	var names = {"home": "家族洞府", "battle": "渡劫台", "boss": "世界首领", "records": "天机碑"}
+	var names = {"home": "健康档案", "battle": "技能练习", "boss": "属性闯关", "records": "天机碑", "gacha": "聚宝阁"}
 	hint.text = "E  进入「%s」" % names[id] if names.has(id) else "走近建筑按 E，或点击下方地点前往"
 
 func reset_demo() -> void:
+	if not game.account_ready:
+		game.ui.open_family()
+		return
 	close_modal()
 	game.state.reset_demo()
 	game.player.position = game.SPAWN
@@ -245,3 +252,4 @@ func open_npc(index: int) -> void:
 	paragraph(content, words[index], 21, INK)
 	line(content)
 	button(content, ["查看今日计划", "看看家族洞府", "阅读家族修行簿"][index], [open_record, open_home, open_records][index], true)
+

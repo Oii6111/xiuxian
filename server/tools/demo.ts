@@ -22,8 +22,10 @@ try {
   const command = (name: string, payload: unknown, key?: string) => request('/api/v2/commands', { version: 1, command: name, payload }, key);
   await request('/api/v2/auth/register', { username: 'demo_family', password: 'local-demo-password-123' });
   bearer = (await request('/api/v2/auth/login', { username: 'demo_family', password: 'local-demo-password-123' })).token;
-  const first = await command('growth.create', { name: '演示奶奶', element: 'water' }, 'create-first');
-  const second = await command('growth.create', { name: '演示爷爷', element: 'wood' }, 'create-second');
+  // B 的家族结构：本账号下两位老人，各自独立钱包与装备。
+  const elder = (name: string, relation: string, sex: string) => ({ title: name + '的化身', avatar: sex === '女' ? 'female' : 'male', relation, age: 70, sex, mode: 'family', consent: true });
+  const first = await command('growth.create_member', { role: 'elder', name: '演示奶奶', profile: elder('演示奶奶', '祖母', '女'), request_id: 'create-first' });
+  const second = await command('growth.create_member', { role: 'elder', name: '演示爷爷', profile: elder('演示爷爷', '祖父', '男'), request_id: 'create-second' });
   const ticket = await request('/api/v2/realtime/ticket', {});
   socket = new WebSocket(`${base.replace('http:', 'ws:')}/api/v2/realtime?ticket=${ticket.ticket}`);
   const messages: { type: string; revision: number }[] = [];
@@ -36,10 +38,15 @@ try {
     assert.equal(confirmed.ok, true);
     const binding = confirmed.data as { binding_id: string; consent_version: number };
     if (index === 1) continue;
-    for (const templateId of ['daily_step_record', 'daily_measurement_record']) {
+    const ticket = await request('/api/v2/baselines/tickets', { cultivator_id: character.cultivator_id });
+    const stats = { hp_max: 60, hp_current: 60, attack: 50, defense: 50, spirit: 50, stamina: 50, insight: 50, mind: 50, speed: 50, luck: 50 };
+    assert.equal((await health.recordBaseline({ baseline_ticket: ticket.baseline_ticket, baseline_id: 'SIMULATED_BASELINE', projection: { projection_version: 'legacy-pixel-v1', mapping_version: 'body_system_v2', recognition_mode: 'sample', character_state: stats, readiness: 60 } })).ok, true);
+    for (const templateId of ['daily_medication_record', 'daily_step_record']) {
       const now = Math.floor(Date.now() / 1000);
-      const task = await command('quests.assign', { cultivator_id: character.cultivator_id, template_id: templateId, date: dayKey(now), request_id: `assign-${templateId}` });
-      const input: VerifiedResult = { event_id: `SIMULATED_${templateId}`, task_instance_id: task.task_instance_id, cultivator_id: character.cultivator_id, binding_id: binding.binding_id, consent_version: binding.consent_version, verification_level: 'photo', source: 'photo', channel: 'wechat_ilink', observed_at: new Date(now * 1000).toISOString(), rule_version: task.rule_version };
+      const assigned = await health.assignTask(binding.binding_id, templateId, dayKey(now));
+      assert.equal(assigned.ok, true);
+      const task = assigned.data as { task_instance_id: string; rule_version: string };
+      const input: VerifiedResult = { event_id: `SIMULATED_${templateId}`, task_instance_id: task.task_instance_id, cultivator_id: character.cultivator_id, binding_id: binding.binding_id, consent_version: binding.consent_version, verification_level: 'self_report', source: 'self_report', channel: 'wechat_ilink', observed_at: new Date(now * 1000).toISOString(), rule_version: task.rule_version };
       assert.equal((await health.verify(input)).ok, true);
       const settlement = await health.settle(input.event_id);
       assert.equal(settlement.ok, true);
@@ -49,11 +56,13 @@ try {
     }
   }
   const before = await command('growth.snapshot', { cultivator_id: first.cultivator_id });
-  assert.equal(before.resources.spirit_stones, 15);
+  assert.equal(before.resources.spirit_stones, 100);
+  assert.deepEqual([before.resources.realm_xp, before.resources.seals, before.days], [10, 1, 1]);
   const drawInput = { cultivator_id: first.cultivator_id, count: 1, request_id: 'draw-once' };
   const draw = await command('growth.draw', drawInput);
   assert.deepEqual(await command('growth.draw', drawInput), draw);
-  assert.equal(draw.character.resources.spirit_stones, 5);
+  assert.equal(draw.character.resources.spirit_stones, 30);
+  assert.equal(draw.items.length, 1);
   assert.equal((await command('growth.snapshot', { cultivator_id: second.cultivator_id })).resources.spirit_stones, 0);
   const deliveries = await health.claimNotifications();
   assert.equal(deliveries.ok, true);
@@ -62,6 +71,6 @@ try {
   }
   assert.ok(messages.some(message => message.type === 'snapshot'));
   assert.ok(messages.some(message => message.type === 'state_changed'));
-  console.log('LOCAL_DEMO_PASS：账号 → 两位老人隔离 → 模拟绑定 → 任务 → 模拟 D 核验 → 重复提交只结算一次 → 15 灵石 → 单抽后 5 灵石 → WebSocket 同步 → 通知确认。');
+  console.log('LOCAL_DEMO_PASS：账号 → 两位老人隔离 → 模拟绑定 → 任务 → 模拟 D 核验 → 重复提交只结算一次 → 两项记录共享日奖励 100 灵气 → 单抽 70 后余 30 → WebSocket 同步 → 通知确认。');
   console.log('所有微信身份与核验均为模拟；没有连接真实微信或远程服务器。');
 } finally { socket?.terminate(); await server.app.close(); }

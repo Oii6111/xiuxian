@@ -145,3 +145,4 @@ Store 目前只有单区内存提交、全量保存和全量载入。它不是�
 后端分层与传输接缝见 [server/README.md](../server/README.md)。C 已实现本地服务、HTTP 与个人 WebSocket 同步；`GameKernel.configure_backend(api)` 显式注入传输，模块通过 `request_backend()` 调用，不自动联网。账号或传输改变时调用各模块的 `on_backend_changed()`，负责人在该方法清理自己的账号投影。房主同步、主城广播仍待开发；不得用进程内 EventBus 充当网络。
 
 2026-10-31 新增产品方向：老人通过官方微信 iLink AI Bot 拍照提交任务凭证，详见 [微信入口方案](WECHAT_ILINK_ENTRY.md)。iLink 适配器由 D 在服务端实现，与游戏 WebSocket 分开。C 已登记任务派发/模板查询/角色快照命令并实现服务端；绑定走单独 REST 接口。Godot 的 quests、growth 客户端投影由 B 接入。微信原图、通道凭证和识别候选不进入内核 Store 或 EventBus。接口样例与合并规则见 [团队合并指南](BACKEND_INTEGRATION.md)。
+

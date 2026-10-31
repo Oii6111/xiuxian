@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { buildApp, healthScopes, type AppOptions } from '../src/app.js';
+import { integrationProviders } from '../src/game/rules.js';
 import { dayKey, secret } from '../src/core.js';
 
 export async function fixture(test: TestContext, options: AppOptions = {}) {
   let timestamp = Date.parse('2026-10-31T10:00:00+08:00') / 1000;
   const token = secret();
-  const server = await buildApp({ now: () => timestamp, worker: false, services: [{ id: 'health', token, scopes: [...healthScopes] }], randomInt: () => 0, ...options });
+  const server = await buildApp({ now: () => timestamp, worker: false, services: [{ id: 'health', token, scopes: [...healthScopes] }], randomInt: () => 0, providers: integrationProviders, ...options });
   test.after(async () => { await server.app.close(); });
   const request = async (path: string, body?: unknown, bearer?: string, method?: 'GET' | 'POST' | 'DELETE', key?: string) => {
     const response = await server.app.inject({ method: method ?? (body === undefined ? 'GET' : 'POST'), url: path, headers: { ...(body !== undefined ? { 'content-type': 'application/json' } : {}), ...(bearer ? { authorization: `Bearer ${bearer}` } : {}), ...(key ? { 'idempotency-key': key } : {}) }, ...(body !== undefined ? { payload: JSON.stringify(body) } : {}) });

@@ -1,44 +1,30 @@
-"""家族修真录 · 健康资料注册入口 —— 本地联调服务。
-
-作用：
-- 托管前端原型 index.html
-- GET  /api/v1/health         识别引擎配置状态（前端顶部药丸读取）
-- POST /api/v1/records/parse  接收多张图片 + 文字基础信息，调用视觉模型识别 + 规则引擎投影
-- POST /api/v1/game/baseline  接收确认后的 baseline（Demo 阶段落盘，联调时替换为游戏服务）
-
-records/parse 请求体：
-    {
-      "data_urls": ["data:image/...", "data:image/..."],   // 可空
-      "profile": {"relation": "爸爸", "name": null, "age": 68, "sex": "男"},
-      "history_text": "高血压10年…",       // 可空
-      "medications_text": "氨氯地平 5mg…"   // 可空
-    }
-至少提供图片或文字信息之一。
-
-运行：
-    pip install -r requirements.txt
-    copy .env.example .env   （填入 LLM_API_KEY）
-    python server.py
-然后浏览器打开 http://127.0.0.1:8000
-"""
+"""Loopback bridge: report image -> model extraction -> existing rules -> confirmed baseline."""
+import base64
+import binascii
+import copy
+import io
 import json
+import math
 import os
+import sys
+import threading
 import time
 import uuid
 
-from dotenv import load_dotenv
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE_DIR, ".deps"))
 from flask import Flask, jsonify, request, send_from_directory
-
+from PIL import Image
 import recognizer
 import rules
+from baseline import normalize_baseline
+from game_projection import for_game
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
-
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
-
+app = Flask(__name__, static_folder=None)
+app.config["MAX_CONTENT_LENGTH"] = 45 * 1024 * 1024
 BASELINE_DIR = os.path.join(BASE_DIR, "baselines")
-os.makedirs(BASELINE_DIR, exist_ok=True)
+RECORDS = {}
+RECORD_LOCK = threading.Lock()
 
 
 @app.get("/")
@@ -49,13 +35,36 @@ def index():
 @app.get("/api/v1/health")
 def health():
     key, base_url, model = recognizer.load_config()
-    configured = bool(key)
-    return jsonify({
-        "configured": configured,
-        "provider": base_url if configured else "",
-        "provider_label": recognizer.provider_label(base_url) if configured else "",
-        "model": model,
-    })
+    return jsonify(service="xiuxian-health-entry", api_version=3, game_projection_version="legacy-pixel-v1", source_revision="1f356a0",
+                   configured=bool(key), model=model,
+                   provider=base_url if key else "",
+                   provider_label=recognizer.provider_label(base_url))
+
+
+@app.errorhandler(413)
+def too_large(_error):
+    return jsonify(message="资料过大，每张图片最多 10 MB，合计最多 30 MB。"), 413
+
+
+def validate_image(data_url):
+    if not isinstance(data_url, str) or "," not in data_url:
+        raise ValueError("请选择 PNG、JPEG 或 WebP 报告图片。")
+    header, encoded = data_url.split(",", 1)
+    formats = {"data:image/png;base64": "PNG", "data:image/jpeg;base64": "JPEG",
+               "data:image/webp;base64": "WEBP"}
+    if header not in formats:
+        raise ValueError("仅支持 PNG、JPEG、WebP 图片；PDF 请先导出为图片。")
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+        if len(raw) > 10 * 1024 * 1024:
+            raise ValueError("报告图片不能超过 10 MB。")
+        with Image.open(io.BytesIO(raw)) as image:
+            if image.format != formats[header] or image.width * image.height > 25_000_000:
+                raise ValueError("图片格式不匹配或分辨率过大。")
+            image.verify()
+        return len(raw)
+    except (binascii.Error, OSError, Image.DecompressionBombError) as exc:
+        raise ValueError("无法读取报告图片，请重新选择。") from exc
 
 
 def _merge_profile(document, profile, history_text, medications_text):
@@ -79,74 +88,173 @@ def _merge_profile(document, profile, history_text, medications_text):
     return document
 
 
+def validate_profile(profile):
+    for key, label, limit in (("name", "姓名", 10), ("relation", "关系", 30)):
+        value = profile.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"请填写{label}。")
+        if len(value.strip()) > limit:
+            raise ValueError(f"{label}不能超过 {limit} 字。")
+    if profile.get("sex") not in ("男", "女"):
+        raise ValueError("请选择性别。")
+    raw_age = profile.get("age")
+    if isinstance(raw_age, bool) or not isinstance(raw_age, (str, int, float)):
+        raise ValueError("请填写年龄。")
+    try:
+        age = float(raw_age)
+    except (TypeError, ValueError):
+        raise ValueError("年龄请填写 1—120 之间的整数。") from None
+    if not math.isfinite(age) or not age.is_integer() or not 1 <= age <= 120:
+        raise ValueError("年龄请填写 1—120 之间的整数。")
+    return dict(name=profile["name"].strip(), relation=profile["relation"].strip(),
+                age=int(age), sex=profile["sex"])
+
+
+@app.post("/api/v1/game/projections/parse")
 @app.post("/api/v1/records/parse")
 def parse_record():
-    data = request.get_json(silent=True) or {}
-    data_urls = data.get("data_urls") or []
-    if isinstance(data_urls, str):
-        data_urls = [data_urls]
-    data_urls = [u for u in data_urls if isinstance(u, str) and u.strip()]
-
-    profile = data.get("profile") or {}
-    history_text = str(data.get("history_text") or "").strip()
-    medications_text = str(data.get("medications_text") or "").strip()
-
-    has_text = bool(
-        profile.get("relation") or profile.get("name") or profile.get("age") or profile.get("sex")
-        or history_text or medications_text
-    )
-    if not data_urls and not has_text:
-        return jsonify({"message": "请至少上传一张图片，或填写基础信息"}), 400
-    for u in data_urls:
-        if not u.startswith("data:"):
-            return jsonify({"message": "图片必须是 data:image/...;base64,... 格式"}), 400
-
-    # 有图片 → 视觉模型识别；没有图片 → 直接由文字信息构造 document（不调模型，秒回）
-    if data_urls:
-        if not recognizer.is_configured():
-            return jsonify({
-                "message": "未配置视觉模型，无法识别照片。请在 .env 设置 LLM_API_KEY，或只填写文字基础信息。",
-            }), 503
-        try:
-            document = recognizer.recognize_medical_report(data_urls, data.get("filename") or "report")
-        except Exception as exc:  # noqa: BLE001 —— 识别失败要把原因返回给前端，不伪造结果
-            return jsonify({"message": f"识别失败：{exc}"}), 502
-    else:
-        document = {
-            "person": {}, "groups": [], "history": [], "medications": [],
-            "clinical_notes": history_text, "summary": "",
-        }
-
-    document = _merge_profile(document, profile, history_text, medications_text)
-
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(message="请求需要 JSON 对象。"), 400
+    urls = data.get("data_urls", [data["data_url"]] if data.get("data_url") else [])
+    if isinstance(urls, str):
+        urls = [urls]
+    profile = data.get("profile", {})
+    if not isinstance(urls, list) or len(urls) > 6 or not isinstance(profile, dict):
+        return jsonify(message="请提供最多 6 张图片，基础信息需要是对象。"), 400
+    history_text = data.get("history_text", "")
+    medications_text = data.get("medications_text", "")
+    if not isinstance(history_text, str) or not isinstance(medications_text, str) or len(history_text) > 4000 or len(medications_text) > 4000:
+        return jsonify(message="病史、用药各最多 4000 字。"), 400
+    try:
+        profile = validate_profile(profile)
+    except ValueError as exc:
+        return jsonify(message=str(exc)), 400
+    try:
+        if sum(validate_image(url) for url in urls) > 30 * 1024 * 1024:
+            raise ValueError("图片合计不能超过 30 MB。")
+    except ValueError as exc:
+        return jsonify(message=str(exc)), 400
+    if not urls and not any(str(value).strip() for value in profile.values()) and not history_text.strip() and not medications_text.strip():
+        return jsonify(message="请至少上传一张图片，或填写基础信息、病史、用药。"), 400
+    mode = "live" if urls else "text"
+    if urls and not recognizer.is_configured():
+        return jsonify(message="尚未配置模型密钥。请填写 health-entry/.env 的 LLM_API_KEY，再点击重新连接；也可只提交文字资料。"), 503
+    try:
+        if urls:
+            document = recognizer.validate_document(recognizer.recognize_medical_report(urls, str(data.get("filename", "report"))[:160]))
+        else:
+            document = {"person": {}, "groups": [], "history": [], "medications": [], "clinical_notes": history_text, "summary": ""}
+        document = _merge_profile(document, profile, history_text.strip(), medications_text.strip())
+        projection = rules.build_projection(document)
+    except recognizer.ModelServiceError as exc:
+        app.logger.warning("Health model request failed [%s]", exc.code)
+        return jsonify(message=exc.public_message, error_code=exc.code), 502
+    except Exception as exc:
+        app.logger.warning("Health analysis failed [%s]", type(exc).__name__)
+        message = str(exc) if isinstance(exc, ValueError) else "模型调用失败，请检查密钥、模型地址或网络后重试。"
+        if isinstance(exc, RuntimeError) and str(exc).startswith("模型接口返回 HTTP "):
+            message = str(exc)
+        return jsonify(message=message), 502
     _, base_url, model = recognizer.load_config()
-    projection = rules.build_projection(document)
-    return jsonify({
-        "record_id": f"rec_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}",
-        "provider": recognizer.provider_label(base_url) if data_urls else "文字资料",
-        "model": model if data_urls else None,
-        "confidence": document.get("confidence") or rules.estimate_confidence(document),
-        "document": document,
-        "game_projection": projection,
-    })
+    provider = recognizer.provider_label(base_url) if urls else "文字资料"
+    model = model if urls else ""
+    display_name = str((document.get("person") or {}).get("name") or "")[:10]
+    record_id = "rec_" + uuid.uuid4().hex
+    with RECORD_LOCK:
+        for old_id in list(RECORDS):
+            if RECORDS[old_id]["expires"] < time.time():
+                del RECORDS[old_id]
+        if len(RECORDS) >= 64:
+            del RECORDS[next(iter(RECORDS))]
+        # Keep only the game projection, never the report image or identifying document.
+        RECORDS[record_id] = dict(expires=time.time() + 1800, projection=copy.deepcopy(projection),
+                                 provider=provider, model=model, display_name=display_name, recognition_mode=mode, confirmed=None)
+    if request.path == "/api/v1/game/projections/parse":
+        return jsonify(source_revision="1f356a0", record_id=record_id, recognition_mode=mode,
+                       display_name=display_name, game_projection=for_game(projection))
+    return jsonify(source_revision="1f356a0", record_id=record_id, provider=provider, model=model,
+                   confidence=rules.estimate_confidence(document), document=document, recognition_mode=mode, display_name=display_name,
+                   game_projection=projection)
 
 
+@app.post("/api/v1/game/projections/confirm")
 @app.post("/api/v1/game/baseline")
 def game_baseline():
-    payload = request.get_json(silent=True) or {}
-    baseline_id = f"baseline_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
-    payload["baseline_id"] = baseline_id
-    payload["synced_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
-    out_path = os.path.join(BASELINE_DIR, f"{baseline_id}.json")
-    with open(out_path, "w", encoding="utf-8") as fh:
-        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or data.get("baseline_locked") is not True:
+        return jsonify(message="请先确认并锁定初始属性。"), 400
+    mode = data.get("recognition_mode", "demo")
+    with RECORD_LOCK:
+        if mode in ("live", "text"):
+            record = RECORDS.get(data.get("record_id", ""))
+            if not record or record["expires"] < time.time():
+                return jsonify(message="分析结果已过期或服务已重启，请重新分析报告。"), 409
+            if record["recognition_mode"] != mode:
+                return jsonify(message="资料模式不匹配，请重新分析。"), 409
+            if record["confirmed"]:
+                return baseline_response(record["confirmed"])
+            # Authoritative rules output; do not accept client-edited stats.
+            payload = dict(record["projection"], recognition_mode=mode, display_name=record["display_name"], provider=record["provider"],
+                           model=record["model"], baseline_locked=True)
+        elif mode in ("demo", "sample"):
+            payload = dict(data, recognition_mode="sample")
+            record = None
+        else:
+            return jsonify(message="未知识别模式。"), 400
+        try:
+            payload = normalize_baseline(payload)
+        except ValueError as exc:
+            return jsonify(message=str(exc)), 400
+        payload["baseline_id"] = "baseline_" + uuid.uuid4().hex
+        payload["synced_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+        os.makedirs(BASELINE_DIR, exist_ok=True)
+        out_path = os.path.join(BASELINE_DIR, payload["baseline_id"] + ".json")
+        with open(out_path + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, ensure_ascii=False, indent=2)
+        os.replace(out_path + ".tmp", out_path)
+        if record is not None:
+            record["confirmed"] = payload
+    return baseline_response(payload)
 
-    # Demo 阶段：baseline 落盘即为“已同步”。正式联调时，在这里调用现有游戏服务
-    # （例如 window.XIUXIAN_GAME_API 指向的 /api/v1/game/baseline 或 Godot 侧适配器）。
-    return jsonify({"mode": "live", "baseline_id": baseline_id, "saved_to": out_path})
+
+def submit_to_game(payload, ticket):
+    """把确认后的最小投影交给 C（服务凭证只在本服务端）。未配置 C 时保持原有本地行为。"""
+    base = os.environ.get("GAME_API_BASE", "").rstrip("/")
+    token = os.environ.get("HEALTH_SERVICE_TOKEN", "")
+    if not ticket:
+        return None
+    if not base or not token:
+        raise ValueError("游戏服务未配置，初始属性尚未生效。")
+    projection = for_game(payload)
+    body = {"baseline_ticket": ticket, "baseline_id": payload["baseline_id"], "projection": {
+        "projection_version": "legacy-pixel-v1", "mapping_version": str(projection.get("mapping_version", ""))[:40],
+        "recognition_mode": "sample" if payload["recognition_mode"] in ("sample", "demo") else payload["recognition_mode"],
+        "character_state": {key: int(value) for key, value in projection["character_state"].items()}, "readiness": int(projection["readiness"])}}
+    import urllib.request, urllib.error
+    req = urllib.request.Request(base + "/internal/v1/baselines", data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + token})
+    try:
+        with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=10) as response:
+            result = json.load(response)
+    except urllib.error.HTTPError as error:
+        result = json.loads(error.read() or b"{}")
+    except OSError:
+        raise ValueError("游戏服务暂时不可用，请稍后重新确认。")
+    if result.get("ok") is not True:
+        raise ValueError(str(result.get("message") or "游戏服务未接受这份档案。"))
+    return result["data"]
+
+
+def baseline_response(payload):
+    try:
+        submit_to_game(payload, (request.get_json(silent=True) or {}).get("baseline_ticket"))
+    except ValueError as exc:
+        return jsonify(message=str(exc)), 409
+    output = for_game(payload) if request.path == "/api/v1/game/projections/confirm" else payload
+    return jsonify(mode=payload["recognition_mode"], baseline_id=payload["baseline_id"], baseline=output)
 
 
 if __name__ == "__main__":
-    host = os.environ.get("HOST", "127.0.0.1")
-    port = int(os.environ.get("PORT", "8000"))
-    app.run(host=host, port=port, debug=False)
+    # The Godot client only connects to this loopback service.
+    app.run(host="127.0.0.1", port=int(os.environ.get("HEALTH_ENTRY_PORT", "8001")), debug=False)

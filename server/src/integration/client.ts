@@ -20,6 +20,8 @@ export class HealthClient {
 
   confirmBinding(input: ConfirmBinding) { return this.request('/internal/v1/bindings/confirm', input); }
   tasks(bindingId: string) { return this.request(`/internal/v1/bindings/${encodeURIComponent(bindingId)}/tasks`); }
+  assignTask(bindingId: string, templateId: string, date: string) { return this.request(`/internal/v1/bindings/${encodeURIComponent(bindingId)}/tasks`, { template_id: templateId, date }); }
+  recordBaseline(input: { baseline_ticket: string; baseline_id: string; projection: Record<string, unknown> }) { return this.request('/internal/v1/baselines', input); }
   submission(input: SubmissionUpdate) { return this.request('/internal/v1/submissions/status', input); }
   verify(input: VerifiedResult) { return this.request('/internal/v1/task-results', input); }
   settle(eventId: string) { return this.request(`/internal/v1/task-results/${encodeURIComponent(eventId)}/settle`, {}); }

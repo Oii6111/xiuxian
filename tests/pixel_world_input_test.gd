@@ -40,7 +40,10 @@ func tap(code: int) -> void:
 	key(code, false)
 	await process_frame
 func click(text: String) -> bool:
+	# Scene swaps defer layout and deletion; wait for the current controls to settle.
+	await process_frame
 	await RenderingServer.frame_post_draw
+	await process_frame
 	var scope: Node = game
 	if is_instance_valid(game.ui.campaign) and is_instance_valid(game.ui.campaign.ui.modal):
 		scope = game.ui.campaign.ui.modal
@@ -68,6 +71,20 @@ func click(text: String) -> bool:
 			Input.flush_buffered_events()
 			await process_frame
 		await create_timer(.15).timeout
+		if not received[0] and is_instance_valid(b) and b.is_visible_in_tree():
+			await RenderingServer.frame_post_draw
+			p = b.get_global_transform_with_canvas() * (b.size * .5)
+			for down in [true, false]:
+				var retry = InputEventMouseButton.new()
+				retry.position = p
+				retry.global_position = p
+				retry.button_index = MOUSE_BUTTON_LEFT
+				retry.button_mask = MOUSE_BUTTON_MASK_LEFT if down else 0
+				retry.pressed = down
+				root.push_input(retry, true)
+				Input.flush_buffered_events()
+				await process_frame
+			await create_timer(.15).timeout
 		if not received[0]:
 			check(false, 'GUI click delivered: ' + text)
 		return received[0]
@@ -77,7 +94,9 @@ func capture(name: String) -> void:
 	await RenderingServer.frame_post_draw
 	root.get_texture().get_image().save_png(out.path_join(name + ".png"))
 func run() -> void:
-	game = load("res://scenes/main.tscn").instantiate()
+	game = load("res://scenes/legacy_campaign_village.tscn").instantiate()
+	game.state.apply_health_profile(game.state.HealthProfile.mock(40, 1))
+	game.state.profile_created = false
 	game.state.save_file_override = out.path_join("isolated-village-save.json")
 	root.add_child(game)
 	current_scene = game

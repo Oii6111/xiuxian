@@ -1,4 +1,4 @@
-"""家族修真录 · 健康资料注册入口 —— 本地联调服务。
+"""疯狂修仙，中 · 健康资料注册入口 —— 本地联调服务。
 
 作用：
 - 托管前端原型 index.html
@@ -31,14 +31,14 @@ import uuid
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 import recognizer
 import rules
 from elder_assistant import register_elder_assistant_routes
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(BASE_DIR, ".env"))
-
-app = Flask(__name__, static_folder=BASE_DIR, static_url_path="")
+app = Flask(__name__, static_folder=None)
 
 BASELINE_DIR = os.path.join(BASE_DIR, "baselines")
 os.makedirs(BASELINE_DIR, exist_ok=True)
@@ -46,7 +46,7 @@ os.makedirs(BASELINE_DIR, exist_ok=True)
 
 @app.get("/")
 def index():
-    return send_from_directory(BASE_DIR, "index.html")
+    return send_from_directory(os.path.join(BASE_DIR, "..", "health-entry"), "index.html")
 
 
 @app.get("/api/v1/health")
@@ -144,14 +144,31 @@ def game_baseline():
     with open(out_path, "w", encoding="utf-8") as fh:
         json.dump(payload, fh, ensure_ascii=False, indent=2)
 
-    # Demo 阶段：baseline 落盘即为“已同步”。正式联调时，在这里调用现有游戏服务
-    # （例如 window.XIUXIAN_GAME_API 指向的 /api/v1/game/baseline 或 Godot 侧适配器）。
-    return jsonify({"mode": "live", "baseline_id": baseline_id, "saved_to": out_path})
+    # 完整 baseline 只在 D 域归档，不能送入 C 或 Godot，也不宣称已同步游戏。
+    return jsonify({"mode": "health_archive_only", "baseline_id": baseline_id})
 
 
 # 老人端健康助手单独挂载：老人只看到聊天、提醒、拍照和语音，
 # 不会看到游戏字段；确认后的结构化事件可通过 HEALTH_EVENT_SINK_URL 转发。
 register_elder_assistant_routes(app)
+
+# 直接用 iLink 长轮询收微信消息，不再依赖 openclaw-health-hook。
+try:
+    import ilink_gateway
+
+    ilink_gateway.start_background()
+except Exception as error:  # noqa: BLE001 - 网关故障不能拖垮健康入口
+    print(f"[ilink] gateway disabled: {error}")
+
+
+@app.get("/api/v1/wechat/gateway")
+def wechat_gateway_status():
+    try:
+        import ilink_gateway
+
+        return jsonify({"ok": True, "data": ilink_gateway.status()})
+    except Exception as error:  # noqa: BLE001
+        return jsonify({"ok": False, "message": str(error)})
 
 
 if __name__ == "__main__":

@@ -1,455 +1,293 @@
-"""老人端 ↔ 游戏「任务板块」桥接器（D 侧，微信/健康侧）。
-
-这个脚本独立于 sidecar 运行，把游戏后端派发的健康任务变成给老人的定时提醒，
-再把老人的回复/照片回传成游戏里的任务完成。它**不自己编提醒**——提醒来源是
-游戏里的任务板块（`quests.assign`），这里只负责「到点推送 + 回传完成」。
-
-三个职责，对应游戏后端（C 实现）的三组内部接口：
-
-1. 出站提醒：轮询 `GET /internal/v1/bindings/:id/tasks`，按模板默认时间把
-   「今日待办」推给老人微信。
-2. 入站完成：老人回复/拍照后，sidecar 调 `complete_task_from_reply()`，
-   核对归属后提交 `POST /internal/v1/task-results`，游戏自动结算发灵石。
-3. 结算回执：轮询 `POST /internal/v1/notifications/claim`，把「今天的记录
-   已记上」回推给老人，再 ack。
-
-运行前，游戏侧需要先配好 `HEALTH_SERVICE_TOKEN`（32 位随机值，双方共用），
-并在游戏里完成一次绑定，把返回的 `binding_id` 填到下面的环境变量里。
-详见 docs/TASK_REMINDER_BRIDGE.md。
-
-环境变量：
-    GAME_API_BASE         游戏后端地址（默认 http://127.0.0.1:8080）
-    HEALTH_SERVICE_TOKEN  内部服务凭证（与游戏侧 .env 里的一致，必填）
-    BINDING_ID            单个老人的绑定 id
-    ELDER_BINDINGS        可选，JSON 映射 {"elder_id": "binding_..."}，多老人用
-    ELDER_ID              老人 ID（默认 elder_demo_001），用于查「该不该提醒」的聊天事实
-    OPENCLAW_SEND_CHANNEL 出站通道（默认 openclaw-weixin）
-    OPENCLAW_SEND_TARGET  老人微信接收地址（ilink_user_id）
-    OPENCLAW_BIN          openclaw 可执行文件路径
-    OPENCLAW_DRY_RUN      1 时只打印、不发送、不提交
-    BRIDGE_STATE          幂等去重状态文件路径
-"""
-
+"""D 游戏适配层：只有经审核的最小事实进入 C，默认 dry-run。"""
 from __future__ import annotations
-
 import hashlib
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from urllib.parse import quote
 
 BASE_DIR = Path(__file__).resolve().parent
-STATE_PATH = Path(os.environ.get("BRIDGE_STATE", str(BASE_DIR / "bot_data" / "task_bridge_state.json")))
-ELDER_DB = BASE_DIR / "bot_data" / "elder_assistant.sqlite3"  # 与 sidecar 共用，判断「该不该提醒」
-TZ_OFFSET = 8 * 3600  # 游戏与老人统一用 UTC+8
-
-# ---------------------------------------------------------------------------
-# 健康行为任务模板：id 必须与游戏侧 server/src/game/rules.ts 的 integrationTemplates
-# 保持一致。这里只负责「默认提醒时间 + 话术」，奖励与凭证级别以游戏侧 rules.ts 为准。
-# ---------------------------------------------------------------------------
-TASK_TEMPLATES: Dict[str, Dict[str, Any]] = {
-    "daily_medication_record": {
-        "title": "按时吃药",
-        "event_type": "medication_record",
-        "reminders": [
-            {"time": "08:00", "text": "早上好呀，到点吃药啦。吃完回我一声，我帮你记上。"},
-            {"time": "12:00", "text": "中午啦，记得吃这顿的药。吃完跟我说一声。"},
-            {"time": "18:00", "text": "晚上啦，该吃药了。吃完回我一声。"},
-        ],
-    },
-    "daily_exercise_record": {
-        "title": "出门活动",
-        "event_type": "exercise_record",
-        "reminders": [
-            {"time": "09:00", "text": "今天天气不错，出门走走、晒晒太阳，腿脚更利索。走完跟我说一声。"},
-        ],
-    },
-    "daily_move_reminder": {
-        "title": "别久坐，起来活动",
-        "event_type": "move_record",
-        "reminders": [
-            {"time": "10:30", "text": "坐了好一会儿啦，起来伸个懒腰、走两步，喝口水。"},
-            {"time": "15:00", "text": "下午啦，别一直坐着，起来活动活动腿脚、扭扭腰。"},
-            {"time": "16:30", "text": "坐久了对腰腿不好，起来走两圈、伸伸胳膊。"},
-        ],
-    },
-    "daily_bp_record": {
-        "title": "量血压",
-        "event_type": "bp_record",
-        "reminders": [
-            {"time": "08:00", "text": "到点量血压啦，量好把血压计屏幕拍张照发我。"},
-        ],
-    },
-    "daily_hydration_reminder": {
-        "title": "喝口水",
-        "event_type": "hydration_record",
-        "reminders": [
-            {"time": "11:00", "text": "记得喝口水呀，一小口一小口慢慢喝。"},
-            {"time": "14:00", "text": "下午啦，再喝口水润润嗓子。"},
-        ],
-    },
-    "followup_visit_record": {
-        "title": "复查/复诊",
-        "event_type": "followup_record",
-        "reminders": [
-            {"time": "09:00", "text": "今天有复查，别忘了带好病历和检查单，出门注意安全。"},
-        ],
-    },
+UTC8 = timezone(timedelta(hours=8))
+STATE_PATH = Path(os.environ.get("BRIDGE_STATE", str(BASE_DIR / "bot_data/bridge.sqlite3")))
+ELDER_DB = Path(os.environ.get("ELDER_DB_PATH", str(BASE_DIR.parent / "wechat-sidecar/bot_data/elder_assistant.sqlite3")))
+# C 已发布的模板是唯一来源；新增模板须发布新版本，不能修改旧任务规则。
+TASK_TEMPLATES = {
+    "daily_medication_record": {"time": "19:30", "text": "按您原来的用药安排完成后，跟我说一声就好；没吃或不确定也可以告诉我。"},
+    "daily_planned_record": {"time": "10:00", "text": "今天的个人计划完成后，跟我说一声就记上。"},
+    "daily_step_record": {"time": "09:00", "text": "如果今天已记录步数，可以把记录发来，确认后再同步给家人。"},
+    "daily_measurement_record": {"time": "08:00", "text": "请按已有测量计划记录，方便时把记录发来；不需要额外增加测量。"},
 }
 
-# 与游戏侧一致的“凭证级别”，回传时据回复内容选择。
-VERIFICATION_TEXT = "self_report"
-VERIFICATION_PHOTO = "photo"
+class BridgeError(ValueError):
+    pass
 
+def dry_run():
+    return os.environ.get("OPENCLAW_DRY_RUN", "1").lower() not in {"0", "false", "no", "off"}
 
-def _now() -> int:
-    return int(time.time())
+def save_route(route):
+    """扫码绑定成功后持久保存路由；与 ELDER_BINDINGS 合并校验，冲突时拒绝。"""
+    with _store() as conn:
+        conn.execute("INSERT OR REPLACE INTO routes(binding_id, payload) VALUES (?, ?)", (route["binding_id"], _canonical(route)))
+    routes()
 
+def routes():
+    """映射由真实绑定流程配置；禁止一个默认接收者承接所有账号通知。"""
+    entries = json.loads(os.environ.get("ELDER_BINDINGS", "[]"))
+    if isinstance(entries, list) and STATE_PATH.exists():
+        with _store() as conn:
+            entries = entries + [json.loads(row["payload"]) for row in conn.execute("SELECT payload FROM routes")]
+    if not isinstance(entries, list):
+        raise BridgeError("ELDER_BINDINGS must be an array")
+    required = {"binding_id", "elder_id", "sender_id", "channel_account_id", "target", "consent_version"}
+    identifiers, elders, identities = set(), set(), set()
+    for route in entries:
+        if not isinstance(route, dict) or set(route) != required:
+            raise BridgeError("Invalid binding route fields")
+        if any(not isinstance(route[key], str) or not route[key].strip() for key in required - {"consent_version"}):
+            raise BridgeError("Missing verified identity or target")
+        if type(route["consent_version"]) is not int or route["consent_version"] < 1:
+            raise BridgeError("Missing confirmed consent version")
+        identity = (route["channel_account_id"], route["sender_id"])
+        if route["binding_id"] in identifiers or route["elder_id"] in elders or identity in identities:
+            raise BridgeError("Ambiguous binding route")
+        identifiers.add(route["binding_id"])
+        elders.add(route["elder_id"])
+        identities.add(identity)
+    return entries
 
-def _now_hhmm() -> str:
-    return datetime.now(timezone.utc).astimezone().strftime("%H:%M")
+def route_for_elder(elder_id):
+    matches = [route for route in routes() if route["elder_id"] == elder_id]
+    if len(matches) != 1:
+        raise BridgeError("Unknown elder route")
+    return matches[0]
 
+def route_for(binding_id):
+    matches = [route for route in routes() if route["binding_id"] == binding_id]
+    if len(matches) != 1:
+        raise BridgeError("Unknown binding route")
+    return matches[0]
 
-def _today_utc8() -> str:
-    return datetime.fromtimestamp(_now() + TZ_OFFSET, tz=timezone.utc).strftime("%Y-%m-%d")
-
-
-# ---------------------------------------------------------------------------
-# 提醒门槛：游戏不能聊天，所以「该不该提醒」由我们这边据聊天得知的事实判断。
-# 游戏只负责派任务类别（吃药/量血压/复查…），我们这边决定这一刻要不要真的推。
-# ---------------------------------------------------------------------------
-def _elder_db():
-    import sqlite3
-
-    conn = sqlite3.connect(str(ELDER_DB))
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-def _has_active_medication(elder_id: str) -> bool:
-    """聊天里确认过「现在在吃药」（有未结束的 active 疗程）才允许提醒吃药。"""
-    try:
-        conn = _elder_db()
-        row = conn.execute(
-            "SELECT 1 FROM medication_courses WHERE elder_id = ? AND status = 'active' AND end_date >= ? LIMIT 1",
-            (elder_id, _today_utc8()),
-        ).fetchone()
-        conn.close()
-        return row is not None
-    except Exception:  # noqa: BLE001 — 库不存在/表未建时当作“不知道在吃药”，不发
-        return False
-
-
-def _has_upcoming_visit(elder_id: str) -> bool:
-    """聊天里得知过「要去看病/复查」才允许提醒复查。"""
-    try:
-        conn = _elder_db()
-        row = conn.execute(
-            "SELECT 1 FROM memory_facts WHERE elder_id = ? AND key = '要去看病' LIMIT 1",
-            (elder_id,),
-        ).fetchone()
-        conn.close()
-        return row is not None
-    except Exception:  # noqa: BLE001
-        return False
-
-
-def _gate(template_id: str, elder_id: str) -> bool:
-    if template_id == "daily_medication_record":
-        return _has_active_medication(elder_id)
-    if template_id == "followup_visit_record":
-        return _has_upcoming_visit(elder_id)
-    return True  # 运动 / 久坐 / 量血压 / 喝水：无聊天门槛
-
-
-def _openclaw_bin() -> str:
-    configured = os.environ.get("OPENCLAW_BIN", "").strip()
-    if configured:
-        return configured
-    local_bat = BASE_DIR / "openclaw.bat"
-    if local_bat.exists():
-        return str(local_bat)
-    return "openclaw"
-
-
-def _run(args: List[str]) -> subprocess.CompletedProcess:
-    bin_ = _openclaw_bin()
-    if os.name == "nt":
-        cmdline = subprocess.list2cmdline([bin_, *args])
-        return subprocess.run(cmdline, shell=True, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
-    return subprocess.run([bin_, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60)
-
-
-def send_wechat(target: str, text: str) -> Dict[str, Any]:
-    """通过 openclaw message send 出站发送一条消息给老人。"""
-    channel = os.environ.get("OPENCLAW_SEND_CHANNEL", "openclaw-weixin").strip() or "openclaw-weixin"
-    account = os.environ.get("OPENCLAW_SEND_ACCOUNT", "").strip()
-    args = ["message", "send", "--channel", channel, "--target", target, "--message", text]
-    if account:
-        args = ["message", "send", "--account", account, "--channel", channel, "--target", target, "--message", text]
-    if os.environ.get("OPENCLAW_DRY_RUN", "").strip().lower() in {"1", "true", "yes", "on"}:
-        print(f"[dry-run] {_openclaw_bin()} " + subprocess.list2cmdline(args))
-        return {"ok": True, "dry_run": True}
-    try:
-        proc = _run(args)
-        return {"ok": proc.returncode == 0, "returncode": proc.returncode, "stdout": proc.stdout, "stderr": proc.stderr}
-    except Exception as exc:  # noqa: BLE001 — 单条发送失败不能拖垮整个轮询
-        return {"ok": False, "error": str(exc)}
-
-
-# ---------------------------------------------------------------------------
-# 游戏后端内部接口（D 用 HEALTH_SERVICE_TOKEN 认证）
-# ---------------------------------------------------------------------------
-def _game_base() -> str:
-    return os.environ.get("GAME_API_BASE", "http://127.0.0.1:8080").rstrip("/")
-
-
-def _auth_headers() -> Dict[str, str]:
+def game_request(method, path, body=None):
     token = os.environ.get("HEALTH_SERVICE_TOKEN", "").strip()
-    return {"Authorization": "Bearer " + token, "Content-Type": "application/json"}
-
-
-def game_get(path: str) -> Dict[str, Any]:
-    import urllib.request
-
-    req = urllib.request.Request(_game_base() + path, headers=_auth_headers(), method="GET")
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
-def game_post(path: str, body: Dict[str, Any]) -> Dict[str, Any]:
-    import urllib.request
-
-    req = urllib.request.Request(
-        _game_base() + path,
-        data=json.dumps(body).encode("utf-8"),
-        headers=_auth_headers(),
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=15) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
-def pending(binding_id: str) -> Dict[str, Any]:
-    """返回 {binding, tasks}，tasks 已过滤掉 settled。consent_version 在 binding 上。"""
+    if not token:
+        raise BridgeError("HEALTH_SERVICE_TOKEN is required")
+    base = os.environ.get("GAME_API_BASE", "http://127.0.0.1:8080").rstrip("/")
+    req = urllib.request.Request(base + path, method=method,
+        data=None if body is None else json.dumps(body).encode("utf-8"),
+        headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+    # 不通过系统代理，也不跟随重定向转发内部凭证。
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            return None
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
     try:
-        result = game_get(f"/internal/v1/bindings/{binding_id}/tasks")
-    except Exception as exc:  # noqa: BLE001 — 后端未起/未配时静默跳过
-        print(f"[warn] 拉取待办失败：{exc}")
-        return {"binding": {}, "tasks": []}
-    data = result.get("data") or {}
-    tasks = [t for t in (data.get("tasks") or []) if str(t.get("status") or "") != "settled"]
-    return {"binding": data.get("binding") or {}, "tasks": tasks}
-
-
-def pending_tasks(binding_id: str) -> List[Dict[str, Any]]:
-    """返回该绑定当前未结算的待办任务（游戏侧已经按 window_end 过滤过一次）。"""
-    return pending(binding_id)["tasks"]
-
-
-def _reminder_slots(template_id: str) -> List[Dict[str, str]]:
-    return TASK_TEMPLATES.get(template_id, {}).get("reminders", [])
-
-
-def due_reminders(tasks: List[Dict[str, Any]], stamp: str, elder_id: str) -> List[Tuple[Dict[str, Any], str]]:
-    """在当前分钟到点的提醒，返回 (task, 提醒话术) 列表。过不了门槛的任务不发。"""
-    due: List[Tuple[Dict[str, Any], str]] = []
-    for task in tasks:
-        template_id = str(task.get("template_id") or "")
-        if not _gate(template_id, elder_id):
-            continue
-        for slot in _reminder_slots(template_id):
-            if str(slot.get("time") or "")[:5] == stamp:
-                due.append((task, str(slot.get("text") or "到点啦，记得完成今天的小任务。").strip()))
-    return due
-
-
-# ---------------------------------------------------------------------------
-# 入站：老人回复 → 游戏任务完成
-# ---------------------------------------------------------------------------
-def _stable_event_id(binding_id: str, task_id: str, message_id: str) -> str:
-    raw = f"{binding_id}|{task_id}|{message_id or ''}|{_today_utc8()}".encode("utf-8")
-    return "evt_" + hashlib.sha256(raw).hexdigest()[:24]
-
-
-def _match_task(tasks: List[Dict[str, Any]], text: str) -> Optional[Dict[str, Any]]:
-    """把老人的一句话匹配到最可能的待办任务；匹配不到就退回唯一/最近那条。"""
-    value = str(text or "").strip()
-    if not tasks:
-        return None
-    if len(tasks) == 1:
-        return tasks[0]
-    keyword_to_template = {
-        "吃药|药|服药|吃过了|吃了药": "daily_medication_record",
-        "血压|量血压": "daily_bp_record",
-        "血糖|测血糖": "daily_glucose_record",
-        "散步|走了|走路|运动|锻炼|步数": "daily_exercise_record",
-        "喝水|渴": "daily_hydration_reminder",
-        "复查|医院|复诊|挂号": "followup_visit_record",
-    }
-    import re as _re
-
-    for pattern, template_id in keyword_to_template.items():
-        if _re.search(pattern, value):
-            for task in tasks:
-                if str(task.get("template_id") or "") == template_id:
-                    return task
-    # 兜底：拿 window_start 最近、还没结算的那条。
-    active = [t for t in tasks if str(t.get("status") or "") not in {"settled", "verified"}]
-    if active:
-        return min(active, key=lambda t: int(t.get("window_start") or 0))
-    return tasks[0]
-
-
-def complete_task_from_reply(
-    binding_id: str,
-    text: str,
-    has_photo: bool,
-    message_id: str = "",
-) -> Dict[str, Any]:
-    """sidecar 在老人回复时调用：匹配待办、提交验证结果，返回游戏侧结算结果。
-
-    只提交最小事实（哪个任务、哪种凭证、什么时间），不传原图、不传诊断。
-    游戏侧据此自动结算发灵石；「已记上」回执由下面的 claim_notifications 补发。
-    """
-    bundle = pending(binding_id)
-    tasks = bundle["tasks"]
-    task = _match_task(tasks, text)
-    if not task:
-        return {"ok": False, "reason": "no_pending_task"}
-    # consent_version 在绑定上（任务的 taskView 不带），回传时必须与绑定当前版本一致。
-    consent_version = int((bundle.get("binding") or {}).get("consent_version") or 1)
-    verification = VERIFICATION_PHOTO if has_photo else VERIFICATION_TEXT
-    # 该模板允许的凭证级别由游戏侧 rules.ts 决定；这里先按“有图=photo、纯文字=self_report”。
-    payload = {
-        "event_id": _stable_event_id(binding_id, str(task["task_instance_id"]), message_id),
-        "task_instance_id": str(task["task_instance_id"]),
-        "cultivator_id": str(task["cultivator_id"]),
-        "binding_id": binding_id,
-        "consent_version": consent_version,
-        "verification_level": verification,
-        "source": verification,
-        "channel": "wechat_ilink",
-        "observed_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
-        "rule_version": str(task.get("rule_version") or "integration-v1"),
-    }
-    if os.environ.get("OPENCLAW_DRY_RUN", "").strip().lower() in {"1", "true", "yes", "on"}:
-        print(f"[dry-run] POST /internal/v1/task-results {json.dumps(payload, ensure_ascii=False)}")
-        return {"ok": True, "dry_run": True, "payload": payload}
-    try:
-        result = game_post("/internal/v1/task-results", payload)
-        return {"ok": True, "data": result.get("data") or result}
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": str(exc)}
-
-
-# ---------------------------------------------------------------------------
-# 结算回执：把「已记上」回推给老人
-# ---------------------------------------------------------------------------
-def claim_notifications(target: str) -> int:
-    """领取游戏侧的结算通知，回推给老人并 ack。返回成功回执的条数。"""
-    try:
-        result = game_post("/internal/v1/notifications/claim", {"limit": 10})
-    except Exception as exc:  # noqa: BLE001
-        print(f"[warn] 领取通知失败：{exc}")
-        return 0
-    notifications = ((result.get("data") or {}).get("notifications")) or []
-    acked = 0
-    for note in notifications:
-        nid = note.get("notification_id")
-        lease = note.get("lease_token")
-        payload = note.get("payload") or {}
-        stones = payload.get("spirit_stones")
-        # 只回“已记上”，不报灵石多少、不评价健康。
-        text = "今天的记录已记上啦，家人那边也同步看到了。"
-        if isinstance(stones, int) and stones > 0:
-            text = "今天的记录已记上啦，家人那边也同步看到了。"
-        if target:
-            sent = send_wechat(target, text)
-            if not sent.get("ok") and not sent.get("dry_run"):
-                try:
-                    game_post(f"/internal/v1/notifications/{nid}/nack", {"lease_token": lease})
-                    continue
-                except Exception:  # noqa: BLE001
-                    continue
+        with opener.open(req, timeout=8) as response:
+            result = json.load(response)
+    except urllib.error.HTTPError as error:
         try:
-            game_post(f"/internal/v1/notifications/{nid}/ack", {"lease_token": lease})
-            acked += 1
-        except Exception as exc:  # noqa: BLE001
-            print(f"[warn] ack 失败：{exc}")
-    return acked
+            code = json.loads(error.read()).get("code", "HTTP_ERROR")
+        except (ValueError, AttributeError):
+            code = "HTTP_ERROR"
+        raise BridgeError(str(code)) from None
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        raise BridgeError("INVALID_RESULT")
+    return result["data"]
 
+def enable_task(binding_id, template_id, date):
+    """老人已确认当前适用的安排后，为该绑定启用当日任务；同一模板同一日重复调用返回原实例。"""
+    route_for(binding_id)
+    if template_id not in TASK_TEMPLATES:
+        raise BridgeError("TEMPLATE_UNAVAILABLE")
+    return game_post(f"/internal/v1/bindings/{quote(binding_id, safe='')}/tasks", {"template_id": template_id, "date": date})
 
-# ---------------------------------------------------------------------------
-# 状态与主循环
-# ---------------------------------------------------------------------------
-def _load_state() -> Dict[str, Any]:
-    if STATE_PATH.exists():
-        try:
-            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-        except (ValueError, OSError):
-            return {}
-    return {}
+def game_get(path):
+    return game_request("GET", path)
 
+def game_post(path, body):
+    return game_request("POST", path, body)
 
-def _save_state(state: Dict[str, Any]) -> None:
+def pending(binding_id):
+    route = route_for(binding_id)
+    data = game_get(f"/internal/v1/bindings/{quote(binding_id, safe='')}/tasks")
+    binding = data["binding"]
+    if (binding.get("binding_id") != binding_id or binding.get("status") != "active"
+            or binding.get("consent_status") != "active" or not binding.get("connected")
+            or binding.get("consent_version") != route["consent_version"]):
+        raise BridgeError("CONSENT_OR_CONNECTION_INVALID")
+    return data
+
+@contextmanager
+def _store():
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    STATE_PATH.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+    conn = sqlite3.connect(STATE_PATH, timeout=10)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("CREATE TABLE IF NOT EXISTS results (event_id TEXT PRIMARY KEY, payload TEXT NOT NULL, sent INTEGER NOT NULL DEFAULT 0)")
+    conn.execute("CREATE TABLE IF NOT EXISTS delivered (id TEXT PRIMARY KEY)")
+    conn.execute("CREATE TABLE IF NOT EXISTS routes (binding_id TEXT PRIMARY KEY, payload TEXT NOT NULL)")
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
+def _canonical(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
-def tick(binding_id: str, target: str, elder_id: str, state: Dict[str, Any]) -> int:
-    """一轮：拉待办 → 到点推提醒 → 领结算回执。返回本轮发送的消息条数。"""
-    sent = 0
-    stamp = _now_hhmm()
-    today = _today_utc8()
-    for task, text in due_reminders(pending_tasks(binding_id), stamp, elder_id):
-        key = f"{task['task_instance_id']}:{today}:{stamp}"
-        if state.get("sent", {}).get(key):
-            continue
-        if not target:
-            print(f"[skip] 未配置 OPENCLAW_SEND_TARGET，跳过：{text}")
-            state.setdefault("sent", {})[key] = True
-            continue
-        print(f"[send] {text}")
-        result = send_wechat(target, text)
-        if result.get("ok") or result.get("dry_run"):
-            state.setdefault("sent", {})[key] = True
-            sent += 1
-        else:
-            print(f"[error] 发送失败：{result}")
-    claim_notifications(target)
-    return sent
+def submit_confirmed(binding_id, task_id, event_id, observed_at, verification_level, sender_id, channel_account_id):
+    """仅供 D 审核器调用；事实 ID、完成时间及验证级别必须已确认并固定。"""
+    route = route_for(binding_id)
+    if (sender_id, channel_account_id) != (route["sender_id"], route["channel_account_id"]):
+        raise BridgeError("IDENTITY_MISMATCH")
+    if not event_id or not task_id:
+        raise BridgeError("Stable event and task IDs are required")
+    occurred = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    if occurred.tzinfo is None:
+        raise BridgeError("observed_at requires a timezone")
+    canonical_time = occurred.astimezone(timezone.utc).isoformat(timespec="seconds")
+    # 幂等键不包含日期；重试不会改变完成时间或重选另一条待办。
+    stable_id = "evt_" + hashlib.sha256(_canonical([binding_id, event_id]).encode()).hexdigest()
+    bundle = pending(binding_id)
+    if not dry_run():
+        with _store() as conn:
+            previous = conn.execute("SELECT payload FROM results WHERE event_id = ?", (stable_id,)).fetchone()
+        if previous:
+            payload = json.loads(previous["payload"])
+            if (payload["task_instance_id"], payload["observed_at"], payload["verification_level"]) != (task_id, canonical_time, verification_level):
+                raise BridgeError("EVENT_CONFLICT")
+            return _deliver_result(payload)
+    task = next((task for task in bundle["tasks"] if task["task_instance_id"] == task_id), None)
+    if not task:
+        raise BridgeError("TASK_NOT_PENDING")
+    if not task["window_start"] <= occurred.timestamp() < task["window_end"] or occurred.timestamp() > time.time():
+        raise BridgeError("TASK_WINDOW")
+    if verification_level not in task["verification_levels"]:
+        raise BridgeError("VERIFICATION_NOT_ALLOWED")
+    payload = {
+        "event_id": stable_id, "task_instance_id": task_id,
+        "cultivator_id": task["cultivator_id"], "binding_id": binding_id,
+        "consent_version": route["consent_version"], "verification_level": verification_level,
+        "source": verification_level, "channel": "wechat_ilink",
+        "observed_at": canonical_time, "rule_version": task["rule_version"],
+    }
+    if dry_run():
+        return {"dry_run": True, "payload": payload}
+    with _store() as conn:
+        conn.execute("INSERT OR IGNORE INTO results(event_id, payload) VALUES (?, ?)", (stable_id, _canonical(payload)))
+        stored = conn.execute("SELECT payload FROM results WHERE event_id = ?", (stable_id,)).fetchone()
+        if stored["payload"] != _canonical(payload):
+            raise BridgeError("EVENT_CONFLICT")
+    return _deliver_result(payload)
 
+def _deliver_result(payload):
+    bundle = pending(payload["binding_id"])
+    if bundle["binding"]["consent_version"] != payload["consent_version"]:
+        raise BridgeError("CONSENT_REVOKED")
+    result = game_post("/internal/v1/task-results", payload)
+    with _store() as conn:
+        conn.execute("UPDATE results SET sent = 1 WHERE event_id = ?", (payload["event_id"],))
+    return result
 
-def main() -> int:
-    binding_id = os.environ.get("BINDING_ID", "").strip()
-    elder_bindings = os.environ.get("ELDER_BINDINGS", "").strip()
-    elder_id = os.environ.get("ELDER_ID", "elder_demo_001").strip() or "elder_demo_001"
-    target = os.environ.get("OPENCLAW_SEND_TARGET", "").strip()
-    once = "--once" in sys.argv
-
-    print(f"[bridge] binding_id={'<已配置>' if binding_id else '<未配置>'} elder_id={elder_id} target={'<已配置>' if target else '<未配置>'} once={once}")
-    if not binding_id and not elder_bindings:
-        print("[warn] 未配置 BINDING_ID；游戏侧完成绑定后把 binding_id 填进环境变量。")
-    state = _load_state()
-    while True:
+def retry_results():
+    if dry_run():
+        return
+    with _store() as conn:
+        queued = conn.execute("SELECT payload FROM results WHERE sent = 0 LIMIT 50").fetchall()
+    for row in queued:
         try:
-            if binding_id:
-                tick(binding_id, target, elder_id, state)
-            elif elder_bindings:
-                for entry in json.loads(elder_bindings):
-                    tick(str(entry["binding_id"]), target, elder_id, state)
-        except Exception as exc:  # noqa: BLE001
-            print(f"[error] tick 异常：{exc}")
-        _save_state(state)
-        if once:
-            break
-        time.sleep(60)
+            _deliver_result(json.loads(row["payload"]))
+        except (BridgeError, OSError):
+            # 保留原请求，授权失效不能自动升级为新授权版本。
+            continue
 
+def complete_task_from_reply(binding_id, text, has_photo, message_id=""):
+    """兼容旧调用但拒绝猜测：聊天关键词和图片存在不等于完成证据。"""
+    return {"ok": False, "reason": "explicit_task_and_verified_evidence_required"}
+
+def send_wechat(route, text):
+    """直接走 iLink 网关发消息；不再依赖 openclaw CLI。"""
+    if dry_run():
+        return False
+    try:
+        import sys
+        from pathlib import Path
+        sidecar = str(Path(__file__).resolve().parent.parent / "wechat-sidecar")
+        if sidecar not in sys.path:
+            sys.path.insert(0, sidecar)
+        import ilink_gateway
+        result = ilink_gateway.send_to(str(route.get("channel_account_id", "")), str(route.get("target", "")), text)
+        return bool(result.get("ok"))
+    except (ImportError, OSError):
+        return False
+
+def claim_notifications():
+    if dry_run():
+        return 0
+    # 一次只领一条，避免排队发送导致后续 30 秒租约过期。
+    notes = game_post("/internal/v1/notifications/claim", {"limit": 1})["notifications"]
+    for note in notes:
+        path = "/internal/v1/notifications/" + quote(note["notification_id"], safe="")
+        lease = {"lease_token": note["lease_token"]}
+        try:
+            route = route_for(note["binding_id"])
+            bundle = pending(note["binding_id"])
+            if bundle["binding"]["consent_version"] != note["consent_version"]:
+                raise BridgeError("CONSENT_REVOKED")
+            with _store() as conn:
+                sent = conn.execute("SELECT id FROM delivered WHERE id = ?", (note["notification_id"],)).fetchone()
+            if not sent:
+                if time.time() + 10 >= note["lease_until"]:
+                    raise BridgeError("LEASE_EXPIRING")
+                if not send_wechat(route, "这次任务记录已同步给家人。"):
+                    raise BridgeError("DELIVERY_FAILED")
+                with _store() as conn:
+                    conn.execute("INSERT OR IGNORE INTO delivered VALUES (?)", (note["notification_id"],))
+            game_post(path + "/ack", lease)
+            return 1
+        except (BridgeError, OSError, subprocess.SubprocessError):
+            try:
+                game_post(path + "/nack", lease)
+            except (BridgeError, OSError):
+                pass
+    return 0
+
+def tick():
+    current = datetime.now(UTC8)
+    for route in routes():
+        try:
+            bundle = pending(route["binding_id"])
+            for task in bundle["tasks"]:
+                reminder = TASK_TEMPLATES.get(task["template_id"])
+                if (not reminder or task["status"] in {"verified", "settled"}
+                        or not task["window_start"] <= current.timestamp() < task["window_end"]
+                        or reminder["time"] != current.strftime("%H:%M") or dry_run()):
+                    continue
+                marker = f"reminder:{task['task_instance_id']}:{current.date()}:{reminder['time']}"
+                with _store() as conn:
+                    sent = conn.execute("SELECT id FROM delivered WHERE id = ?", (marker,)).fetchone()
+                if not sent and send_wechat(route, reminder["text"]):
+                    with _store() as conn:
+                        conn.execute("INSERT OR IGNORE INTO delivered VALUES (?)", (marker,))
+        except (BridgeError, OSError, subprocess.SubprocessError):
+            continue
+    retry_results()
+    claim_notifications()
+
+def main():
+    routes()
+    while True:
+        tick()
+        if "--once" in sys.argv:
+            return 0
+        time.sleep(60)
 
 if __name__ == "__main__":
     raise SystemExit(main())

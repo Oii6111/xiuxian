@@ -90,6 +90,66 @@ CREATE TABLE realtime_tickets (
   token_hash TEXT PRIMARY KEY, session_hash TEXT NOT NULL REFERENCES sessions(token_hash) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+`, String.raw`
+-- 2：B 的像素玩法。家族角色、五档装备独立实例、日奖励组、可信初始投影和旧档认领。
+ALTER TABLE cultivators ADD COLUMN role TEXT NOT NULL DEFAULT 'legacy';
+ALTER TABLE cultivators ADD COLUMN profile TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE cultivators ADD COLUMN seals INTEGER NOT NULL DEFAULT 0 CHECK(seals >= 0);
+ALTER TABLE cultivators ADD COLUMN draw_count INTEGER NOT NULL DEFAULT 0 CHECK(draw_count >= 0);
+ALTER TABLE cultivators ADD COLUMN initial_score REAL;
+ALTER TABLE cultivators ADD COLUMN initial_profile_id TEXT NOT NULL DEFAULT '';
+CREATE UNIQUE INDEX cultivator_self ON cultivators(account_id) WHERE role = 'self';
+CREATE TABLE equipment_v2 (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), catalogue_id TEXT NOT NULL,
+  slot TEXT NOT NULL, rarity TEXT NOT NULL, equipped INTEGER NOT NULL DEFAULT 0,
+  catalogue_version TEXT NOT NULL DEFAULT 'integration-v1', draw_id TEXT, created_at INTEGER NOT NULL DEFAULT 0
+);
+INSERT INTO equipment_v2 (id, cultivator_id, catalogue_id, slot, rarity, equipped) SELECT id, cultivator_id, catalogue_id, slot, rarity, equipped FROM equipment;
+DROP TABLE equipment;
+ALTER TABLE equipment_v2 RENAME TO equipment;
+CREATE UNIQUE INDEX equipped_slot ON equipment(cultivator_id, slot) WHERE equipped = 1;
+CREATE UNIQUE INDEX equipment_integration_unique ON equipment(cultivator_id, catalogue_id) WHERE catalogue_version = 'integration-v1';
+CREATE INDEX equipment_owner ON equipment(cultivator_id, created_at);
+CREATE TABLE reward_groups (
+  cultivator_id TEXT NOT NULL REFERENCES cultivators(id), reward_group TEXT NOT NULL, day TEXT NOT NULL,
+  settlement_id TEXT NOT NULL UNIQUE REFERENCES settlements(id),
+  PRIMARY KEY(cultivator_id, reward_group, day)
+);
+ALTER TABLE settlements ADD COLUMN seals INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE baselines (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), service_id TEXT NOT NULL,
+  baseline_id TEXT NOT NULL, fingerprint TEXT NOT NULL, projection TEXT NOT NULL, created_at INTEGER NOT NULL,
+  UNIQUE(service_id, baseline_id)
+);
+CREATE INDEX baseline_latest ON baselines(cultivator_id, created_at);
+CREATE TABLE baseline_tickets (
+  token_hash TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id),
+  cultivator_id TEXT NOT NULL REFERENCES cultivators(id), expires_at INTEGER NOT NULL, used_by TEXT
+);
+CREATE TABLE legacy_claims (
+  fingerprint TEXT PRIMARY KEY, account_id TEXT NOT NULL REFERENCES accounts(id), created_at INTEGER NOT NULL
+);
+`, String.raw`
+-- 3：A 的生命周期与战斗会话。生命周期需家属确认令牌；首通按 (角色, Boss) 唯一，战斗不产生资源。
+ALTER TABLE cultivators ADD COLUMN lifecycle_version INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE cultivators ADD COLUMN stage_template TEXT NOT NULL DEFAULT '';
+ALTER TABLE cultivators ADD COLUMN stage_index INTEGER NOT NULL DEFAULT -1;
+CREATE TABLE lifecycle_tokens (
+  token_hash TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), target_state TEXT NOT NULL,
+  from_version INTEGER NOT NULL, confirmations INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL
+);
+CREATE TABLE lifecycle_events (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), kind TEXT NOT NULL,
+  value TEXT NOT NULL, version INTEGER NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE TABLE combat_sessions (
+  id TEXT PRIMARY KEY, cultivator_id TEXT NOT NULL REFERENCES cultivators(id), encounter_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL, finished_at INTEGER, won INTEGER, duration_seconds REAL
+);
+CREATE TABLE boss_clears (
+  cultivator_id TEXT NOT NULL REFERENCES cultivators(id), boss_id TEXT NOT NULL, first_session_id TEXT NOT NULL,
+  best_seconds REAL NOT NULL, cleared_at INTEGER NOT NULL, PRIMARY KEY(cultivator_id, boss_id)
+);
 `];
 
 export class Database {

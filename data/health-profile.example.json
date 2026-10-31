@@ -1,0 +1,13 @@
+{
+  "profile_id": "demo-songfeng",
+  "revision": 1,
+  "source": "模拟健康档案",
+  "simulated": true,
+  "attributes": {
+    "life": 45,
+    "attack": 40,
+    "defense": 35,
+    "spirit": 50,
+    "stamina": 40
+  }
+}

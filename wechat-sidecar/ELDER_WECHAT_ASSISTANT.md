@@ -1,5 +1,7 @@
 # 老人端“健康管理助手”接入方案（OpenClaw Weixin + 健康侧车）
 
+> 本文保留 D 原型设计。当前游戏接入、凭证、绑定路由、任务模板与测试命令以 [C/D 接入说明](../docs/TASK_REMINDER_BRIDGE.md) 为准。健康事件不直接转发给游戏；独立审核器核验证据后才提交最小事实。旧 family-link 不替代 C 的绑定授权，本文的生产运行步骤本轮未执行。
+
 > 仓库内对应路径：本文档里的 `prototype/` 即本仓库的 `wechat-sidecar/`；`game_task_bridge.py` 在 `wechat-bridge/`。
 
 ## 0. 先把边界说清楚

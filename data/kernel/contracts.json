@@ -7,7 +7,10 @@
       "growth.list": {},
       "growth.snapshot": {"cultivator_id": "string"},
       "growth.equip": {"cultivator_id": "string", "equipment_id": "string", "slot": "string"},
-      "growth.draw": {"cultivator_id": "string", "count": "integer", "request_id": "string"}
+      "growth.draw": {"cultivator_id": "string", "count": "integer", "request_id": "string"},
+      "growth.create_member": {"role": "string", "name": "string", "profile": "object", "request_id": "string"},
+      "growth.update_member": {"cultivator_id": "string", "name": "string", "profile": "object", "request_id": "string"},
+      "growth.unequip": {"cultivator_id": "string", "slot": "string", "request_id": "string"}
     }},
     {"id": "combat", "commands": {
       "combat.start": {"cultivator_id": "string", "encounter_id": "string"},
@@ -17,7 +20,8 @@
       "quests.list": {"cultivator_id": "string"},
       "quests.templates": {},
       "quests.assign": {"cultivator_id": "string", "template_id": "string", "date": "string", "request_id": "string"},
-      "quests.claim": {"cultivator_id": "string", "quest_id": "string", "request_id": "string"}
+      "quests.claim": {"cultivator_id": "string", "quest_id": "string", "request_id": "string"},
+      "quests.family_today": {"date": "string"}
     }},
     {"id": "lifecycle", "commands": {
       "lifecycle.request_change": {"cultivator_id": "string", "target_state": "string"},
@@ -51,10 +55,13 @@
     "elements": ["wood", "fire", "earth", "metal", "water"],
     "lifecycle_states": ["cultivating", "tribulation", "seclusion", "ascended"],
     "equipment_slots": ["weapon", "armor", "accessory", "artifact"],
+    "pixel_equipment_slots": ["weapon", "robe", "boots", "amulet"],
+    "pixel_rarities": ["common", "fine", "epic", "legendary", "mythic"],
+    "member_roles": ["self", "elder"],
     "realms": ["qi_refining", "foundation", "golden_core", "nascent_soul", "spirit", "mahayana", "emperor"],
     "visibility": ["family", "friends", "public"]
   },
   "resource_owners": {
-    "spirit_stones": "cultivator", "realm_xp": "cultivator", "materials": "cultivator", "merit": "attendant"
+    "spirit_stones": "cultivator", "realm_xp": "cultivator", "materials": "cultivator", "seals": "cultivator", "merit": "attendant"
   }
 }

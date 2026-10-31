@@ -8,7 +8,7 @@ export class Ledger {
   change(accountId: string, cultivatorId: string | null, resource: string, delta: number, operationId: string, reason: string) {
     requireCondition(this.db.connection.isTransaction, 'TRANSACTION_REQUIRED', '记账必须位于事务中', 500);
     requireCondition(Number.isSafeInteger(delta), 'INVALID_AMOUNT', '资源变化必须为安全整数');
-    const allowed = cultivatorId ? ['spirit_stones', 'realm_xp', 'materials'] : ['merit'];
+    const allowed = cultivatorId ? ['spirit_stones', 'realm_xp', 'materials', 'seals'] : ['merit'];
     requireCondition(allowed.includes(resource), 'RESOURCE_OWNER', '资源归属不合法');
     const table = cultivatorId ? 'cultivators' : 'accounts';
     const ownerId = cultivatorId ?? accountId;

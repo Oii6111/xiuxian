@@ -6,7 +6,7 @@ import websocket from '@fastify/websocket';
 import { randomInt, timingSafeEqual } from 'node:crypto';
 import { Database } from './database.js';
 import { AuthService } from './auth.js';
-import { type Clock, DomainError, digest, requireCondition, success } from './core.js';
+import { type Clock, DomainError, canonical, digest, requireCondition, secret, success } from './core.js';
 import { contract, commands, validateCommand, stringField, boolField, positiveInteger, enumField, objectSchema, resultSchema } from './contracts.js';
 import { GameService, type GameExtensions, type Season } from './game/service.js';
 import { type RuleProviders, defaultProviders } from './game/rules.js';
@@ -14,14 +14,16 @@ import { BindingService, type ConfirmBinding } from './integration/bindings.js';
 import { HealthBridge, type SubmissionUpdate, type VerifiedResult } from './integration/health.js';
 import { Outbox } from './integration/outbox.js';
 import { RealtimeHub } from './realtime/hub.js';
+import { type WebOptions, registerWeb } from './web.js';
 
-export const healthScopes = ['binding:confirm', 'binding:connection', 'task:read', 'submission:write', 'result:write', 'notification:deliver'] as const;
+export const healthScopes = ['binding:confirm', 'binding:connection', 'task:read', 'task:assign', 'submission:write', 'result:write', 'notification:deliver', 'baseline:write'] as const;
 export type ServiceCredential = { id: string; token: string; scopes: string[] };
 export type AppOptions = {
   databasePath?: string; now?: Clock; randomInt?: (maximum: number) => number;
   providers?: RuleProviders; calendar?: Season[]; extensions?: GameExtensions;
   services?: ServiceCredential[]; origins?: string[]; worker?: boolean;
   beforeSettlementCommit?: () => void;
+  web?: WebOptions;
 };
 
 export async function buildApp(options: AppOptions = {}) {
@@ -62,7 +64,7 @@ export async function buildApp(options: AppOptions = {}) {
 
   await app.register(cors, { origin: origins, methods: ['GET', 'POST', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'] });
   await app.register(rateLimit, { global: false });
-  await app.register(swagger, { openapi: { info: { title: '家族修真录 C 本地服务', version: '0.1.0' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, healthService: { type: 'http', scheme: 'bearer', description: 'D 的独立服务凭证，不得交给浏览器或模型' } } } } });
+  await app.register(swagger, { openapi: { info: { title: '疯狂修仙，中 C 本地服务', version: '0.1.0' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, healthService: { type: 'http', scheme: 'bearer', description: 'D 的独立服务凭证，不得交给浏览器或模型' } } } } });
   await app.register(websocket, { options: { maxPayload: 16384 } });
   app.get('/healthz', { schema: { tags: ['operations'], summary: '进程和数据库存活检查' } }, async () => { db.get('SELECT 1'); return success({ service: 'xiuxian', contract_version: contract.version }); });
   app.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());
@@ -85,6 +87,31 @@ export async function buildApp(options: AppOptions = {}) {
   app.post('/api/v2/realtime/ticket', { schema: routeSchema('realtime', '签发 60 秒有效的一次性连接票据', objectSchema({})) }, async request => success(realtime.ticket(session(request))));
   realtime.register(app, origins);
 
+  // 初始属性：玩家为指定角色申请一次性票据，交给 D 的健康入口；D 确认后以服务身份提交白名单投影。玩家会话不能直接写属性。
+  app.post('/api/v2/baselines/tickets', { schema: routeSchema('baseline', '为角色签发 10 分钟一次性初始属性票据', objectSchema({ cultivator_id: stringField })) }, async request => {
+    const accountId = session(request).account_id;
+    const cultivarId = (request.body as { cultivator_id: string }).cultivator_id;
+    game.own(accountId, cultivarId);
+    const ticket = secret();
+    const expires = now() + 600;
+    db.transaction(() => {
+      db.run('DELETE FROM baseline_tickets WHERE expires_at <= ? OR (cultivator_id = ? AND used_by IS NULL)', now(), cultivarId);
+      db.run('INSERT INTO baseline_tickets VALUES (?, ?, ?, ?, NULL)', digest(ticket), accountId, cultivarId, expires);
+    });
+    return success({ baseline_ticket: ticket, expires_at: expires, cultivator_id: cultivarId });
+  });
+  // 旧本地存档只登记归属，一份指纹只属于一个账号；余额与装备不从客户端文件导入 C 账本。
+  app.post('/api/v2/legacy/claim', { schema: routeSchema('legacy', '登记本机旧存档指纹归属', objectSchema({ fingerprint: { type: 'string', pattern: '^[a-f0-9]{64}$' } })) }, async request => {
+    const accountId = session(request).account_id;
+    const fingerprint = (request.body as { fingerprint: string }).fingerprint;
+    return success(db.transaction(() => {
+      const owner = db.get<{ account_id: string }>('SELECT account_id FROM legacy_claims WHERE fingerprint = ?', fingerprint);
+      requireCondition(!owner || owner.account_id === accountId, 'LEGACY_CLAIMED', '这份旧存档已归属其他账号', 409);
+      if (!owner) db.run('INSERT INTO legacy_claims VALUES (?, ?, ?)', fingerprint, accountId, now());
+      return { fingerprint, claimed: true };
+    }));
+  });
+
   app.post('/api/v2/bindings/invitations', { schema: routeSchema('binding', '生成 10 分钟邀请；新邀请替换该角色旧邀请', objectSchema({ cultivator_id: stringField })) }, async request => success(bindings.invite(session(request).account_id, (request.body as { cultivator_id: string }).cultivator_id)));
   app.get('/api/v2/bindings', { schema: { ...routeSchema('binding', '读取绑定与独立授权状态'), querystring: objectSchema({ cultivator_id: stringField }) } }, async request => success(bindings.list(session(request).account_id, (request.query as { cultivator_id: string }).cultivator_id)));
   for (const [path, method, unbind] of [['/api/v2/bindings/:id/revoke', 'POST', false], ['/api/v2/bindings/:id', 'DELETE', true]] as const) {
@@ -95,6 +122,35 @@ export async function buildApp(options: AppOptions = {}) {
   app.post('/internal/v1/bindings/confirm', { schema: routeSchema('internal', 'D 校验微信身份及老人授权后消费邀请', bindingInput, true) }, async request => { internal(request, 'binding:confirm'); return success(bindings.confirm(request.body as ConfirmBinding)); });
   app.post('/internal/v1/bindings/:id/connection', { schema: { ...routeSchema('internal', '更新通道连接状态，不改变资料授权', objectSchema({ connected: boolField }), true), params: objectSchema({ id: stringField }) } }, async request => { internal(request, 'binding:connection'); return success(bindings.connection((request.params as { id: string }).id, (request.body as { connected: boolean }).connected)); });
   app.get('/internal/v1/bindings/:id/tasks', { schema: { ...routeSchema('internal', '读取有效绑定的待办', undefined, true), params: objectSchema({ id: stringField }) } }, async request => { internal(request, 'task:read'); return success(health.pending((request.params as { id: string }).id)); });
+  // B 的产品逻辑：老人确认当前计划后，D 为绑定的老人启用当日任务；同一模板同一日重复调用返回原实例。
+  app.post('/internal/v1/bindings/:id/tasks', { schema: { ...routeSchema('internal', '为有效绑定启用已发布模板的任务实例', objectSchema({ template_id: stringField, date: stringField }), true), params: objectSchema({ id: stringField }) } }, async request => {
+    internal(request, 'task:assign');
+    const binding = bindings.active((request.params as { id: string }).id);
+    const input = request.body as { template_id: string; date: string };
+    return success(db.transaction(() => game.assign(binding.account_id, binding.cultivator_id, input.template_id, input.date)));
+  });
+  const stat = (low: number, high: number) => ({ type: 'integer', minimum: low, maximum: high });
+  const baselineInput = objectSchema({
+    baseline_ticket: stringField, baseline_id: stringField,
+    projection: objectSchema({
+      projection_version: enumField(['legacy-pixel-v1']), mapping_version: { type: 'string', maxLength: 40 }, recognition_mode: enumField(['live', 'text', 'sample']),
+      character_state: objectSchema({ hp_max: stat(1, 10000), hp_current: stat(1, 10000), attack: stat(0, 100), defense: stat(0, 100), spirit: stat(0, 100), stamina: stat(0, 100), insight: stat(0, 100), mind: stat(0, 100), speed: stat(0, 100), luck: stat(0, 100) }),
+      readiness: stat(0, 100),
+    }),
+  });
+  app.post('/internal/v1/baselines', { schema: routeSchema('internal', 'D 确认后的最小初始属性投影；不接收报告、病史、药名或解释', baselineInput, true) }, async request => {
+    const serviceId = internal(request, 'baseline:write');
+    const input = request.body as { baseline_ticket: string; baseline_id: string; projection: { character_state: Record<string, number> } & Record<string, unknown> };
+    requireCondition(input.projection.character_state.hp_current === input.projection.character_state.hp_max, 'INVALID_BASELINE', '初始生命应为满值');
+    return success(db.transaction(() => {
+      const ticket = db.get<{ account_id: string; cultivator_id: string; expires_at: number; used_by: string | null }>('SELECT * FROM baseline_tickets WHERE token_hash = ?', digest(input.baseline_ticket));
+      requireCondition(ticket && (ticket.used_by === input.baseline_id || (!ticket.used_by && ticket.expires_at > now())), 'TICKET_INVALID', '初始属性票据无效、过期或已用于其他档案', 409);
+      const character = game.own(ticket.account_id, ticket.cultivator_id);
+      game.recordBaseline(character, serviceId, input.baseline_id, input.projection, digest(canonical(input.projection)));
+      db.run('UPDATE baseline_tickets SET used_by = ? WHERE token_hash = ?', input.baseline_id, digest(input.baseline_ticket));
+      return { cultivator_id: character.id, baseline_id: input.baseline_id, initial_profile_id: game.own(ticket.account_id, ticket.cultivator_id).initial_profile_id };
+    }));
+  });
   const submissionInput = objectSchema({ submission_id: stringField, task_instance_id: stringField, binding_id: stringField, consent_version: positiveInteger, sequence: positiveInteger, status: enumField(['received', 'needs_supplement', 'pending_confirmation', 'rejected']) });
   app.post('/internal/v1/submissions/status', { schema: routeSchema('internal', '同步游戏侧提交状态；不接收图片、识别文本或医疗说明', submissionInput, true) }, async request => success(health.submission(internal(request, 'submission:write'), request.body as SubmissionUpdate)));
   const verifiedInput = objectSchema({ event_id: stringField, task_instance_id: stringField, cultivator_id: stringField, binding_id: stringField, consent_version: positiveInteger, verification_level: enumField(['device', 'photo', 'family_confirm', 'self_report']), observed_at: { type: 'string', format: 'date-time' }, rule_version: stringField, source: enumField(['device', 'photo', 'family_confirm', 'self_report']), channel: enumField(['wechat_ilink', 'family_web', 'device']) });
@@ -104,6 +160,7 @@ export async function buildApp(options: AppOptions = {}) {
   app.post('/internal/v1/notifications/claim', { schema: routeSchema('internal', '领取 30 秒通知租约；最多 20 条', objectSchema({ limit: { type: 'integer', minimum: 1, maximum: 20 } }), true) }, async request => success(outbox.claim(internal(request, 'notification:deliver'), (request.body as { limit: number }).limit)));
   for (const action of ['ack', 'nack'] as const) app.post(`/internal/v1/notifications/:id/${action}`, { schema: { ...routeSchema('internal', action === 'ack' ? '确认通知已送达；重复确认安全' : '通知失败后退避重试', objectSchema({ lease_token: stringField }), true), params: objectSchema({ id: stringField }) } }, async request => success(outbox.complete(internal(request, 'notification:deliver'), (request.params as { id: string }).id, (request.body as { lease_token: string }).lease_token, action === 'ack')));
 
+  registerWeb(app, options.web ?? {});
   await app.ready();
   if (options.worker !== false) {
     worker = setInterval(() => { health.processPending(); realtime.flush(); }, 1000);
@@ -111,3 +168,4 @@ export async function buildApp(options: AppOptions = {}) {
   }
   return { app, db, auth, game, bindings, health, outbox, realtime };
 }
+

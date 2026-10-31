@@ -19,6 +19,8 @@ var photo_mode: bool = false
 
 func _ready() -> void:
 	font = SystemFont.new()
+	# 网页没有系统中文字体，回退到随包的 Noto Sans SC（OFL）。
+	font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC"])
 	_setup_inputs()
 	if not "--preview" in OS.get_cmdline_user_args():

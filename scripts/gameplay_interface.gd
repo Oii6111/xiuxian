@@ -426,7 +426,7 @@ func open_recovery() -> void:
 	lifecycle_panel.kernel = lifecycle_gateway
 	lifecycle_panel.quiet_background_texture = Assets.texture("res://assets/pixel_campaign/map_origin.png")
 	lifecycle_panel.background_texture = Assets.texture("res://assets/gameplay/tribulation-stage.png")
-	lifecycle_panel.cultivator_texture = game.walk_textures[8]
+	lifecycle_panel.cultivator_texture = Assets.texture("res://assets/gameplay/elder-meditating.png")
 	lifecycle_panel.cultivator_id = role_id
 	lifecycle_panel.cultivator_name = game.state.player_name
 	var record: Dictionary = game.state.lifecycle_record()

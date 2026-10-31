@@ -4,6 +4,7 @@ extends Control
 ## 护法只影响画面与留言，不影响渡劫结果；到达出院阶段不会自动结算，庆典必须另行确认。
 const Rules = preload("res://scripts/systems/lifecycle/lifecycle_rules.gd")
 const Assets = preload("res://scripts/pixel_assets.gd")
+const MEDITATING_TEXTURE_PATH := "res://assets/gameplay/elder-meditating.png"
 ## 仅用于显示的中文名称；规则与命令仍使用英文标识。
 const STATE_NAMES: Dictionary = {"cultivating": "修行", "tribulation": "渡劫", "seclusion": "闭关", "ascended": "飞升"}
 const STAGE_NAMES: Dictionary = {
@@ -55,9 +56,11 @@ func _ready() -> void:
 	if background_texture == null:
 		background_texture = load("res://assets/gameplay/tribulation-stage.png")
 	if cultivator_texture == null:
-		var frames := Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4, 0.05, true)
-		if not frames.is_empty():
-			cultivator_texture = frames[0]
+		cultivator_texture = Assets.texture(MEDITATING_TEXTURE_PATH)
+		if cultivator_texture == null:
+			var frames := Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4, 0.05, true)
+			if not frames.is_empty():
+				cultivator_texture = frames[0]
 	if kernel == null:
 		kernel = get_node_or_null("/root/GameKernel")
 	var current: Dictionary = _entry()
@@ -557,18 +560,20 @@ func _draw_lightning(center: Vector2) -> void:
 		draw_arc(target, 52.0, 0.0, TAU, 36, Color(1.0, 0.84, 0.42, _strike_active), 4.0)
 
 func _draw_cultivator(center: Vector2) -> void:
-	var bob := sin(_clock * 2.2) * 3.0 if current_state() == "tribulation" else 0.0
-	var impact_shake := sin(_clock * 70.0) * 13.0 if _strike_phase == 2 else 0.0
-	var actor_center := center + Vector2(impact_shake, -112 + bob)
+	# 渡劫者始终保持打坐姿态；雷击只改变护体光与受击遮罩，不切换行走帧或移动人物。
+	var breathing := sin(_clock * 1.4) * 1.5 if current_state() == "tribulation" else 0.0
+	var actor_center := center + Vector2(0, -48 + breathing)
 	if cultivator_texture != null:
-		var actor_size := Vector2(190, 190)
+		var actor_size := Vector2(300, 200)
 		draw_texture_rect(cultivator_texture, Rect2(actor_center - Vector2(actor_size.x / 2.0, actor_size.y), actor_size), false, Color.WHITE)
 	else:
-		# 测试/演示场景没有注入纹理时仍绘制一个清晰的人物轮廓。
-		draw_circle(actor_center - Vector2(0, 58), 24.0, Color("f2c29b"))
-		draw_rect(Rect2(actor_center - Vector2(35, 35), Vector2(70, 78)), Color("416b89"))
-		draw_line(actor_center + Vector2(-22, 43), actor_center + Vector2(-35, 88), Color("d7e8ed"), 10.0)
-		draw_line(actor_center + Vector2(22, 43), actor_center + Vector2(35, 88), Color("d7e8ed"), 10.0)
+		# 资源缺失时也保留清晰的盘坐轮廓，避免退回站立人物。
+		draw_circle(actor_center - Vector2(0, 118), 21.0, Color("f2c29b"))
+		draw_rect(Rect2(actor_center - Vector2(30, 98), Vector2(60, 58)), Color("416b89"))
+		draw_line(actor_center - Vector2(25, 45), actor_center - Vector2(5, 70), Color("d7e8ed"), 8.0)
+		draw_line(actor_center - Vector2(5, 70), actor_center + Vector2(25, -45), Color("d7e8ed"), 8.0)
+		draw_arc(actor_center - Vector2(34, 20), 36.0, 0.2, PI - 0.2, 20, Color("d7e8ed"), 10.0)
+		draw_arc(actor_center + Vector2(34, -20), 36.0, PI + 0.2, TAU - 0.2, 20, Color("d7e8ed"), 10.0)
 	if current_state() == "tribulation":
 		draw_arc(actor_center - Vector2(0, 55), 62.0 + sin(_clock * 2.0) * 5.0, 0.0, TAU, 48, Color(0.38, 0.9, 1.0, 0.8), 3.0)
 	if _strike_phase > 0:

@@ -13,6 +13,8 @@ const JsonPersistence = preload("res://scripts/kernel/adapters/json_persistence.
 const Router = preload("res://scripts/kernel/command_router.gd")
 const Audit = preload("res://scripts/kernel/audit.gd")
 const GameApi = preload("res://scripts/net/game_api.gd")
+## 已由系统负责人实现的命令；其余命令仍必须返回 NOT_IMPLEMENTED。
+const IMPLEMENTED_COMMANDS: Array = ["lifecycle.request_change", "lifecycle.confirm_change", "lifecycle.update_stage", "combat.start", "combat.finish"]
 var _assertions: int = 0
 var _failures: Array[String] = []
 
@@ -208,8 +210,11 @@ func _test_runtime() -> void:
 					"integer", "number": payload[field] = 1
 					"bool": payload[field] = true
 			var response: Dictionary = await runtime.dispatch(command, payload)
-			var expected_code: String = "BACKEND_UNAVAILABLE" if command == "season.refresh" else "NOT_IMPLEMENTED"
-			expect(response.code == expected_code, "offline system boundary: " + command)
+			if command in IMPLEMENTED_COMMANDS:
+				# 已实现的命令在没有服务端确认或权威状态时必须显式失败，不能假成功。
+				expect(response.code in ["NOT_FOUND", "BACKEND_UNAVAILABLE"], "implemented command fails explicitly without authority: " + command)
+			else:
+				expect(response.code == "NOT_IMPLEMENTED", "explicit placeholder: " + command)
 	var unknown: Dictionary = await runtime.dispatch("not.a.command")
 	expect(unknown.code == "UNKNOWN_COMMAND", "unknown command rejected")
 	expect(runtime.save().ok, "runtime saves registered sections together")

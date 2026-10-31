@@ -21,6 +21,8 @@ var return_to_health_entry = false
 var companion_panel: Control
 var companion_button: Button
 var wechat_task_label: Label
+var lifecycle_panel: Control
+var lifecycle_gateway: Node
 
 func _ready() -> void:
 	super._ready()
@@ -38,6 +40,9 @@ func _ready() -> void:
 	companion_button.expand_icon = true
 	companion_button.add_theme_constant_override("icon_max_width", 39)
 	refresh_companion_button()
+	var lifecycle_button = button(self, "渡劫台 / 修行状态", open_recovery)
+	lifecycle_button.position = Vector2(16, 506)
+	lifecycle_button.size.x = 276
 	var args = OS.get_cmdline_user_args()
 	if "--skip-intro" not in args and "--preview" not in args:
 		open_game_entry.call_deferred()
@@ -53,13 +58,16 @@ func refresh() -> void:
 	if not game.state.longterm_enabled or not game.state.medication_required:
 		medication = "无用药计划"
 	var recovery = {"not_started": "未开启", "active": "进行中", "recovered": "已确认结束"}.get(game.state.recovery_status, "未开启")
-	daily_label.text = "服药：%s\n计划：%s\n恢复篇章：%s" % [medication, "已确认" if game.state.task_done("planned_record") else "待记录", recovery]
+	var life_name: String = {"cultivating":"修行", "tribulation":"渡劫", "seclusion":"闭关", "ascended":"飞升"}.get(game.state.lifecycle_record().state, "未同步")
+	daily_label.text = "服药：%s\n计划：%s\n修行状态：%s" % [medication, "已确认" if game.state.task_done("planned_record") else "待记录", life_name]
+	if game.state.lifecycle_record().state in ["seclusion", "ascended"]:
+		daily_label.text = "陪伴与回忆\n原有资源保留\n修行状态：" + life_name
 	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
 		var tasks = game.companion_tasks.members.get(game.family.active_id, [])
 		var done = 0
 		for task in tasks:
 			done += int(task.status == "confirmed")
-		daily_label.text = "微信安排：%d 项\n已反馈完成：%d 项\n%s" % [tasks.size(), done, "已同步" if game.companion_tasks.connected else "等待同步"]
+		daily_label.text = "微信安排：%d 项\n已反馈完成：%d 项\n修行状态：%s" % [tasks.size(), done, life_name]
 	if is_instance_valid(wechat_task_label):
 		wechat_task_label.text = wechat_record_text()
 
@@ -87,6 +95,15 @@ func open_companion(choose: bool = false) -> void:
 	add_child(companion_panel)
 
 func close_modal(force: bool = false) -> void:
+	if is_instance_valid(lifecycle_panel) and lifecycle_panel.busy and not force:
+		toast("正在保存家属确认，请稍候。")
+		return
+	if is_instance_valid(lifecycle_panel):
+		lifecycle_panel.queue_free()
+	lifecycle_panel = null
+	if is_instance_valid(lifecycle_gateway):
+		lifecycle_gateway.queue_free()
+	lifecycle_gateway = null
 	if is_instance_valid(account_panel) and not game.account_ready and not force:
 		return
 	if is_instance_valid(account_panel):
@@ -279,6 +296,11 @@ func open_record() -> void:
 		return
 	if require_family():
 		return
+	if game.state.lifecycle_record().state in ["seclusion", "ascended"]:
+		var content = _dialog("家人陪伴", "当前状态不发布健康管理任务。原有灵气、装备和通关记录保留。")
+		paragraph(content, "家人可以探望、视频通话或记录共同回忆。陪伴不改变现实照护结果。", 21, BROWN)
+		button(content, "查看修行状态", open_recovery, true)
+		return
 	var state = game.state
 	var content = _dialog("每日修行 · 家人健康计划", state.member_label() + "  ·  " + state.today() + "  ·  以下为本地模拟记录")
 	var consent = _check(content, "我已了解这是模拟记录，并由家属确认完成及同意用于家族游戏")
@@ -349,37 +371,73 @@ func open_plan_settings() -> void:
 	, true)
 	button(content, "查看阶段恢复篇章", open_recovery)
 
+func _a_scope() -> String:
+	return "%s/%s/%d" % [str(game.family.account.id), str(game.family.active_id), game.state.get_instance_id()]
+
 func open_recovery() -> void:
-	var content = _dialog("阶段恢复 · 渡劫篇章", "长辈的恢复记录与年轻人的游戏试炼分别确认。")
-	var status = game.state.recovery_status
-	if status == "not_started":
-		label_into(content, "为一次阶段恢复，开启一段守护", 26)
-		paragraph(content, "家属可以在这里主动开启模拟恢复篇章。已有的长期管理计划继续保留。\n你将在渡劫台守护打坐老者，选择功法抵挡三轮天雷。", 21, BROWN)
-		var confirmed = _check(content, "家属确认：在本次演示中开启阶段恢复篇章")
-		var begin = button(content, "开启篇章", func():
-			game.state.begin_recovery(confirmed.button_pressed)
-			game.state.save_game()
-			refresh()
-			open_recovery()
-		, true)
-		begin.disabled = true
-		confirmed.toggled.connect(func(value: bool): begin.disabled = not value)
-	else:
-		label_into(content, "篇章进行中" if status == "active" else "篇章已由家属确认结束", 26)
-		paragraph(content, "游戏试炼：" + ("已完成" if game.state.trial_cleared else "可前往渡劫台挑战") + "\n长期管理：" + ("仍在进行" if game.state.longterm_enabled else "未启用"), 21, BROWN)
-		button(content, "进入老者打坐 · 天雷试炼", start_battle, true)
-		if status == "active":
-			line(content)
-			var source = _check(content, "演示：已获得可靠来源的恢复确认，并由家属核实")
-			var finish = button(content, "单独确认恢复 · 结束篇章", func():
-				game.state.confirm_recovery(source.button_pressed, source.button_pressed)
-				game.state.save_game()
-				refresh()
-				open_recovery()
-			)
-			finish.disabled = true
-			source.toggled.connect(func(value: bool): finish.disabled = not value)
-	paragraph(content, "打赢雷劫只完成游戏挑战，不会自动把现实状态改成康复。", 15)
+	if require_family():
+		return
+	if is_instance_valid(combat):
+		toast("请先结束或退出当前战斗，再查看修行状态。")
+		return
+	close_modal()
+	lifecycle_gateway = preload("res://scripts/tribulation/family_gateway.gd").new()
+	add_child(lifecycle_gateway)
+	var role_id: String = _a_scope()
+	var started: Dictionary = lifecycle_gateway.bind(game.state, role_id, Callable(self, "_a_scope"))
+	if not started.ok:
+		toast(started.message)
+		lifecycle_gateway.queue_free()
+		lifecycle_gateway = null
+		return
+	modal_open = true
+	game.player.blocked = true
+	game.player.route.clear()
+	lifecycle_panel = load("res://scenes/tribulation/platform.tscn").instantiate()
+	lifecycle_panel.kernel = lifecycle_gateway
+	lifecycle_panel.quiet_background_texture = Assets.texture("res://assets/pixel_campaign/map_origin.png")
+	lifecycle_panel.background_texture = Assets.texture("res://assets/gameplay/tribulation-stage.png")
+	lifecycle_panel.cultivator_texture = game.walk_textures[8]
+	lifecycle_panel.cultivator_id = role_id
+	var record: Dictionary = game.state.lifecycle_record()
+	lifecycle_panel.lamps = int(record.lamps)
+	if not str(record.template_id).is_empty():
+		lifecycle_panel.template_id = record.template_id
+	lifecycle_panel.left.connect(close_modal)
+	lifecycle_panel.celebrated.connect(func(_role: String) -> void: refresh())
+	lifecycle_panel.confirmation_canceled.connect(lifecycle_gateway.cancel_requests)
+	lifecycle_panel.lamps_changed.connect(_a_save_lamp)
+	lifecycle_panel.template_chosen.connect(func(template: String) -> void:
+		var saved: Dictionary = lifecycle_gateway.remember_template(template)
+		if not saved.ok:
+			lifecycle_panel.status = saved.message
+	)
+	var banner := Label.new()
+	banner.text = game.state.member_label() + " · 当前账号本机演示确认"
+	banner.position = Vector2(650, 120)
+	banner.add_theme_color_override("font_color", Color("#e0c587"))
+	lifecycle_panel.add_child(banner)
+	add_child(lifecycle_panel)
+
+func _a_save_lamp(count: int) -> void:
+	if not is_instance_valid(lifecycle_gateway):
+		return
+	var saved: Dictionary = lifecycle_gateway.record_lamp(count)
+	if not saved.ok and is_instance_valid(lifecycle_panel):
+		lifecycle_panel.lamps = int(game.state.lifecycle_record().lamps)
+		lifecycle_panel.status = saved.message
+		lifecycle_panel.queue_redraw()
+
+func _a_battle_allowed() -> bool:
+	if is_instance_valid(lifecycle_panel) and (lifecycle_panel.busy or lifecycle_panel._dialog.visible):
+		toast("请先确认或取消当前家属操作。")
+		return false
+	if require_family():
+		return false
+	if not game.state.allows_battle():
+		toast("当前家人正在渡劫、闭关或已飞升，请切换修行中的角色。")
+		return false
+	return true
 
 func open_health_entry() -> void:
 	close_modal()
@@ -505,6 +563,7 @@ func open_battle() -> void:
 	paragraph(content, "体力会自动恢复。归元吐纳时移动变慢，受到实际伤害会中断。每次进入训练或挑战，生命、灵力与体力重新补满。", 18)
 	paragraph(content, "饕餮归元：" + ("已解锁" if game.state.heal_unlocked() else "首通两个不同关卡后解锁"), 18)
 	button(content, "开始技能练习", start_battle, true)
+	button(content, "AI 护法陪练（不结算首通）", start_companion_practice)
 	button(content, "查看五项属性", open_home)
 
 func start_battle() -> void:
@@ -524,6 +583,8 @@ func open_boss() -> void:
 	corridor.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
 func start_corridor_boss(id: String) -> void:
+	if not _a_battle_allowed():
+		return
 	var result = game.state.begin_named_boss(id)
 	if not result.ok:
 		toast(result.message)
@@ -547,6 +608,8 @@ func select_track(track: String) -> void:
 	open_boss()
 
 func start_boss(use_support: bool = false, tier: int = 0, track: String = "") -> void:
+	if not _a_battle_allowed():
+		return
 	if tier == 0 and track == "":
 		start_corridor_boss(game.state.selected_boss_id)
 		return
@@ -568,7 +631,7 @@ func open_reward(message: String) -> void:
 	button(content, "回到仙村", close_modal)
 
 func _open_combat(kind: String, bonus: int = 0) -> void:
-	if require_family():
+	if not _a_battle_allowed():
 		return
 	close_modal()
 	modal_open = true
@@ -613,6 +676,9 @@ func require_family() -> bool:
 	return false
 
 func can_change_family() -> bool:
+	if is_instance_valid(lifecycle_panel) and (lifecycle_panel.busy or lifecycle_panel._dialog.visible):
+		toast("请先确认或取消当前操作，再切换家人。")
+		return false
 	if is_instance_valid(combat):
 		toast("请先结束或退出当前战斗，再切换家人。")
 		return false
@@ -770,3 +836,8 @@ func reset_logged_out() -> void:
 	game.sync_avatar_from_state()
 	refresh()
 	open_login()
+
+func start_companion_practice() -> void:
+	_open_combat("practice")
+	if is_instance_valid(combat) and combat.mode == "practice":
+		combat.enable_companion()

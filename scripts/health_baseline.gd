@@ -1,6 +1,8 @@
 extends RefCounted
 ## Legacy local pixel projection only. Not a C /api/v2 baseline contract.
 ## Medical explanations, raw documents, evidence and provider metadata are discarded.
+## The interface outputs game units. Body-system mapping v2 replaces five elements.
+const HealthProfile = preload("res://scripts/health_profile.gd")
 const STATS = ["hp_max", "hp_current", "attack", "defense", "spirit", "stamina", "insight", "mind", "speed", "luck"]
 
 static func valid_number(value, low: float, high: float) -> bool:
@@ -16,6 +18,7 @@ static func validate(payload: Dictionary) -> Dictionary:
 		return {"ok": false, "message": "初始属性格式错误。"}
 	var clean_stats = {}
 	for key in STATS:
+		# Older saved interface baselines used HP >100; retain their original saved values.
 		var high = 10000 if key.begins_with("hp_") and payload.get("mapping_version") != "body_system_v2" else 100
 		if not valid_number(stats.get(key), 1 if key == "hp_max" else 0, high):
 			return {"ok": false, "message": "初始属性缺失或超出范围：" + key}
@@ -35,6 +38,7 @@ static func attributes(baseline: Dictionary) -> Dictionary:
 	var stats = baseline.character_state
 	return {"life": stats.hp_max, "attack": stats.attack, "defense": stats.defense, "spirit": stats.spirit, "stamina": stats.stamina}
 
+## Game health starts at 100; report evidence stays intact, equipment is added by GameState.
 static func battle_stats(baseline: Dictionary) -> Dictionary:
 	var s = baseline.character_state
-	return {"max_hp": s.hp_max, "attack": s.attack, "damage_multiplier": 100.0 / (100.0 + float(s.defense) * 0.8), "max_mp": s.spirit, "max_stamina": s.stamina, "shield": 35 + int(s.defense) * 2}
+	return {"max_hp": HealthProfile.INITIAL_HP, "attack": s.attack, "damage_multiplier": 100.0 / (100.0 + float(s.defense) * 0.8), "max_mp": s.spirit, "max_stamina": s.stamina, "shield": 35 + int(s.defense) * 2}

@@ -137,6 +137,7 @@ func _run() -> void:
 	check(scene.ui.combat.boss_id == "b13" and scene.ui.combat.scene_file_path == Catalogue.scene_path("b13"), "Clicking a portal loads that Boss's dedicated scene")
 	check(scene.ui.combat.encounter.background.ends_with("map_water.png") and scene.ui.combat.top_label.text.contains("沉砂"), "The selected arena uses the right map and Boss name")
 	scene.ui.combat.use_skill(0)
+	await create_timer(.22).timeout
 	check(scene.ui.combat.rules.boss_hp < scene.ui.combat.rules.boss_max_hp, "The existing four-skill combat damages the newly loaded enemy")
 	scene.ui.combat.leave_battle()
 	await process_frame
@@ -161,6 +162,7 @@ func _run() -> void:
 		scene.ui.combat.rules.boss_hp = 1
 		scene.ui.combat.hero.position = scene.ui.combat.rules.boss_position - Vector2(100, 0)
 		scene.ui.combat.basic_attack()
+		await create_timer(.18).timeout
 		check(scene.ui.combat.result_shown and scene.state.boss_cleared("b00"), "Actual victory UI records the named Boss clear")
 		scene.ui.combat.leave_battle()
 		await process_frame

@@ -4,6 +4,7 @@ extends RefCounted
 const TrialCatalogue = preload("res://scripts/trial_catalogue.gd")
 const HealthProfile = preload("res://scripts/health_profile.gd")
 const HealthBaseline = preload("res://scripts/health_baseline.gd")
+const LifecycleRecord = preload("res://scripts/systems/lifecycle/family_record.gd")
 const Equipment = preload("res://scripts/equipment_rules.gd")
 
 const Privacy = preload("res://scripts/game_save_privacy.gd")
@@ -34,6 +35,8 @@ var player_name: String = "松风"
 var longterm_enabled: bool = true
 var medication_required: bool = true
 var daily_tasks: Dictionary = {}
+var lifecycle_v2: Dictionary = {}
+var lifecycle_load_error: String = ""
 var recovery_status: String = "not_started"
 var trial_cleared: bool = false
 var persist_enabled: bool = true
@@ -233,6 +236,8 @@ func boss_cleared(id: String) -> bool:
 	return id in cleared_bosses
 
 func begin_named_boss(id: String) -> Dictionary:
+	if not allows_battle():
+		return {"ok": false, "message": "当前角色正在渡劫、闭关或已飞升，请切换修行中的家人。"}
 	var encounter = TrialCatalogue.entry(id)
 	if encounter.is_empty():
 		return {"ok": false, "message": "没有找到这位祟兽。"}
@@ -248,8 +253,22 @@ func complete_boss(id: String, record: Dictionary = {}) -> bool:
 	var first_clear = id not in cleared_bosses
 	if first_clear:
 		cleared_bosses.append(id)
-	if not record.is_empty() and (not boss_records.has(id) or float(record.get("time", INF)) < float(boss_records[id].get("time", INF))):
-		boss_records[id] = record.duplicate(true)
+	if not record.is_empty():
+		var previous: Dictionary = boss_records.get(id,{}).duplicate(true)
+		var by_version: Dictionary = previous.get("by_ruleset",{}).duplicate(true) if previous.get("by_ruleset",{}) is Dictionary else {}
+		var best: Dictionary = previous
+		if previous.is_empty() or float(record.get("time",INF))<float(previous.get("time",INF)):
+			best = record.duplicate(true)
+			best.erase("by_ruleset")
+			if previous.has("by_difficulty"): best["by_difficulty"] = previous.by_difficulty.duplicate(true)
+		var version: String = str(record.get("ruleset",""))
+		if not version.is_empty():
+			var old: Dictionary = by_version.get(version,{}) if by_version.get(version,{}) is Dictionary else {}
+			if old.is_empty() or float(record.get("time",INF))<float(old.get("time",INF)):
+				by_version[version] = record.duplicate(true)
+				by_version[version].erase("by_ruleset")
+		if not by_version.is_empty(): best["by_ruleset"] = by_version
+		boss_records[id] = best
 	return first_clear
 
 func choose_avatar(id: String, nickname: String) -> void:
@@ -301,16 +320,28 @@ func record_task(task: String, consent: bool) -> Dictionary:
 		return {"ok": false, "rewarded": false, "message": "记录保存失败，请重试。"}
 	return {"ok": true, "rewarded": rewarded, "message": message}
 
+## 旧演示/测试兼容入口。实际界面使用 lifecycle 命令与独立确认弹窗。
 func begin_recovery(confirmed: bool) -> bool:
-	if not confirmed:
+	if not confirmed or not lifecycle_load_error.is_empty() or lifecycle_record().state != "cultivating":
 		return false
+	var updated: Dictionary = lifecycle_record()
+	updated.state = "tribulation"
+	updated.version += 1
+	updated.stage_index = -1
+	lifecycle_v2 = LifecycleRecord.with_event(updated, "legacy_begin_%d" % updated.version, int(Time.get_unix_time_from_system()))
 	recovery_status = "active"
 	trial_cleared = false
 	return true
 
 func confirm_recovery(confirmed: bool, reliable_source: bool) -> bool:
-	if not confirmed or not reliable_source or recovery_status != "active":
+	if not confirmed or not reliable_source or not lifecycle_load_error.is_empty() or lifecycle_record().state != "tribulation":
 		return false
+	var updated: Dictionary = lifecycle_record()
+	updated.state = "cultivating"
+	updated.version += 1
+	updated.template_id = ""
+	updated.stage_index = -1
+	lifecycle_v2 = LifecycleRecord.with_event(updated, "legacy_finish_%d" % updated.version, int(Time.get_unix_time_from_system()))
 	recovery_status = "recovered"
 	return true
 
@@ -320,6 +351,8 @@ func refresh_boss_day() -> void:
 		boss_attempts = 0
 
 func begin_boss(_use_support: bool = false, tier: int = 0, track: String = "") -> Dictionary:
+	if not allows_battle():
+		return {"ok": false, "message": "当前角色正在渡劫、闭关或已飞升，请切换修行中的家人。"}
 	var requested_track = selected_track if track == "" else track
 	var requested_tier = next_tier(requested_track) if tier == 0 else tier
 	if not stage_available(requested_track, requested_tier):
@@ -377,9 +410,11 @@ func realm() -> String:
 	return ["炼气", "筑基", "结丹", "元婴", "化神"][realm_index]
 
 func to_data() -> Dictionary:
-	return Privacy.clean({"schema": 6, "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared})
+	return Privacy.clean({"schema": 6, "lifecycle_v2": lifecycle_record(), "equipment": equipment, "health_baseline": health_baseline, "selected_boss_id": selected_boss_id, "cleared_bosses": cleared_bosses, "boss_records": boss_records, "health_attributes": health_attributes, "health_profile_id": health_profile_id, "health_revision": health_revision, "health_source": health_source, "health_simulated": health_simulated, "selected_track": selected_track, "selected_tier": selected_tier, "cleared_stages": cleared_stages, "best_records": best_records, "cultivation": cultivation, "qi": qi, "charms": charms, "seals": seals, "days": days, "rewarded_days": rewarded_days, "confirmed_events": confirmed_events, "contribution": contribution, "boss_attempts": boss_attempts, "boss_day": boss_day, "last_reward_day": last_reward_day, "profile_created": profile_created, "avatar_id": avatar_id, "player_name": player_name, "longterm_enabled": longterm_enabled, "medication_required": medication_required, "daily_tasks": daily_tasks, "recovery_status": recovery_status, "trial_cleared": trial_cleared})
 
 func save_game() -> bool:
+	if not lifecycle_load_error.is_empty():
+		return false
 	if not persist_enabled:
 		return true
 	if family_save.is_valid():
@@ -431,6 +466,13 @@ func load_game() -> void:
 func load_data(data: Dictionary) -> void:
 	data = Privacy.clean(data)
 	health_baseline.clear()
+	lifecycle_load_error = ""
+	lifecycle_v2 = {}
+	if data.has("lifecycle_v2"):
+		if LifecycleRecord.valid(data.lifecycle_v2):
+			lifecycle_v2 = data.lifecycle_v2.duplicate(true)
+		else:
+			lifecycle_load_error = "生命周期存档无效，请恢复备份或同步有效状态"
 	var saved_profile = HealthProfile.validate({"profile_id": data.get("health_profile_id", ""), "revision": data.get("health_revision", 0), "source": data.get("health_source", "external"), "simulated": data.get("health_simulated", false), "attributes": data.get("health_attributes", {})})
 	if saved_profile.ok:
 		health_attributes = saved_profile.attributes
@@ -505,6 +547,8 @@ func load_data(data: Dictionary) -> void:
 		equipment.qi = Equipment.DAILY_QI
 
 func reset_demo() -> void:
+	lifecycle_v2 = {}
+	lifecycle_load_error = ""
 	equipment = Equipment.fresh()
 	health_baseline.clear()
 	health_attributes = {"life": 40, "attack": 40, "defense": 40, "spirit": 40, "stamina": 40}
@@ -536,3 +580,46 @@ func reset_demo() -> void:
 	recovery_status = "not_started"
 	trial_cleared = false
 	save_game()
+
+## schema 6 的可选扩展；家族外层 schema 8 不改，旧版无此字段时从已确认恢复篇章迁移。
+func lifecycle_record() -> Dictionary:
+	if not lifecycle_v2.is_empty():
+		return lifecycle_v2.duplicate(true)
+	return LifecycleRecord.fresh("tribulation" if recovery_status == "active" else "cultivating")
+
+func allows_battle() -> bool:
+	return lifecycle_load_error.is_empty() and lifecycle_record().state == "cultivating"
+
+## 原子保存：失败时回滚，仅写本角色的游戏投影；钱包、装备和医疗属性不变。
+func commit_lifecycle(record: Dictionary, expected_version: int) -> Dictionary:
+	if not lifecycle_load_error.is_empty():
+		return {"ok": false, "code": "INVALID_STATE", "message": lifecycle_load_error}
+	var current: Dictionary = lifecycle_record()
+	if int(current.version) != expected_version:
+		return {"ok": false, "code": "STALE_STATE", "message": "当前状态已变化，请重新打开"}
+	if not LifecycleRecord.valid(record) or int(record.version) < expected_version:
+		return {"ok": false, "code": "INVALID_STATE", "message": "生命周期记录格式无效"}
+	if record.state != current.state:
+		if not LifecycleRecord.Rules.can_transition(current.state, record.state) or int(record.version) <= expected_version:
+			return {"ok": false, "code": "INVALID_TRANSITION", "message": "状态迁移不合法或未更新版本"}
+	var before: Dictionary = lifecycle_v2.duplicate(true)
+	var old_recovery: String = recovery_status
+	lifecycle_v2 = record.duplicate(true)
+	if record.state == "tribulation":
+		recovery_status = "active"
+	elif current.state == "tribulation" and record.state == "cultivating":
+		recovery_status = "recovered"
+	if not save_game():
+		lifecycle_v2 = before
+		recovery_status = old_recovery
+		return {"ok": false, "code": "SAVE_FAILED", "message": "保存失败，状态保持原样，可重试"}
+	return {"ok": true, "code": "OK", "message": ""}
+
+
+## New fixed-progression records do not compare times against earlier combat rules.
+func best_boss_record(id: String, ruleset: String = "pr4_actions_v4") -> Dictionary:
+	var best: Dictionary = boss_records.get(id,{})
+	var groups = best.get("by_ruleset",{})
+	if not groups is Dictionary: return {}
+	var record = groups.get(ruleset,{})
+	return record.duplicate(true) if record is Dictionary else {}

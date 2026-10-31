@@ -524,7 +524,7 @@ func work_completed(result: int, code: int, _headers: PackedStringArray, body: P
 func show_draft() -> void:
 	clear_result()
 	ui.label_into(result_box, "报告分析 · 待你确认" if draft.recognition_mode == "live" else "文字资料 · 待你确认", 23)
-	ui.label_into(result_box, str(draft.get("display_name", target_state.player_name)) + " · 气血上限 %d HP" % draft.character_state.hp_max, 25)
+	ui.label_into(result_box, str(draft.get("display_name", target_state.player_name)) + " · 初始气血 %d HP" % target_state.HealthProfile.INITIAL_HP, 25)
 	var grid = GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 40)

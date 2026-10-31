@@ -9,6 +9,7 @@ var route: PackedVector2Array = PackedVector2Array()
 var destination_site: String = ""
 var walk_textures: Array[Texture2D] = []
 var shadow: Polygon2D
+var last_safe_position: Vector2
 
 func _ready() -> void:
 	motion_mode = CharacterBody2D.MOTION_MODE_FLOATING
@@ -33,8 +34,14 @@ func _ready() -> void:
 		sprite.scale = Vector2.ONE * 86.0 / sprite.texture.get_height()
 		sprite.position.y = -43
 	set_notify_transform(true)
+	last_safe_position = position if game.can_stand(position) else game.safe_road_position(position)
 
 func _physics_process(delta: float) -> void:
+	if not game.can_stand(position):
+		position = last_safe_position if game.can_stand(last_safe_position) else game.safe_road_position(position)
+		route.clear()
+		destination_site = ""
+	last_safe_position = position
 	var direction = Vector2.ZERO
 	if not blocked:
 		direction = Input.get_vector("move_left", "move_right", "move_forward", "move_back")
@@ -52,12 +59,15 @@ func _physics_process(delta: float) -> void:
 				direction = position.direction_to(route[0])
 	var speed = 205.0 if Input.is_action_pressed("sprint") else 125.0
 	velocity = direction * speed
-	# Hand measured navigation contours keep the sprite on roads, terraces and the bridge.
-	if not game.can_walk(position + Vector2(velocity.x * delta, 0)):
-		velocity.x = 0
-	if not game.can_walk(position + Vector2(0, velocity.y * delta)):
-		velocity.y = 0
+	var allowed_motion = game.walk_motion(position, velocity * delta)
+	velocity = allowed_motion / maxf(delta, 0.00001)
 	move_and_slide()
+	# Physics sliding against facades must obey the same bank boundary.
+	if not game.can_stand(position):
+		position = last_safe_position
+		velocity = Vector2.ZERO
+	else:
+		last_safe_position = position
 	if direction.length() > 0.05 and velocity.length() > 0:
 		frame_clock += delta * (11.0 if speed > 150 else 8.0)
 		if abs(direction.x) > abs(direction.y):

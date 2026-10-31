@@ -64,7 +64,7 @@ export async function buildApp(options: AppOptions = {}) {
 
   await app.register(cors, { origin: origins, methods: ['GET', 'POST', 'DELETE'], allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'] });
   await app.register(rateLimit, { global: false });
-  await app.register(swagger, { openapi: { info: { title: '家族修真录 C 本地服务', version: '0.1.0' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, healthService: { type: 'http', scheme: 'bearer', description: 'D 的独立服务凭证，不得交给浏览器或模型' } } } } });
+  await app.register(swagger, { openapi: { info: { title: '疯狂修仙，中 C 本地服务', version: '0.1.0' }, components: { securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer' }, healthService: { type: 'http', scheme: 'bearer', description: 'D 的独立服务凭证，不得交给浏览器或模型' } } } } });
   await app.register(websocket, { options: { maxPayload: 16384 } });
   app.get('/healthz', { schema: { tags: ['operations'], summary: '进程和数据库存活检查' } }, async () => { db.get('SELECT 1'); return success({ service: 'xiuxian', contract_version: contract.version }); });
   app.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger());

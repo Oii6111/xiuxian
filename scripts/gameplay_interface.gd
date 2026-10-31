@@ -195,7 +195,7 @@ func show_start() -> void:
 	game.player.route.clear()
 	selected_avatar = game.state.avatar_id
 	var header = card(Rect2(425, 53, 590, 102), start_screen, WOOD)
-	var title = label_into(header, "家族修真录", 46, Color("f3d19a"))
+	var title = label_into(header, "疯狂修仙，中", 46, Color("f3d19a"))
 	title.add_theme_font_override("font", game.title_font)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var subtitle = label_into(start_screen, "选择你的守护者，与家人一同修行", 23, Color("fff0c6"))

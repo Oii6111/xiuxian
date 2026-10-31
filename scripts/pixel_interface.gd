@@ -100,7 +100,7 @@ func button(parent: Node, text: String, callback: Callable, primary: bool = fals
 
 func _build_hud() -> void:
 	var title = card(Rect2(16, 14, 294, 65), self, WOOD)
-	var name_label = label_into(title, "家族修真录", 34, Color("f3d19a"))
+	var name_label = label_into(title, "疯狂修仙，中", 34, Color("f3d19a"))
 	name_label.add_theme_font_override("font", game.title_font)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var resources = card(Rect2(326, 14, 655, 62), self, Color("302b28"))
@@ -214,7 +214,11 @@ func refresh() -> void:
 
 func update_proximity(id: String) -> void:
 	var names = {"home": "健康档案", "battle": "技能练习", "boss": "属性闯关", "records": "天机碑", "gacha": "聚宝阁"}
-	hint.text = "E  进入「%s」" % names[id] if names.has(id) else "走近建筑按 E，或点击下方地点前往"
+	if id.begins_with("npc_"):
+		var index = id.trim_prefix("npc_").to_int()
+		hint.text = "E  对话「%s」" % game.npc_sprites[index].get_parent().name
+	else:
+		hint.text = "E  进入「%s」" % names[id] if names.has(id) else "走近建筑或村民按 E 互动 · 点击下方地点可前往"
 
 func reset_demo() -> void:
 	if not game.account_ready:

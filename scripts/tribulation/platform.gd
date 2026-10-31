@@ -188,7 +188,7 @@ func export_card() -> void:
 	label.position = Vector2(60, 90)
 	label.size = Vector2(840, 360)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.text = "家族修真录
+	label.text = "疯狂修仙，中
 
 渡过雷劫 · 归来有灯
 

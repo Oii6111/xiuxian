@@ -205,6 +205,41 @@ func can_walk(point: Vector2) -> bool:
 			return true
 	return false
 
+## Keep the player's eight-pixel footprint on the union of connected road polygons.
+func can_stand(point: Vector2) -> bool:
+	if not can_walk(point):
+		return false
+	for i in range(8):
+		if not can_walk(point + Vector2.from_angle(i * TAU / 8.0) * 8.0):
+			return false
+	return true
+
+## Sweep short steps; test a diagonal as a whole before sliding along either bank.
+func walk_motion(origin: Vector2, motion: Vector2) -> Vector2:
+	var steps = maxi(1, ceili(motion.length() / 2.0))
+	var step = motion / steps
+	var cursor = origin
+	for _i in range(steps):
+		if can_stand(cursor + step):
+			cursor += step
+		else:
+			if can_stand(cursor + Vector2(step.x, 0)):
+				cursor.x += step.x
+			if can_stand(cursor + Vector2(0, step.y)):
+				cursor.y += step.y
+	return cursor - origin
+
+func safe_road_position(point: Vector2) -> Vector2:
+	var closest = SPAWN
+	var distance = point.distance_squared_to(SPAWN)
+	for id in navigation.get_point_ids():
+		var candidate = navigation.get_point_position(id)
+		var candidate_distance = point.distance_squared_to(candidate)
+		if candidate_distance < distance and can_stand(candidate):
+			closest = candidate
+			distance = candidate_distance
+	return closest
+
 func _build_sites() -> void:
 	sites = [
 		{"id": "home", "title": "健康档案", "position": Vector2(402, 480), "node": 2, "label": Vector2(340, 287)},
@@ -340,16 +375,45 @@ func _process(delta: float) -> void:
 	elapsed += delta
 	for i in range(npc_sprites.size()):
 		npc_sprites[i].position.y = -41.5 - sin(elapsed * 1.5 + i * 2) * 0.8
+	update_nearest()
+	if is_instance_valid(ui):
+		ui.update_proximity(nearest)
+	queue_redraw()
+
+func update_nearest() -> void:
 	nearest = ""
-	var distance = 70.0
+	var distance = 80.0
 	for site in sites:
 		var d = player.position.distance_to(site.position)
 		if d < distance:
 			distance = d
 			nearest = site.id
-	if is_instance_valid(ui):
-		ui.update_proximity(nearest)
-	queue_redraw()
+	for i in range(npc_sprites.size()):
+		var d = player.position.distance_to(npc_sprites[i].get_parent().position)
+		if d < distance:
+			distance = d
+			nearest = "npc_%d" % i
+
+func interact_nearby() -> void:
+	if ui.modal_open or not account_ready:
+		return
+	# Re-evaluate on the input frame instead of using a stale HUD target.
+	update_nearest()
+	if nearest.is_empty():
+		ui.toast("走近建筑入口或村民，看到底部提示后按 E 互动。")
+		return
+	player.route.clear()
+	player.destination_site = ""
+	if nearest.begins_with("npc_"):
+		ui.open_npc(nearest.trim_prefix("npc_").to_int())
+	else:
+		ui.open_site(nearest)
+
+func _input(event: InputEvent) -> void:
+	# Handle before focused HUD buttons consume keyboard events. Modal forms keep their input.
+	if event.is_action_pressed("interact") and not event.is_echo() and not ui.modal_open:
+		interact_nearby()
+		get_viewport().set_input_as_handled()
 
 func _draw() -> void:
 	if not is_instance_valid(player):
@@ -362,10 +426,8 @@ func _draw() -> void:
 			draw_colored_polygon(polygon, Color(0.3, 1, 0.4, 0.25))
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and nearest != "" and not ui.modal_open:
-		player.route.clear()
-		player.destination_site = ""
-		ui.open_site(nearest)
+	if event.is_action_pressed("interact") and not event.is_echo():
+		interact_nearby()
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			ui.close_modal()

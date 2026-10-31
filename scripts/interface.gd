@@ -102,7 +102,7 @@ func button(parent: Node, text: String, callback: Callable, primary: bool = fals
 	return b
 
 func _build_hud() -> void:
-	var title = label_into(self, "家族修真录", 36)
+	var title = label_into(self, "疯狂修仙，中", 36)
 	title.position = Vector2(32, 25)
 	var subtitle = label_into(self, "仙岛初见  /  把每一份坚持，养成家族的力量", 15, Color("5e7a6b"))
 	subtitle.position = Vector2(34, 76)

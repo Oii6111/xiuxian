@@ -1,4 +1,6 @@
-# 家族修真录 · 松风四式（Godot 像素闯关）
+# 疯狂修仙，中 · 松风四式（Godot 像素闯关）
+
+本轮网页修复统一提交到 `codex/web-debug-series-20261101` 对应 PR，范围和复测步骤见 [网页 Debug 记录](docs/WEB_DEBUG_SERIES.md)。
 
 > **A/B/C/D 已整合**：年轻人在网页玩游戏（C 服务同时托管客户端），老人只用微信扫码绑定 AI Bot。运行与接口见 [docs/BCD_INTEGRATION.md](docs/BCD_INTEGRATION.md)。
 

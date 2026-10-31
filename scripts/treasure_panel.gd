@@ -145,6 +145,8 @@ func build() -> void:
 	var separator = HSeparator.new()
 	left.add_child(separator)
 	text(left, "本角色基础概率", 18, GOLD_TEXT)
+	# Keep long probability explanations inside the left column at the base viewport size.
+	left.add_theme_constant_override("separation", 8)
 	var locked = float(game.state.equipment.initial_score) >= 0
 	if locked:
 		var odds = Rules.probabilities(float(game.state.equipment.initial_score))
@@ -183,7 +185,7 @@ func build_wish() -> void:
 	var receipt = last_receipt()
 	if receipt.is_empty():
 		var seal = WishSeal.new()
-		seal.custom_minimum_size.y = 208
+		seal.custom_minimum_size.y = 148
 		right.add_child(seal)
 		var introduction = text(right, "每一份坚持，都有回响", 26, GOLD_TEXT)
 		introduction.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -191,17 +193,22 @@ func build_wish() -> void:
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
 		row.add_theme_constant_override("separation", 16)
 		right.add_child(row)
-		for slot in Rules.SLOTS:
+		for template_id in [0, 1, 3, 4]:
+			var showcase = {"id": "showcase", "template": template_id, "rarity": 4}
+			var info = Rules.detail(showcase)
 			var column = VBoxContainer.new()
-			column.custom_minimum_size.x = 142
+			column.custom_minimum_size.x = 178
 			row.add_child(column)
 			var icon = Icon.new()
-			icon.slot = slot
-			icon.tint = GOLD_TEXT
-			icon.custom_minimum_size = Vector2(90, 78)
+			icon.setup(showcase)
+			icon.custom_minimum_size = Vector2(150, 132)
 			column.add_child(icon)
-			var label = text(column, Rules.SLOT_NAMES[slot], 18)
+			var label = text(column, info.name, 18, info.color)
 			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var kind = text(column, "神话 · " + Rules.SLOT_NAMES[info.slot], 14, MUTED_TEXT)
+			kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var preview_note = text(right, "神话灵器外观预览 · 实际获得品质以祈愿结果为准", 14, MUTED_TEXT)
+		preview_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var guidance = paragraph_text(right, "装备收入行囊后可查看与穿戴。加成独立于健康基础属性，下一场战斗生效。", 17)
 		guidance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	else:
@@ -253,14 +260,13 @@ func item_card(parent: Node, item: Dictionary, dimensions: Vector2) -> Button:
 	column.offset_top = 12
 	column.offset_bottom = -10
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 5)
+	column.add_theme_constant_override("separation", 3)
 	card.add_child(column)
 	var quality = text(column, info.quality, 15, info.color)
 	quality.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var icon = Icon.new()
-	icon.slot = info.slot
-	icon.tint = info.color
-	icon.custom_minimum_size.y = 75
+	icon.setup(item)
+	icon.custom_minimum_size.y = 68
 	column.add_child(icon)
 	var name_label = text(column, info.name, 17)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -410,6 +416,11 @@ func build_detail(parent: Node) -> void:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
+	var preview = Icon.new()
+	preview.name = "EquipmentDetailPreview"
+	preview.setup(selected)
+	preview.custom_minimum_size = Vector2(112, 112)
+	row.add_child(preview)
 	var description = VBoxContainer.new()
 	description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(description)

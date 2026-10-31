@@ -22,7 +22,7 @@ func build() -> void:
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
 	var left = panel_at(Rect2(145, 105, 520, 690), GOLD_TEXT)
-	text(left, "家族修真录", 42, GOLD_TEXT)
+	text(left, "疯狂修仙，中", 42, GOLD_TEXT)
 	text(left, "从自己的账号开始", 27)
 	var space = Control.new()
 	space.custom_minimum_size.y = 40

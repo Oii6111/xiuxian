@@ -14,7 +14,12 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="家族修真录 · 像素仙村"
+config/name="疯狂修仙，中"
+; Retain the existing save/session directory when changing the visible product name.
+config/use_custom_user_dir=true
+config/custom_user_dir_name="Godot/app_userdata/家族修真录 · 像素仙村"
+config/custom_user_dir_name.linux="godot/app_userdata/家族修真录 · 像素仙村"
+config/custom_user_dir_name.bsd="godot/app_userdata/家族修真录 · 像素仙村"
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 config/icon="res://icon.svg"

@@ -30,7 +30,24 @@
     {"id": "social", "commands": {
       "social.visit": {"cultivator_id": "string"},
       "social.bless": {"cultivator_id": "string", "request_id": "string"},
-      "social.set_visibility": {"cultivator_id": "string", "scope": "string"}
+      "social.set_visibility": {"cultivator_id": "string", "scope": "string"},
+      "social.community.list": {},
+      "social.community.create": {"name": "string", "visibility": "string", "max_members": "integer", "request_id": "string"},
+      "social.community.join": {"community_id": "string", "request_id": "string"},
+      "social.community.leave": {"community_id": "string", "request_id": "string"},
+      "social.community.members": {"community_id": "string"},
+      "social.community.feed": {"community_id": "string", "limit": "integer"},
+      "social.community.post": {"community_id": "string", "body": "string", "request_id": "string"},
+      "social.community.comment": {"community_id": "string", "post_id": "string", "body": "string", "request_id": "string"},
+      "social.community.react": {"community_id": "string", "post_id": "string", "kind": "string", "request_id": "string"},
+      "social.pvp.create": {"community_id": "string", "mode": "string", "request_id": "string"},
+      "social.pvp.join": {"match_id": "string", "request_id": "string"},
+      "social.pvp.list": {"community_id": "string"},
+      "social.pvp.finish": {"match_id": "string", "snapshot": "object", "request_id": "string"},
+      "social.world.list": {"limit": "integer"},
+      "social.world.post": {"body": "string", "request_id": "string"},
+      "social.world.boss": {},
+      "social.world.boss.contribute": {"boss_id": "string", "damage": "integer", "request_id": "string"}
     }},
     {"id": "season", "commands": {
       "season.refresh": {"cultivator_id": "string"}
@@ -45,6 +62,8 @@
     {"id": "lifecycle.changed", "fields": {"cultivator_id": "string", "state": "string"}},
     {"id": "story.changed", "fields": {"chapter_id": "string"}},
     {"id": "social.changed", "fields": {"cultivator_id": "string"}},
+    {"id": "social.feed_changed", "fields": {"community_id": "string"}},
+    {"id": "world.changed", "fields": {"scope": "string"}},
     {"id": "season.changed", "fields": {"season_id": "string"}}
   ],
   "enums": {

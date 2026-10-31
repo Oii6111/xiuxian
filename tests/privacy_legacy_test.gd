@@ -56,7 +56,7 @@ func run() -> void:
 	check(not has_private_text(FileAccess.get_file_as_string(single)), "Loading rewrites an existing standalone game save without medical fields")
 	var cleaned_digest = FileAccess.get_file_as_string(single).sha256_text()
 	check(not Privacy.read(single, true, true).changed and FileAccess.get_file_as_string(single).sha256_text() == cleaned_digest, "Redaction is idempotent across JSON float/integer round trips")
-	check(loaded.boss_cleared("b00") and loaded.equipment.qi == 135 and loaded.battle_stats().max_hp == 80, "Redaction retains Boss clears, wallet and battle stats")
+	check(loaded.boss_cleared("b00") and loaded.equipment.qi == 135 and loaded.battle_stats().max_hp == State.HealthProfile.INITIAL_HP, "Redaction retains Boss clears, wallet and battle stats")
 	var source = Legacy.runtime_candidates(base)
 	var old_path = source[1]
 	write_json(old_path, dirty)

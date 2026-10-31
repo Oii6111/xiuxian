@@ -2,7 +2,7 @@
 
 依据：[项目设计文档 v2](../家族修真录-设计文档-v2.md)，重点为第 3、14、19、20 节。
 
-本次交付是可运行的客户端内核与系统扩展骨架。时间、事件、随机、配置、状态存储、版本迁移、命令路由和审计已经实现；七个业务系统只有明确的接口与职责，尚未实现玩法。所有占位命令返回 `NOT_IMPLEMENTED`。
+基础交付是可运行的客户端内核与系统扩展骨架。时间、事件、随机、配置、状态存储、版本迁移、命令路由和审计已经实现。C 后续接入了本地服务端、可选网络依赖和 `season.refresh`；其余六个客户端业务系统仍是骨架，占位命令返回 `NOT_IMPLEMENTED`。未配置后端时赛季查询返回 `BACKEND_UNAVAILABLE`。
 
 现有像素仙村仍可运行。新系统通过 `GameKernel` 接入，旧 `game_state.gd` 和 `pixel_campaign/state.gd` 尚未迁移。不要把旧玩法里的本地发奖或渡劫战斗当成 v2 的规则。
 
@@ -53,7 +53,8 @@ UI 只能调用 `GameKernel.dispatch()`、`snapshot()`、`subscribe()` 等门面
 | `scripts/kernel/adapters/` | 内存与本地 JSON 存储实现 |
 | `scripts/kernel/audit.gd` | 有界内存记录，只保留命令名、错误码和时间 |
 | `scripts/systems/<系统>/module.gd` | 团队成员各自开发的系统入口 |
-| `scripts/net/game_api.gd` | 游戏域 HTTP 传输；需要显式配置并挂到场景树 |
+| `scripts/net/game_api.gd` | 游戏域 HTTP、登录会话及幂等请求；需要显式配置并挂到场景树 |
+| `scripts/net/game_realtime.gd` | 标准 WebSocket、票据鉴权、重连与完整快照信号 |
 | `data/kernel/contracts.json` | 命令、事件、枚举和资源归属的共同契约 |
 | `scenes/kernel/` | 使用真实 Autoload 的开发接入工作台 |
 | `tests/kernel_test.gd` | 基础服务、失败路径、模块装配和工作台接入测试 |
@@ -137,10 +138,10 @@ Store 目前只有单区内存提交、全量保存和全量载入。它不是�
 
 ## 8. 与 v2 的对齐及后续范围
 
-本地旧版《架构与模块划分》包含回合制渡劫、旧资源名等内容，本次以 v2 为准：即时战斗与渡劫解耦，状态由家属确认，奖励/抽卡/体检评级由服务端决定。该旧文档保留原样，避免覆盖团队未提交内容。
+旧版《架构与模块划分》包含回合制渡劫、旧资源名等内容，以 v2 为准：即时战斗与渡劫解耦，状态由家属确认，奖励/抽卡/体检评级由服务端决定。旧文档作为历史设计保留。
 
-基础服务已实现；角色模型、账本、授权策略、生命周期规则、属性结算、任务求值、抽卡概率、补偿档位、真实联机、AI 和内容表仍待各负责人实现。不要把空业务骨架当成已完成的玩法。
+基础服务与 C 的本地账号、角色、任务实例、账本、授权、抽卡和个人同步已实现；生命周期规则、正式属性结算、客户端任务求值、动态补偿、主城/组队联机、AI 和正式内容仍待对应负责人。后端能力不等于客户端玩法已合并。
 
-后端分层与传输接缝见 [server/README.md](../server/README.md)。`GameApi` 已提供 HTTP 传输，但未接入任何系统，也不自动联网。原生 WebSocket 的连接、鉴权、重连、房主同步和广播适配器尚未实现；不得用进程内 EventBus 充当它。
+后端分层与传输接缝见 [server/README.md](../server/README.md)。C 已实现本地服务、HTTP 与个人 WebSocket 同步；`GameKernel.configure_backend(api)` 显式注入传输，模块通过 `request_backend()` 调用，不自动联网。账号或传输改变时调用各模块的 `on_backend_changed()`，负责人在该方法清理自己的账号投影。房主同步、主城广播仍待开发；不得用进程内 EventBus 充当网络。
 
-2026-10-31 新增产品方向：老人通过官方微信 iLink AI Bot 拍照提交任务凭证，详见 [微信入口方案](WECHAT_ILINK_ENTRY.md)。iLink 适配器放在服务端，使用其官方 HTTPS/JSON 和长轮询能力，与游戏 WebSocket 分开。Godot 的 `quests` 系统后续负责任务安排和结果投影，`growth` 消费账本资源结果；现有客户端命令尚未增加绑定或派发能力，待接口联调时补齐。微信原图、通道凭证和识别候选不进入内核 Store 或 EventBus。
+2026-10-31 新增产品方向：老人通过官方微信 iLink AI Bot 拍照提交任务凭证，详见 [微信入口方案](WECHAT_ILINK_ENTRY.md)。iLink 适配器由 D 在服务端实现，与游戏 WebSocket 分开。C 已登记任务派发/模板查询/角色快照命令并实现服务端；绑定走单独 REST 接口。Godot 的 quests、growth 客户端投影由 B 接入。微信原图、通道凭证和识别候选不进入内核 Store 或 EventBus。接口样例与合并规则见 [团队合并指南](BACKEND_INTEGRATION.md)。

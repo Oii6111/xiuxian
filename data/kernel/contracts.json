@@ -4,6 +4,8 @@
     {"id": "growth", "commands": {
       "growth.create": {"name": "string", "element": "string"},
       "growth.select": {"cultivator_id": "string"},
+      "growth.list": {},
+      "growth.snapshot": {"cultivator_id": "string"},
       "growth.equip": {"cultivator_id": "string", "equipment_id": "string", "slot": "string"},
       "growth.draw": {"cultivator_id": "string", "count": "integer", "request_id": "string"}
     }},
@@ -13,6 +15,8 @@
     }},
     {"id": "quests", "commands": {
       "quests.list": {"cultivator_id": "string"},
+      "quests.templates": {},
+      "quests.assign": {"cultivator_id": "string", "template_id": "string", "date": "string", "request_id": "string"},
       "quests.claim": {"cultivator_id": "string", "quest_id": "string", "request_id": "string"}
     }},
     {"id": "lifecycle", "commands": {

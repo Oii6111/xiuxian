@@ -1,0 +1,32 @@
+{
+  "name": "xiuxian-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.13.0 <25" },
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/main.js",
+    "migrate": "tsx tools/migrate.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "check": "npm run build && npm test",
+    "demo": "tsx tools/demo.ts",
+    "openapi": "tsx tools/openapi.ts",
+    "test:godot": "tsx tools/godot-smoke.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/swagger": "^9.5.0",
+    "@fastify/websocket": "^11.2.0",
+    "fastify": "^5.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.0",
+    "@types/ws": "^8.18.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "ws": "^8.18.0"
+  }
+}

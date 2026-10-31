@@ -24,12 +24,16 @@ var _router: RefCounted
 var _modules: Dictionary = {}
 var _started: bool = false
 
-func start(contract: Dictionary, persistence: RefCounted, clock_source: Callable = Callable(), seed_value: int = 1) -> Dictionary:
+func start(contract: Dictionary, persistence: RefCounted, clock_source: Callable = Callable(), seed_value: int = 1, backend: Object = null) -> Dictionary:
 	if services != null:
 		return Result.failure("ALREADY_STARTED", "请先关闭现有运行时")
 	if contract.get("version") != 1 or not contract.get("modules") is Array or not contract.get("events") is Array:
 		return Result.failure("INVALID_CONFIG", "不支持的内核契约")
 	services = Context.new()
+	var configured: Dictionary = configure_backend(backend)
+	if not configured.ok:
+		services = null
+		return configured
 	services.clock = Clock.new(clock_source)
 	services.events = Events.new()
 	services.random = RandomStreams.new(seed_value)
@@ -90,6 +94,27 @@ func start(contract: Dictionary, persistence: RefCounted, clock_source: Callable
 func module_ids() -> Array:
 	return _modules.keys()
 
+func configure_backend(backend: Object) -> Dictionary:
+	if services == null:
+		return Result.failure("NOT_READY", "内核尚未初始化")
+	if backend != null and (not is_instance_valid(backend) or not backend.has_method("invoke")):
+		return Result.failure("INVALID_BACKEND", "后端适配器必须实现 invoke")
+	_disconnect_backend_signal()
+	services.backend = backend
+	if is_instance_valid(backend) and backend.has_signal("session_changed"):
+		backend.connect("session_changed", _on_backend_session_changed)
+	_on_backend_session_changed()
+	return Result.success()
+
+func _on_backend_session_changed() -> void:
+	for module in _modules.values():
+		module.on_backend_changed()
+
+func _disconnect_backend_signal() -> void:
+	if services != null and is_instance_valid(services.backend) and services.backend.has_signal("session_changed"):
+		if services.backend.is_connected("session_changed", _on_backend_session_changed):
+			services.backend.disconnect("session_changed", _on_backend_session_changed)
+
 func snapshot(module_id: String) -> Dictionary:
 	return _modules[module_id].snapshot() if _modules.has(module_id) else {}
 
@@ -105,6 +130,7 @@ func save() -> Dictionary:
 
 func shutdown() -> void:
 	_started = false
+	_disconnect_backend_signal()
 	var identifiers: Array = _modules.keys()
 	identifiers.reverse()
 	for identifier in identifiers:

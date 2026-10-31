@@ -16,7 +16,12 @@ type Config = {
 // 但 `message_received` 的事件里带 media（path/contentType/kind）。两个事件都有 messageId，
 // 这里用 messageId 把它们对上，再把图片交给侧车的 Qwen-VL 识别。
 const mediaByMessageId = new Map<string, any[]>();
-const lastMediaBySender = new Map<string, { media: any[]; at: number }>();
+function messageKey(event: any, ctx: any): string {
+  const account = String(event?.accountId ?? ctx?.accountId ?? "");
+  const sender = String(event?.senderId ?? ctx?.senderId ?? "");
+  const message = String(event?.messageId ?? "");
+  return account && sender && message ? JSON.stringify([account, sender, message]) : "";
+}
 
 function channelOf(event: any, ctx: any): string {
   return String(
@@ -116,15 +121,10 @@ export default definePluginEntry({
     api.on("message_received", (event: any, ctx: any) => {
       if (!isDirectWeixin(event, ctx)) return;
       const media = Array.isArray(event?.media) ? event.media : [];
-      const mid = event?.messageId ? String(event.messageId) : "";
+      const mid = messageKey(event, ctx);
       if (mid) {
         if (media.length) mediaByMessageId.set(mid, media);
         else mediaByMessageId.delete(mid);
-      }
-      const sid = event?.senderId ? String(event.senderId) : "";
-      if (sid) {
-        if (media.length) lastMediaBySender.set(sid, { media, at: Date.now() });
-        else lastMediaBySender.delete(sid);
       }
       // 控制缓存大小，避免长期运行无限增长。
       if (mediaByMessageId.size > 200) {
@@ -136,24 +136,26 @@ export default definePluginEntry({
     api.on("before_dispatch", async (event: any, ctx: any) => {
       if (!isDirectWeixin(event, ctx)) return;
       let mediaFacts = Array.isArray(event?.media) ? event.media : [];
-      const mid = event?.messageId ? String(event.messageId) : "";
+      const mid = messageKey(event, ctx);
       if (!mediaFacts.length && mid && mediaByMessageId.has(mid)) {
         mediaFacts = mediaByMessageId.get(mid) ?? [];
         mediaByMessageId.delete(mid);
       }
       const senderId = String(event?.senderId ?? ctx?.senderId ?? "");
-      if (!mediaFacts.length && senderId) {
-        const cached = lastMediaBySender.get(senderId);
-        if (cached && Date.now() - cached.at < 60_000) mediaFacts = cached.media;
+      const accountId = String(event?.accountId ?? ctx?.accountId ?? "");
+      const elderId = config.elderIdMap?.[JSON.stringify([accountId, senderId])];
+      if (!accountId || !senderId || !elderId || !config.sidecarToken) {
+        return { handled: true, text: "请先让家人协助完成账号绑定和授权，再使用健康助手。" };
       }
       // 图片交给侧车识别，文件只传元数据（侧车会引导老人改拍照片）；语音转写已经在 text 里了。
       const attachments = (await Promise.all(
         mediaFacts.map((m: any) => mediaToAttachment(m, allowRemoteMedia))
       )).filter(Boolean);
-      const elderId = String(config.elderIdMap?.[senderId] ?? config.defaultElderId ?? (senderId || "elder_demo_001"));
       const body = {
         elder_id: elderId,
         sender_id: senderId,
+        channel_account_id: accountId,
+        message_id: String(event?.messageId ?? ""),
         channel: "openclaw-weixin",
         text: textOf(event),
         attachments,

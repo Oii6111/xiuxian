@@ -72,6 +72,8 @@ if logged_in.ok:
 
 ## 4. D：可信健康接缝
 
+已接入 D 的桥接器与健康侧车，具体配置、审核入口和本地测试见 [C/D 任务桥接说明](TASK_REMINDER_BRIDGE.md)。游戏仍使用本节最小事实契约；健康域事件不能直接转发到游戏。
+
 D 使用独立服务凭证，玩家会话不能调用。默认服务 ID 为 health；作用域为 binding:confirm、binding:connection、task:read、submission:write、result:write、notification:deliver。需要拆分服务时通过 `buildApp({services})` 配置最小权限。
 
 `server/src/integration/client.ts` 提供 HealthClient。Python 原型也可以直接调用 HTTP，不要求迁移语言。内部令牌不能放在网页或模型上下文。

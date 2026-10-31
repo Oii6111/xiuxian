@@ -1,166 +1,118 @@
-# 任务提醒桥接：游戏任务板块 ↔ 老人微信
+# D 接入：以本地 C 契约为准
 
-更新日期：2026-10-31。关联：[微信 iLink 入口方案](WECHAT_ILINK_ENTRY.md)、[团队合并指南](BACKEND_INTEGRATION.md)。
+更新：2026-10-31。基线 C：`1c1eb44`；D 上游：`d585785`、`bf5ad85`。
+D 两次提交只新增 19 个文件，没有覆盖 C。接入改动保留在本地，未部署。
 
-把「游戏里的健康任务」变成「给老人的定时提醒」，再把「老人的回复/照片」回传成「游戏里的任务完成」。提醒**不再由微信侧自己编**，来源是游戏的任务板块（`quests.assign`）；微信侧只负责到点推送和回传完成。
+## 所有权与契约
 
-## 1. 闭环
+- C：`data/kernel/contracts.json`、`server/src/integration/*`、账号、任务实例、授权、账本、抽卡。
+- D：`wechat-sidecar/` 的识别/聊天/健康资料、`wechat-bridge/` 的任务适配和通知。
+- 原 `health-entry/` 原型保留；侧车使用自己的健康数据库，不复制到游戏存档。
+- `HEALTH_EVENT_CONTRACT.md` 是健康域内部事件，不能直接 POST 给 C。
+- C 仅收 10 个最小事实字段，奖励始终由 C 算。五属性/十属性转换仍未发布。
+- 本轮不修改任何 C 命令参数、模板数值、规则版本或迁移。
 
-```
-年轻人在游戏里给修仙者安排今日任务(吃药/运动/量血压…)   quests.assign
-        │
-        ▼   微信侧每分钟拉一次待办
-GET /internal/v1/bindings/:id/tasks  →  到点把提醒推给老人微信
-        │
-        ▼   老人回复/拍照
-核对归属 → 匹配待办 → POST /internal/v1/task-results
-        │
-        ▼   游戏自动结算(发灵石)，出站通知
-POST /internal/v1/notifications/claim → 回老人「今天的记录已记上」→ ack
-```
+## 本轮适配差异
 
-老人端不用装新应用，照常聊天、拍照；灵石和任务进度只显示在游戏端。
+| D 原提交 | 当前接入 |
+| --- | --- |
+| 给唯一/最近待办自动归因；有图即完成 | 明确任务 ID，已确认健康事件，再由独立 D 审核器核验证据 |
+| event_id 包含今天日期；重试重建时间 | 固定事件 ID/完成时间，SQLite 队列保存原请求 |
+| 所有通知发往同一 target | binding_id 精确匹配独立账号、发送者、接收地址 |
+| dry-run 仍领取/确认通知 | dry-run 不提交、不领取、不确认、不写投递状态 |
+| 缺失授权版本默认 1 | 必须配置绑定确认返回的真实版本；每次提交/发送重新检查 |
+| 桥接器读取另一份健康数据库 | ELDER_DB_PATH 默认指向 sidecar 的 bot_data |
+| 六个未发布模板要求直接修改 integration-v1 | 仅消费 C 已发布的步数和计划内测量模板 |
 
-## 2. 游戏侧要做的事（C/B 各一处）
+药物、喝水、复诊等 D 聊天能力继续留在健康域；它们暂不自动成为有奖游戏任务。
+不要把识别到药盒等同于服药完成，不要依据读数高低发奖。新增模板另行发布版本。
+`elder_scheduler.py` 是 D 的独立健康提醒器，本轮不启动它，也不与游戏提醒同时启用。
 
-### 2.1 补任务模板（`server/src/game/rules.ts`）
+## 本地配置与启动
 
-把下面这段加进 `integrationTemplates` 数组（与现有 `daily_step_record` 并列）：
+Node.js 24；Python 3.11+。侧车依赖安装：`python -m pip install -r wechat-sidecar/requirements.txt`。
+C 按 `server/README.md` 启动，默认 127.0.0.1:8080。侧车 `python wechat-sidecar/server.py`，默认 8000，
+复制其 .env.example 后使用模板中的 8001。仅配置本机，不连接远程服务器。
 
-```ts
-  // —— 任务提醒桥接补充的健康行为模板（docs/TASK_REMINDER_BRIDGE.md）——
-  { id: 'daily_medication_record', version: 'integration-v1', title: '按时吃药', requirement: '按家人设定的用药计划到点吃药并回复；不据此判断疗效或更改用药。', event_type: 'medication_record', verification_levels: ['self_report', 'photo', 'family_confirm'], base_stones: 6, base_xp: 15 },
-  { id: 'daily_exercise_record', version: 'integration-v1', title: '出门活动', requirement: '完成一次出门散步/活动；可自述或发步数截图，不据此证明具体时长。', event_type: 'exercise_record', verification_levels: ['self_report', 'photo', 'device'], base_stones: 8, base_xp: 20 },
-  { id: 'daily_move_reminder', version: 'integration-v1', title: '别久坐，起来活动', requirement: '久坐后起来活动一下；以老人自述为准。', event_type: 'move_record', verification_levels: ['self_report'], base_stones: 2, base_xp: 5 },
-  { id: 'daily_bp_record', version: 'integration-v1', title: '量血压', requirement: '按既有测量计划量一次血压并发仪器屏幕照片；不按读数高低奖励。', event_type: 'bp_record', verification_levels: ['photo', 'device', 'family_confirm'], base_stones: 12, base_xp: 20 },
-  { id: 'daily_hydration_reminder', version: 'integration-v1', title: '喝口水', requirement: '补充水分；以老人自述为准。', event_type: 'hydration_record', verification_levels: ['self_report'], base_stones: 2, base_xp: 5 },
-  { id: 'followup_visit_record', version: 'integration-v1', title: '复查/复诊', requirement: '完成一次复查/复诊；可自述或发相关单据照片，不据此判断病情。', event_type: 'followup_record', verification_levels: ['self_report', 'photo', 'family_confirm'], base_stones: 15, base_xp: 30 },
-```
+三个凭证必须不同：
+- HEALTH_SERVICE_TOKEN：C 和 D 桥接器共享，只允许 D 内部 API。
+- ELDER_SIDECAR_TOKEN：微信 hook 调用侧车，未配置时拒收健康数据。
+- GAME_REVIEW_TOKEN：可信 D 审核器调用侧车游戏审核接口，不交给聊天模型、hook 或浏览器。
 
-每个模板的默认提醒时间由微信侧桥接器 `game_task_bridge.py` 里的 `TASK_TEMPLATES` 维护，两边的 `id` 必须一字不差。当前默认时间：
+先由游戏生成邀请，再由 D 核验真实身份和授权，调用 C 的绑定确认接口。
+随后在受保护环境变量 ELDER_BINDINGS 中写入数组，不能照抄模拟身份用于真实用户：
 
-| 模板 | 默认提醒时间 |
-|---|---|
-| 按时吃药 | 08:00 / 12:00 / 18:00（仅聊天确认过在吃药才发，见下）|
-| 出门活动 | 09:00 |
-| 别久坐起来活动 | 10:30 / 15:00 / 16:30 |
-| 量血压 | 08:00（一天一次）|
-| 喝口水 | 11:00 / 14:00 |
-| 复查/复诊 | 09:00（仅聊天得知要去看病才发，见下）|
-
-> **提醒门槛（微信侧把关，因为游戏不能聊天）：** 游戏只派任务类别，但「这一刻要不要真的提醒」由微信侧据聊天得知的事实决定——
->
-> - `按时吃药`：只有老人在聊天里说过「现在在吃某药」、并建成未结束的疗程（`medication_courses` 里 `status='active'`）才提醒；没说过就静默不发。
-> - `复查/复诊`：只有老人在聊天里提到过「要去看病 / 复查 / 挂号」才提醒。
-> - 其余（运动 / 久坐 / 量血压 / 喝水）：无门槛，到点即推。
->
-> 判断在 `game_task_bridge.py` 的 `_gate()`，数据来自与 sidecar 共用的 `bot_data/elder_assistant.sqlite3`。游戏侧不需要为此做任何事。
-
-### 2.2 配内部服务凭证
-
-`server/.env` 里设一个至少 32 位的随机值，`server/src/main.ts` 会把它作为 D 的内部服务凭证：
-
-```bash
-# server/.env
-HEALTH_SERVICE_TOKEN=<32位随机值>
+```json
+[{
+  "binding_id": "binding_from_C",
+  "elder_id": "opaque_health_reference",
+  "sender_id": "verified_wechat_sender",
+  "channel_account_id": "verified_bot_account",
+  "target": "verified_delivery_address",
+  "consent_version": 1
+}]
 ```
 
-生成方式：`node -e "console.log(require('node:crypto').randomBytes(32).toString('base64url'))"`。
+不再接受旧的 elder_id → binding_id 简写或单一默认收件人。
+hook 的 elderIdMap 键为 `JSON.stringify([channel_account_id, sender_id])`；
+未知账号/发送者不回退到 defaultElderId。媒体只按账号、发送者、消息 ID 精确关联。
+配置地址必须是受信任的 C 地址；本地联调使用 loopback HTTP。
 
-同一串 token 填到微信侧桥接器的 `HEALTH_SERVICE_TOKEN` 环境变量，双方一致才能互认。不要写进 Godot、网页、模型提示词或提交到仓库。
+侧车会读取自己的 .env；单独运行桥接器时需将相同配置导出为环境变量。
+OPENCLAW_DRY_RUN 默认 1；本地测试以模拟发送器替代真实 OpenClaw。
+只有明确安排真实联调后才设置 0，并配置本机可直接执行的 OPENCLAW_BIN（不拼 shell 命令）。
+运行单轮：`python wechat-bridge/game_task_bridge.py --once`。
 
-### 2.3 建立一次绑定，拿到 `binding_id`
+## 确认与审核流程
 
-1. 年轻人在游戏里 `growth.create` 建修仙者。
-2. `POST /api/v2/bindings/invitations` 传 `cultivator_id`，拿到 10 分钟有效的 `invite_token`。
-3. 老人扫码授权后，微信侧用 `POST /internal/v1/bindings/confirm` 消费邀请（真实身份与授权由微信侧校验后填写），返回 `binding_id`。
-4. 把这个 `binding_id` 填到桥接器环境变量里。
+1. hook 将真实身份引用及消息交给侧车。原图、病史、识别候选只进入 D。
+2. 老人确认候选后，侧车原子保存 health_events 和来源身份引用。过期候选拒绝确认。
+3. D 的确定性审核器/人工审核确认某个事件满足某个任务，调用以下接口。
+4. 侧车核验事件归属、分享许可、来源身份及允许的证据等级，向 C 提交最小事实。
+5. C 返回 pending，异步结算；只有收到结算通知才向老人确认游戏同步。
 
-## 3. 微信侧桥接器怎么跑
-
-代码在 `wechat-bridge/game_task_bridge.py`，独立于 sidecar 每分钟跑一轮。
-
-```bash
-# 环境变量
-GAME_API_BASE=http://127.0.0.1:8080
-HEALTH_SERVICE_TOKEN=<与游戏侧一致>
-BINDING_ID=binding_...
-OPENCLAW_SEND_TARGET=<老人微信 ilink_user_id>
-
-# 试跑（只打印，不发送不提交）
-OPENCLAW_DRY_RUN=1 python game_task_bridge.py --once
-
-# 常驻
-python game_task_bridge.py
-```
-
-三个动作都在这一个脚本里：
-
-| 动作 | 游戏接口 | 说明 |
-|---|---|---|
-| 到点推提醒 | `GET /internal/v1/bindings/:id/tasks` | 按模板默认时间，每分钟比对一次 |
-| 老人回复→完成 | `POST /internal/v1/task-results` | sidecar 在老人回复时调 `complete_task_from_reply()` |
-| 「已记上」回执 | `claim` + `ack` | 领取结算通知，回推后 ack |
-
-## 4. 内部接口速查（D 侧实际调用的四个）
-
-统一返回 `{ok, code, message, data}`，认证用 `Authorization: Bearer <HEALTH_SERVICE_TOKEN>`。
-
-### 4.1 查待办
-
-```
-GET /internal/v1/bindings/{binding_id}/tasks
-```
-
-返回 `data.tasks`，每条是任务实例视图：`task_instance_id`、`cultivator_id`、`template_id`、`status`（`pending`/`verified`/`settled`）、`window_start`/`window_end`、`title`、`requirement`、`verification_levels`、`rule_version`。桥接器只对 `status != 'settled'` 的任务推提醒。
-
-### 4.2 提交验证结果
-
-```
-POST /internal/v1/task-results
-```
+`POST http://127.0.0.1:8001/internal/v1/game/verified-events`
+头：`Authorization: Bearer <GAME_REVIEW_TOKEN>`
 
 ```json
 {
-  "event_id": "evt_…（微信侧稳定生成，重发幂等）",
-  "task_instance_id": "task_…",
-  "cultivator_id": "cultivator_…",
-  "binding_id": "binding_…",
-  "consent_version": 1,
-  "verification_level": "self_report",
-  "source": "self_report",
-  "channel": "wechat_ilink",
-  "observed_at": "2026-10-31T08:30:00+08:00",
-  "rule_version": "integration-v1"
+  "binding_id": "binding_from_C",
+  "task_instance_id": "task_from_C",
+  "event_id": "confirmed_health_event",
+  "verification_level": "photo",
+  "evidence_confirmed": true
 }
 ```
 
-只提交最小事实，不传原图、读数、诊断、药名。`verification_level` 由微信侧据「有照片=photo、纯文字=self_report」选择；游戏侧按该级别折算灵石（photo 80%、self_report 30%）。结算由游戏侧工作器每秒自动处理，也可 `POST /internal/v1/task-results/:id/settle` 立即触发。
+审核器必须核对照片内容、任务要求及完成时间；evidence_confirmed 是可信审核结果，不是客户端勾选框。
+当前照片审核入口不支持 device/family_confirm 升档；需 D 后续提供真实设备/家属证据适配器。
+旧记录若没有来源身份，拒绝补猜身份。失败重试原事件、原任务、原时间；不同内容冲突。
+独立桥接器轮询持久队列。重试不自动采用新授权，撤回/解绑立即阻断后续提交。
 
-### 4.3 领取结算通知
+## 通知与边界
 
+通知一次领取一条 30 秒租约，发送前复查绑定、授权版本和通道。
+未知绑定或发送失败 nack；本地持久化发送成功记录后 ack，ack 失败重试不再发送。
+C 保证结算幂等；微信发送成功至本地落盘之间仍有崩溃窗口，不宣称外部消息严格 exactly-once。
+运行单个桥接进程；多实例需 D 增加分布式发送锁/通道幂等能力。
+提醒按 UTC+8，仅在任务时间窗内发送；原型每分钟轮询，不补发错过的提醒。
+普通闲聊、任意照片及失败识别均不能触发游戏奖励。
+完整 baseline 接口仅作 D 本地归档，返回 health_archive_only，不能解释为已同步游戏。
+
+## 检查命令
+
+在仓库根目录：
+```powershell
+python -m unittest discover -s wechat-bridge/tests -v
+python -m unittest discover -s wechat-sidecar/tests -v
+cd server
+npm run check
+npm run test:d
 ```
-POST /internal/v1/notifications/claim   {"limit": 10}
-POST /internal/v1/notifications/{id}/ack   {"lease_token": "…"}
-POST /internal/v1/notifications/{id}/nack  {"lease_token": "…"}
-```
 
-`claim` 返回 30 秒租约（`notification_id`、`lease_token`、`payload`）。微信侧据此回老人「今天的记录已记上」，成功后 `ack`，失败 `nack` 让游戏退避重试。
+test:d 启动随机本地端口和隔离内存数据库，用 Python 真 HTTP 调用 C，
+覆盖双账号、任务验证、重复提交、通知归属、抽卡和撤回；没有真实微信发送或 AI 调用。
+Godot 继续使用 C 原接口，内核回归命令见 tools/test_kernel.ps1。
 
-## 5. 老人回复怎么算完成
-
-桥接器 `complete_task_from_reply(binding_id, text, has_photo, message_id)` 的判定顺序：
-
-1. 有照片 → `verification_level = photo`；纯文字 → `self_report`。
-2. 匹配待办：先按关键词（「吃药/药」「血压」「血糖」「散步/走了/运动」「喝水」「复查/医院」）对到模板；对不上就取唯一待办或 `window_start` 最近的那条。
-3. `event_id` 由 `binding_id + task_instance_id + message_id + 当天日期` 哈希生成，同一条消息重发不会重复记账。
-4. 游戏侧对同一任务只结算一次（`settlements` 按 task_id 去重），不同 event 也不会重复发奖。
-
-没有待办时老人发来的照片/文字，不擅自创建有奖任务，只按微信侧既有的资料归档/闲聊处理。
-
-## 6. 「几点提醒」的两条路
-
-- **当前（A）**：提醒时间由微信侧桥接器按模板 id 的默认值触发（见 `game_task_bridge.py` 的 `TASK_TEMPLATES`）。游戏侧零改动，只加模板就能联调。
-- **后续（B）**：给 `quests.assign` 或模板加 `remind_at`/`schedule` 字段，游戏侧明确指定几点推。需要改 `data/kernel/contracts.json` + `server/src/game/service.ts`，属 C 的改动。
-
-B 是正式方向（多老人、个性化时间表），A 足够路演。两条路互不影响，桥接器的接口不变。
+真实 iLink SDK 事件字段、OpenClaw 插件运行、AI 识别准确率、老人授权取证、
+自动证据审核策略和用药提醒规则仍由 D 验证；本轮测试不冒充这些能力已接通。

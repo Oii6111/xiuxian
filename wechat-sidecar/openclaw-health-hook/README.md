@@ -9,7 +9,7 @@ OpenClaw 的 typed hook 在普通模型分发前执行；插件返回 `{ handled
 ## 本地安装（在运行 OpenClaw Gateway 的机器上）
 
 ```bash
-openclaw plugins install --link ./prototype/openclaw-health-hook --force
+openclaw plugins install --link ./wechat-sidecar/openclaw-health-hook --force
 openclaw plugins enable elder-health-sidecar
 ```
 
@@ -22,10 +22,9 @@ openclaw plugins enable elder-health-sidecar
       "elder-health-sidecar": {
         "enabled": true,
         "config": {
-          "sidecarUrl": "http://127.0.0.1:8000",
+          "sidecarUrl": "http://127.0.0.1:8001",
           "sidecarToken": "与 ELDER_SIDECAR_TOKEN 相同的内部令牌",
-          "defaultElderId": "elder_demo_001",
-          "elderIdMap": { "wx_user_xxx": "elder_demo_001" },
+          "elderIdMap": { "[\"verified_bot_account\",\"verified_sender\"]": "opaque_elder_ref" },
           "familyShareDefault": false,
           "allowRemoteMedia": false,
           "failClosed": true
@@ -37,7 +36,10 @@ openclaw plugins enable elder-health-sidecar
 }
 ```
 
-不要把微信二维码登录当作家庭授权。建议再用本项目的 `family-link` 一次性绑定码和服务端白名单限制老人/子女关系；当前 Weixin 插件版本的标准 pairing 能力可能不完整。
+不要把微信二维码登录当作家庭授权。游戏绑定必须使用 C 的邀请与授权接口，侧车旧 family-link 只属于健康域，不替代 C 绑定。
+账号/发送者联合键必须与 C 绑定及 ELDER_BINDINGS 一致；缺少身份或映射会拒绝转发。
+familyShareDefault 只能在对应老人已明确授权后配置，默认 false 不共享。GAME_REVIEW_TOKEN 不放入插件配置。
+游戏接入以 [任务桥接说明](../../docs/TASK_REMINDER_BRIDGE.md) 为准。本轮未安装或运行真实 OpenClaw 插件。
 
 修改代码后执行 `openclaw plugins reload elder-health-sidecar`，再用 `openclaw plugins inspect elder-health-sidecar --runtime --json` 检查 typed hook 是否注册。
 

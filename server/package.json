@@ -13,7 +13,8 @@
     "check": "npm run build && npm test",
     "demo": "tsx tools/demo.ts",
     "openapi": "tsx tools/openapi.ts",
-    "test:godot": "tsx tools/godot-smoke.ts"
+    "test:godot": "tsx tools/godot-smoke.ts",
+    "test:d": "tsx tools/d-smoke.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

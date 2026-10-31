@@ -62,7 +62,8 @@ func _run() -> void:
 	scene.celebrated.connect(_on_celebrated)
 	root.add_child(scene)
 	await process_frame
-	expect(scene.background_texture != null and scene.cultivator_texture != null, "渡劫台加载真实背景和人物帧")
+	expect(scene.background_texture != null and scene.cultivator_texture != null, "渡劫台加载真实背景和打坐人物")
+	expect(scene.cultivator_texture.resource_path.contains("elder-meditating"), "渡劫台使用固定打坐姿态")
 	expect(scene._stage_buttons.size() == 5 and scene._state_buttons.size() == 4, "渡劫台操作区按流程分组")
 	# 没有服务端确认通道：明确失败，状态不变。
 	await scene.begin_tribulation()

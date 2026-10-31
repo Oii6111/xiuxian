@@ -77,9 +77,7 @@ func open(kind: String) -> bool:
 		"platform":
 			scene = PLATFORM_SCENE.instantiate()
 			scene.background_texture = load("res://assets/gameplay/tribulation-stage.png")
-			var demo_frames := Assets.frames("res://assets/combat_animations/hero_male_runtime_v1.png", 4, 4, 0.05, true)
-			if not demo_frames.is_empty():
-				scene.cultivator_texture = demo_frames[mini(0, demo_frames.size() - 1)]
+			scene.cultivator_texture = Assets.texture("res://assets/gameplay/elder-meditating.png")
 			scene.cultivator_name = "演示渡劫者"
 			if demo_authority:
 				_demo = DemoKernel.new()

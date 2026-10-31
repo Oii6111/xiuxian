@@ -16,7 +16,7 @@
 2. [完整业务对接说明](WECHAT_COMPANION_HANDOFF.md)：仅按确认事实开启任务、本人微信反馈完成、绑定、同步、去重及验收。该文档中的新增正式接口属于方案，不代表 C 已实现。
 3. [已有聊天接口](COMPANION_API.md)：聊天文字/导航与任务同步是两条接缝。
 4. [本地玩法与 C 账本对齐研究](LOCAL_GAME_C_LEDGER_ALIGNMENT.md)：以当前本地玩法和数值为准，补接口和归属；不要采用 C 的联调示例改写五档装备、70/700抽卡价格和每日100灵气。
-5. 上游 [微信任务桥接方案](TASK_REMINDER_BRIDGE.md)、[后端合并指南](BACKEND_INTEGRATION.md)。
+5. 上游 [微信任务桥接方案](https://github.com/Oii6111/xiuxian/blob/bf5ad8580729351bfb91fac68eecec5dd2acb13d/docs/TASK_REMINDER_BRIDGE.md)、[后端合并指南](BACKEND_INTEGRATION.md)。
 
 ## 实际代码入口
 

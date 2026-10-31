@@ -28,6 +28,8 @@ var walk_textures: Array[Texture2D] = []
 var nearest: String = ""
 var sites: Array[Dictionary] = []
 var roads: Array[PackedVector2Array] = []
+var terrain_blockers: Array[PackedVector2Array] = []
+var terrain_crossings: Array[PackedVector2Array] = []
 var navigation = AStar2D.new()
 var debug_roads: bool = false
 var elapsed: float = 0
@@ -199,6 +201,7 @@ func _build_roads() -> void:
 	roads.append(_corridor([Vector2(781, 600), Vector2(850, 632), Vector2(939, 668), Vector2(1024, 698), Vector2(1101, 670), Vector2(1167, 651)], 27))
 	roads.append(_corridor([Vector2(1144, 665), Vector2(1160, 605), Vector2(1193, 560), Vector2(1222, 509), Vector2(1256, 456), Vector2(1289, 405)], 33))
 	roads.append(PackedVector2Array([Vector2(1194, 375), Vector2(1255, 352), Vector2(1353, 367), Vector2(1350, 419), Vector2(1284, 450), Vector2(1224, 433)]))
+	_build_terrain_blockers()
 	var points = [SPAWN, Vector2(530, 521), Vector2(402, 480), Vector2(717, 434), Vector2(752, 366), Vector2(794, 316), Vector2(819, 256), Vector2(857, 206), Vector2(781, 600), Vector2(850, 632), Vector2(939, 668), Vector2(1024, 698), Vector2(1144, 665), Vector2(1160, 605), Vector2(1193, 560), Vector2(1222, 509), Vector2(1256, 456), Vector2(1289, 405), Vector2(275, 503)]
 	for i in range(points.size()):
 		navigation.add_point(i, points[i])
@@ -230,11 +233,44 @@ func _corridor(points: Array, width: float) -> PackedVector2Array:
 	left.append_array(right)
 	return left
 
-func can_walk(point: Vector2) -> bool:
+func _build_terrain_blockers() -> void:
+	# These are the visible water basins in the 1440x900 game canvas.
+	# The bridge deck is a separate crossing so its stone surface remains walkable.
+	terrain_blockers = [
+		PackedVector2Array([
+			Vector2(520, 720), Vector2(600, 710), Vector2(700, 720), Vector2(760, 760),
+			Vector2(800, 830), Vector2(830, 900), Vector2(480, 900), Vector2(480, 820)
+		]),
+		PackedVector2Array([
+			Vector2(1040, 730), Vector2(1120, 730), Vector2(1195, 760), Vector2(1210, 810),
+			Vector2(1320, 850), Vector2(1440, 840), Vector2(1440, 900), Vector2(800, 900), Vector2(800, 820)
+		])
+	]
+	terrain_crossings = [
+		_corridor([Vector2(690, 650), Vector2(760, 662), Vector2(840, 685), Vector2(920, 710), Vector2(1000, 738), Vector2(1060, 720), Vector2(1100, 685)], 22)
+	]
+	roads.append_array(terrain_crossings)
+
+func _terrain_contains(polygons: Array[PackedVector2Array], point: Vector2) -> bool:
+	for polygon in polygons:
+		if Geometry2D.is_point_in_polygon(point, polygon):
+			return true
+	return false
+
+func _point_walkable(point: Vector2) -> bool:
+	if _terrain_contains(terrain_blockers, point) and not _terrain_contains(terrain_crossings, point):
+		return false
 	for polygon in roads:
 		if Geometry2D.is_point_in_polygon(point, polygon):
 			return true
 	return false
+
+func can_walk(point: Vector2) -> bool:
+	# Check the player's footprint, not only its center, so the sprite cannot straddle a bank or roof.
+	for offset in [Vector2.ZERO, Vector2(9, 0), Vector2(-9, 0), Vector2(0, 9), Vector2(0, -9)]:
+		if not _point_walkable(point + offset):
+			return false
+	return true
 
 func _build_sites() -> void:
 	sites = [
@@ -391,6 +427,10 @@ func _draw() -> void:
 	if debug_roads:
 		for polygon in roads:
 			draw_colored_polygon(polygon, Color(0.3, 1, 0.4, 0.25))
+		for polygon in terrain_blockers:
+			draw_colored_polygon(polygon, Color(1.0, 0.2, 0.2, 0.28))
+		for polygon in terrain_crossings:
+			draw_colored_polygon(polygon, Color(1.0, 0.85, 0.15, 0.35))
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact") and nearest != "" and not ui.modal_open:

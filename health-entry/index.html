@@ -365,7 +365,9 @@
       if (projection.attribute_notes) Object.assign(payload.attribute_notes, projection.attribute_notes);
       if (projection.readiness != null) payload.readiness = projection.readiness;
       payload.source_document = record.document || record.extraction || null;
-      payload.recognition_mode = record.document ? 'live' : 'demo';
+      payload.record_id = record.record_id;
+      payload.display_name = currentProfile().name || record.display_name || '';
+      payload.recognition_mode = record.recognition_mode || 'demo';
       payload.provider = record.provider || null;
       payload.model = record.model || null;
       const relation = currentProfile().relation;

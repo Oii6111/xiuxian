@@ -36,7 +36,7 @@ func _run() -> void:
 	check(not state.record_task("medication", true).ok, "No medication task without an existing plan")
 	state.medication_required = true
 	check(state.record_task("medication", true).rewarded, "First confirmed medication record earns the daily reward")
-	check(state.cultivation == 90 and state.qi == 28 and state.charms == 3 and state.days == 29, "Daily reward accounting remains unchanged")
+	check(state.cultivation == 90 and state.qi == 24 and state.charms == 2 and state.days == 29 and state.equipment.qi == 100, "Daily rewards add 100 wish qi without altering legacy battle consumables")
 	check(not state.record_task("medication", true).ok, "Duplicate medication record is rejected")
 	var second = state.record_task("planned_record", true)
 	check(second.ok and not second.rewarded and state.cultivation == 90 and state.days == 29, "Two different tasks share one daily reward")
@@ -63,38 +63,7 @@ func _run() -> void:
 	no_resources.charms = 0
 	var dry_trial = Trial.new(no_resources)
 	check(not dry_trial.choose(0).ok and not dry_trial.choose(2).ok and dry_trial.round == 0, "Unavailable skills cannot advance a round")
-	var boss_state = State.new()
-	boss_state.persist_enabled = false
-	check(boss_state.begin_boss(true).ok and boss_state.charms == 1, "Optional support consumes exactly one charm at entry")
-	var boss = Boss.new(boss_state, 20)
-	check(boss.attack().damage == 116, "Support adds 20 to the first attack")
-	check(not boss.attack().ok, "Repeated attack is gated by cooldown")
-	boss.step(0.66, Vector2(300, 600))
-	check(boss.attack().damage == 96 and boss.damage_total == 212, "Support cannot boost subsequent attacks")
-	check(boss_state.contribution == 212, "Dealt damage becomes actual local contribution")
-	var incoming = Boss.new(State.new())
-	check(incoming.step(2.5, Vector2(300, 600)).event == "windup", "Boss telegraphs before attacking")
-	check(incoming.step(1.15, Vector2(300, 600)).event == "hurt" and incoming.hp == 220, "Staying in the warning area takes damage")
-	var shielded = Boss.new(State.new())
-	shielded.step(2.5, Vector2(300, 600))
-	shielded.defend()
-	check(shielded.step(1.15, Vector2(300, 600)).event == "blocked" and shielded.hp == 300, "Timed shield blocks an actual boss attack")
-	var evaded = Boss.new(State.new())
-	evaded.step(2.5, Vector2(300, 600))
-	check(evaded.step(1.15, Vector2(300, 490)).event == "evaded" and evaded.hp == 300, "Moving outside the displayed warning ellipse avoids damage")
-	var dodged = Boss.new(State.new())
-	dodged.step(2.5, Vector2(300, 600))
-	dodged.step(0.9, Vector2(300, 600))
-	dodged.dodge()
-	check(dodged.step(0.25, Vector2(300, 600)).event == "evaded", "Dodge invulnerability works at impact time")
-	check(not dodged.dodge(), "Dodge has a real cooldown")
-	while not boss.finished:
-		boss.step(0.66, Vector2(100, 450))
-		boss.attack()
-	check(boss.won and boss.damage_total == 1440 and boss_state.contribution == 1440, "Boss defeat caps actual damage and contribution at its health")
-	boss_state.begin_boss(false)
-	boss_state.begin_boss(false)
-	check(not boss_state.begin_boss(false).ok and boss_state.boss_attempts == 3, "Daily boss entry limit is enforced")
+	# Detailed action combat cases live in action_progression_test.gd.
 	# Persistence checks use a separate fixture and never write the live player save.
 	var save_state = State.new()
 	save_state.save_file_override = "res://output/gameplay-test-fixture.json"
@@ -120,6 +89,7 @@ func _run() -> void:
 	await process_frame
 	scene.state = State.new()
 	scene.state.persist_enabled = false
+	scene.state.apply_health_profile(scene.state.HealthProfile.mock(40, 1))
 	scene.ui.refresh()
 	scene.ui.show_start()
 	check(scene.ui.modal_open and scene.player.blocked and scene.ui.avatar_buttons.size() == 2, "Start screen blocks the town and offers two avatars")
@@ -152,30 +122,16 @@ func _run() -> void:
 	check(scene.state.recovery_status == "active" and scene.state.longterm_enabled, "Recovery UI activates a parallel chapter")
 	scene.ui.close_modal()
 	scene.ui.start_battle()
-	check(scene.ui.combat.elder.texture != null and scene.ui.combat.mode == "tribulation", "Trial scene has an independent meditating elder sprite")
+	check(scene.ui.combat.mode == "practice" and scene.ui.combat.rules.practice, "The training entrance uses the four-skill battle")
 	scene.ui.combat.use_skill(0)
-	scene.ui.combat.use_skill(0)
-	check(scene.ui.combat.rules.round == 1 and scene.ui.combat.busy, "Input is gated while a visual trial turn animates")
-	await create_timer(0.65).timeout
-	check(scene.ui.combat.lightning_visual > 0, "Lightning is a live timed effect during the turn")
-	await create_timer(0.95).timeout
-	scene.ui.combat.use_skill(2)
-	await create_timer(1.6).timeout
-	scene.ui.combat.use_skill(0)
-	await create_timer(2.1).timeout
-	check(scene.ui.combat.rules.won and scene.ui.combat.result_shown, "Visual trial completes and displays a result")
-	check(scene.state.recovery_status == "active", "Visual trial also leaves recovery awaiting separate confirmation")
-	scene.ui.close_modal()
-	scene.state.qi = 4
-	var cultivation_before = scene.state.cultivation
-	scene.ui.open_battle()
-	find_button(scene.ui.modal, "演示补给").pressed.emit()
-	check(scene.state.qi == 15 and scene.state.cultivation == cultivation_before and scene.state.recovery_status == "active", "Low-resource legacy saves can practice without resetting care progress")
+	check(scene.ui.combat.rules.mp < scene.ui.combat.rules.max_mp and scene.ui.combat.cast_visual > 0, "Sword input consumes mana and produces a live effect")
 	scene.ui.close_modal()
 	scene.ui.start_boss(false)
-	check(scene.ui.combat.dragon_frames.size() == 4 and scene.state.boss_attempts == 1, "Boss scene has four real state sprites and records entry")
-	scene.ui.combat.use_skill(0)
-	check(scene.ui.combat.rules.boss_hp == 1344 and scene.ui.combat.cast_visual > 0, "Attack button deals damage and triggers a visible slash")
+	check(scene.ui.combat.dragon_frames.size() == 1 and scene.ui.combat.boss_id == "b00" and scene.state.boss_attempts == 1, "Named pixel boss loads its own static atlas cell")
+	scene.ui.combat.hero.position = Vector2(900, 575)
+	var boss_hp_before = scene.ui.combat.rules.boss_hp
+	scene.ui.combat.basic_attack()
+	check(scene.ui.combat.rules.boss_hp < boss_hp_before and scene.ui.combat.cast_visual > 0, "Basic attack requires an actual nearby hit")
 	var town_position = scene.player.position
 	var hero_position = scene.ui.combat.hero.position
 	Input.action_press("move_forward")
@@ -185,8 +141,9 @@ func _run() -> void:
 	scene.ui.combat.rules.phase = "windup"
 	scene.ui.combat.rules.phase_clock = 1.0
 	scene.ui.combat.rules.target_position = scene.ui.combat.hero.position
+	var hp_before = scene.ui.combat.rules.hp
 	await create_timer(0.22).timeout
-	check(scene.ui.combat.rules.hp == 220 and scene.ui.combat.rules.phase == "breath", "The rendered boss actually attacks and damages the player")
+	check(scene.ui.combat.rules.hp < hp_before and scene.ui.combat.rules.phase == "breath", "The rendered boss actually attacks and damages the player")
 	scene.ui.close_modal()
 	check(not scene.ui.modal_open and not scene.player.blocked, "Returning from a battle restores town controls")
 	for index in range(3):
@@ -202,9 +159,6 @@ func _run() -> void:
 		while not scene.ui.modal_open and Time.get_ticks_msec() < deadline:
 			await create_timer(0.1).timeout
 		check(scene.ui.modal_open and scene.player.position.distance_to(site.position) < 12, "Full automatic town walk to " + site.id)
-		if is_instance_valid(scene.ui.campaign):
-			scene.ui.campaign.request_exit()
-			await process_frame
 		scene.ui.close_modal()
 	Engine.time_scale = 1.0
 	scene.queue_free()
@@ -215,5 +169,6 @@ func _run() -> void:
 		restored_file.close()
 	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path.trim_suffix(".json") + "-before-corridor-v4.json"))
 	print("GAMEPLAY TEST RESULT: ", "PASS" if errors == 0 else "FAIL", " (", passed, " passed, ", errors, " failures)")
 	quit(errors)

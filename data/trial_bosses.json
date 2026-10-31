@@ -1,0 +1,447 @@
+{
+  "schema": 1,
+  "source_pr": "https://github.com/Oii6111/xiuxian/pull/2",
+  "asset_commit": "3b99b33d5bd436807070ae9b2baeec49ae1170da",
+  "bosses": [
+    {
+      "id": "b00",
+      "name": "听雷",
+      "region": "序章",
+      "arena": "照生乡·渡劫台",
+      "color": "bba7ef",
+      "index": 0,
+      "tier": 10,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_a.png",
+      "cell": 0,
+      "background": "res://assets/pixel_campaign/map_origin.png",
+      "boss_height": 235,
+      "boss_position": [
+        1014,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b00.tscn"
+    },
+    {
+      "id": "b01",
+      "name": "朽梁",
+      "region": "木",
+      "arena": "苍梧林·悬木栈道",
+      "color": "4bc89b",
+      "index": 1,
+      "tier": 10,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_a.png",
+      "cell": 1,
+      "background": "res://assets/pixel_campaign/map_wood.png",
+      "boss_height": 285,
+      "boss_position": [
+        1030,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b01.tscn"
+    },
+    {
+      "id": "b02",
+      "name": "涩节",
+      "region": "木",
+      "arena": "苍梧林·百工坊",
+      "color": "4bc89b",
+      "index": 2,
+      "tier": 20,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_a.png",
+      "cell": 2,
+      "background": "res://assets/pixel_campaign/map_wood.png",
+      "boss_height": 245,
+      "boss_position": [
+        1046,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b02.tscn"
+    },
+    {
+      "id": "b03",
+      "name": "窃荣",
+      "region": "木",
+      "arena": "苍梧林·问春祠",
+      "color": "4bc89b",
+      "index": 3,
+      "tier": 20,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_a.png",
+      "cell": 3,
+      "background": "res://assets/pixel_campaign/map_wood.png",
+      "boss_height": 315,
+      "boss_position": [
+        1014,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b03.tscn"
+    },
+    {
+      "id": "b04",
+      "name": "乱律",
+      "region": "火",
+      "arena": "丹霞岭·鼓楼",
+      "color": "ff8b65",
+      "index": 4,
+      "tier": 30,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_b.png",
+      "cell": 0,
+      "background": "res://assets/pixel_campaign/map_fire.png",
+      "boss_height": 255,
+      "boss_position": [
+        1030,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b04.tscn"
+    },
+    {
+      "id": "b05",
+      "name": "窄焰",
+      "region": "火",
+      "arena": "丹霞岭·引火廊",
+      "color": "ff8b65",
+      "index": 5,
+      "tier": 30,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_b.png",
+      "cell": 1,
+      "background": "res://assets/pixel_campaign/map_fire.png",
+      "boss_height": 275,
+      "boss_position": [
+        1046,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b05.tscn"
+    },
+    {
+      "id": "b06",
+      "name": "赤棘",
+      "region": "火",
+      "arena": "丹霞岭·赤石桥",
+      "color": "ff8b65",
+      "index": 6,
+      "tier": 40,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_b.png",
+      "cell": 2,
+      "background": "res://assets/pixel_campaign/map_fire.png",
+      "boss_height": 300,
+      "boss_position": [
+        1014,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b06.tscn"
+    },
+    {
+      "id": "b07",
+      "name": "积璧",
+      "region": "土",
+      "arena": "稷野·璧渠",
+      "color": "e8bb5e",
+      "index": 7,
+      "tier": 40,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_b.png",
+      "cell": 3,
+      "background": "res://assets/pixel_campaign/map_earth.png",
+      "boss_height": 275,
+      "boss_position": [
+        1030,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b07.tscn"
+    },
+    {
+      "id": "b08",
+      "name": "薄丹",
+      "region": "土",
+      "arena": "稷野·丹灯驿",
+      "color": "e8bb5e",
+      "index": 8,
+      "tier": 50,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_c.png",
+      "cell": 0,
+      "background": "res://assets/pixel_campaign/map_earth.png",
+      "boss_height": 260,
+      "boss_position": [
+        1046,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b08.tscn"
+    },
+    {
+      "id": "b09",
+      "name": "失稷",
+      "region": "土",
+      "arena": "稷野·四渠公仓",
+      "color": "e8bb5e",
+      "index": 9,
+      "tier": 50,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_c.png",
+      "cell": 1,
+      "background": "res://assets/pixel_campaign/map_earth.png",
+      "boss_height": 315,
+      "boss_position": [
+        1014,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b09.tscn"
+    },
+    {
+      "id": "b10",
+      "name": "闭岚",
+      "region": "金",
+      "arena": "白羽关·铸风坊",
+      "color": "8adbe7",
+      "index": 10,
+      "tier": 60,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_c.png",
+      "cell": 2,
+      "background": "res://assets/pixel_campaign/map_metal.png",
+      "boss_height": 275,
+      "boss_position": [
+        1030,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b10.tscn"
+    },
+    {
+      "id": "b11",
+      "name": "灼羽",
+      "region": "金",
+      "arena": "白羽关·暖羽驿",
+      "color": "8adbe7",
+      "index": 11,
+      "tier": 60,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_c.png",
+      "cell": 3,
+      "background": "res://assets/pixel_campaign/map_metal.png",
+      "boss_height": 280,
+      "boss_position": [
+        1046,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b11.tscn"
+    },
+    {
+      "id": "b12",
+      "name": "缄风",
+      "region": "金",
+      "arena": "白羽关·候风亭",
+      "color": "8adbe7",
+      "index": 12,
+      "tier": 70,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_d.png",
+      "cell": 0,
+      "background": "res://assets/pixel_campaign/map_metal.png",
+      "boss_height": 325,
+      "boss_position": [
+        1014,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b12.tscn"
+    },
+    {
+      "id": "b13",
+      "name": "沉砂",
+      "region": "水",
+      "arena": "玄泽·澄砂泉",
+      "color": "7b9eea",
+      "index": 13,
+      "tier": 70,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_d.png",
+      "cell": 1,
+      "background": "res://assets/pixel_campaign/map_water.png",
+      "boss_height": 280,
+      "boss_position": [
+        1030,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b13.tscn"
+    },
+    {
+      "id": "b14",
+      "name": "滞潮",
+      "region": "水",
+      "arena": "玄泽·双汐台",
+      "color": "7b9eea",
+      "index": 14,
+      "tier": 80,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_d.png",
+      "cell": 2,
+      "background": "res://assets/pixel_campaign/map_water.png",
+      "boss_height": 285,
+      "boss_position": [
+        1046,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b14.tscn"
+    },
+    {
+      "id": "b15",
+      "name": "壅川",
+      "region": "水",
+      "arena": "玄泽·三碑峡",
+      "color": "7b9eea",
+      "index": 15,
+      "tier": 80,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_d.png",
+      "cell": 3,
+      "background": "res://assets/pixel_campaign/map_water.png",
+      "boss_height": 320,
+      "boss_position": [
+        1014,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b15.tscn"
+    },
+    {
+      "id": "b16",
+      "name": "漏夜",
+      "region": "旁篇",
+      "arena": "照生乡·更漏台",
+      "color": "bba7ef",
+      "index": 16,
+      "tier": 90,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_e.png",
+      "cell": 0,
+      "background": "res://assets/pixel_campaign/map_origin.png",
+      "boss_height": 250,
+      "boss_position": [
+        1030,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b16.tscn"
+    },
+    {
+      "id": "b17",
+      "name": "失简",
+      "region": "旁篇",
+      "arena": "照生乡·藏书楼",
+      "color": "bba7ef",
+      "index": 17,
+      "tier": 90,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_e.png",
+      "cell": 1,
+      "background": "res://assets/pixel_campaign/map_origin.png",
+      "boss_height": 275,
+      "boss_position": [
+        1046,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b17.tscn"
+    },
+    {
+      "id": "b18",
+      "name": "晦鳞",
+      "region": "共域",
+      "arena": "相痕海·共守台",
+      "color": "c2a5ed",
+      "index": 18,
+      "tier": 100,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_e.png",
+      "cell": 2,
+      "background": "res://assets/pixel_campaign/map_water.png",
+      "boss_height": 345,
+      "boss_position": [
+        1014,
+        570
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b18.tscn"
+    },
+    {
+      "id": "b19",
+      "name": "执衡",
+      "region": "终章",
+      "arena": "常生台·无隙殿",
+      "color": "c2a5ed",
+      "index": 19,
+      "tier": 100,
+      "sheet": "res://assets/pixel_campaign/boss_sheet_e.png",
+      "cell": 3,
+      "background": "res://assets/pixel_campaign/map_final.png",
+      "boss_height": 340,
+      "boss_position": [
+        1030,
+        582
+      ],
+      "hero_spawn": [
+        550,
+        638
+      ],
+      "scene": "res://scenes/trials/b19.tscn"
+    }
+  ]
+}

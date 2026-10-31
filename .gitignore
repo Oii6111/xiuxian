@@ -18,12 +18,21 @@ export_credentials.cfg
 /output/pixel-screenshot.png.import
 *.log
 
+# Python bridge caches and interrupted local writes.
+__pycache__/
+*.pyc
+/output/*.tmp
+
 # Operating system files.
 .DS_Store
 Thumbs.db
 Desktop.ini
 
-# Pixel campaign local work and reproducible graphical output.
+# Account password database, sessions and per-account progress.
+/server/account/data/
+/output/accounts/
+
+# Preserve main branch campaign and local output exclusions.
 /work/
 /outputs/*
 !/outputs/.gdignore

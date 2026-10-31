@@ -26,10 +26,10 @@ func _ready() -> void:
 	campaign_hint.add_theme_constant_override("shadow_outline_size", 3)
 	_refresh_restoration.call_deferred()
 
-func close_modal() -> void:
-	if is_instance_valid(campaign):
+func close_modal(force: bool = false) -> void:
+	if is_instance_valid(campaign) and not force:
 		return
-	super.close_modal()
+	super.close_modal(force)
 
 func open_campaign(region: String = "序章") -> void:
 	if is_instance_valid(start_screen) or is_instance_valid(campaign):

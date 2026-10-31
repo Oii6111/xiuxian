@@ -11,11 +11,11 @@ if (-not $Godot -or -not (Test-Path -LiteralPath $Godot)) {
 $kernelWork = Join-Path $kernelRepo 'work/kernel'
 New-Item -ItemType Directory -Force -Path $kernelWork | Out-Null
 $kernelLog = Join-Path $kernelWork 'tests.log'
-# 测试进程的 Autoload 使用内存适配器；文件测试自行使用 work/kernel/。
+# Use an in-memory Autoload; file adapter tests only write under work/kernel/.
 & $Godot --headless --path $kernelRepo --script res://tests/kernel_test.gd --quit-after 600 --log-file $kernelLog -- --kernel-ephemeral
 $kernelExitCode = $LASTEXITCODE
 $kernelErrors = @(Select-String -LiteralPath $kernelLog -Pattern 'SCRIPT ERROR:|^ERROR:|FAIL:')
-# 某些 Windows 沙箱没有系统 CA 存储。离线测试不使用 TLS，单独报告此宿主告警。
+# Report the Windows CA-store warning separately; these checks do not use TLS.
 $kernelCertificateError = 'ERROR: Failed to read the root certificate store.'
 $kernelFailures = @($kernelErrors | Where-Object { $_.Line.Trim() -ne $kernelCertificateError })
 if ($kernelErrors.Count -ne $kernelFailures.Count) {

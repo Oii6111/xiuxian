@@ -4,11 +4,13 @@
 
 ## v2 内核与团队开发入口
 
-新增统一内核 `GameKernel`，提供时间、事件、随机、配置、状态存档、迁移、命令路由与审计，以及养成、战斗、任务、生命周期、剧情、社交、赛季七个独立系统骨架。业务接口当前明确返回 `NOT_IMPLEMENTED`，供团队逐项接入。
+新增统一内核 `GameKernel`，提供时间、事件、随机、配置、状态存档、迁移、命令路由与审计，以及七个独立系统入口。C 已接入赛季查询与网络依赖；其余客户端业务接口明确返回 `NOT_IMPLEMENTED`，供 A/B/D 逐项接入。
 
 开发先读 [v2 内核与团队接入指南](docs/KERNEL_V2.md)。Godot 中打开 `scenes/kernel/workbench.tscn` 按 F6 可验证框架；运行 `tools/test_kernel.ps1 -Godot 'Godot可执行文件路径'` 检查内核契约。后端边界见 [server/README.md](server/README.md)。
 
 产品方向更新：老人通过微信官方 iLink 接入的 AI Bot 查看健康任务、拍照提交资料；验证后为对应修仙者结算灵石，年轻人在游戏中抽卡。方案与待开发范围见 [微信信息入口](docs/WECHAT_ILINK_ENTRY.md) 及 [设计文档 v2](家族修真录-设计文档-v2.md)。
+
+C 的本地后端已实现：账号密码登录、任务实例、绑定授权、事务账本、抽卡、D 接缝、通知重试及个人 WebSocket 同步。进入 `server/` 后执行 `npm ci`、`npm run dev` 启动；`npm run demo` 运行隔离模拟闭环。详见 [后端说明](server/README.md) 和 [团队合并指南](docs/BACKEND_INTEGRATION.md)。本轮没有部署远程服务器，真实微信与 AI、A/B/D 业务仍待合并。
 
 ## 开始玩
 

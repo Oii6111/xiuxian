@@ -37,6 +37,12 @@ func dispatch(command: String, payload: Dictionary = {}) -> Dictionary:
 		return _status.duplicate(true)
 	return await _runtime.dispatch(command, payload)
 
+## 适配器节点由调用方管理生命周期；所有业务模块共享注入，不自动连接。
+func configure_backend(backend: Object) -> Dictionary:
+	if not _status.ok:
+		return _status.duplicate(true)
+	return _runtime.configure_backend(backend)
+
 func subscribe(topic: String, callback: Callable) -> int:
 	if not _status.ok:
 		return -1

@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "encounters": [
+    {
+      "id": "trial_wood",
+      "title": "苍梧林 · 归灯试炼",
+      "element": "wood",
+      "map": "res://assets/pixel_campaign/map_wood.png",
+      "boss_sheet": "res://assets/pixel_campaign/boss_sheet_a.png",
+      "boss_cell": 3,
+      "waves": [
+        [
+          "rush",
+          "shooter"
+        ],
+        [
+          "bomber",
+          "summoner"
+        ],
+        [
+          "boss"
+        ]
+      ]
+    },
+    {
+      "id": "trial_fire",
+      "title": "丹霞岭 · 炉火试炼",
+      "element": "fire",
+      "map": "res://assets/pixel_campaign/map_fire.png",
+      "boss_sheet": "res://assets/pixel_campaign/boss_sheet_b.png",
+      "boss_cell": 2,
+      "waves": [
+        [
+          "rush",
+          "shooter"
+        ],
+        [
+          "bomber",
+          "summoner"
+        ],
+        [
+          "boss"
+        ]
+      ]
+    },
+    {
+      "id": "trial_metal",
+      "title": "白羽关 · 听风试炼",
+      "element": "metal",
+      "map": "res://assets/pixel_campaign/map_metal.png",
+      "boss_sheet": "res://assets/pixel_campaign/boss_sheet_d.png",
+      "boss_cell": 0,
+      "waves": [
+        [
+          "rush",
+          "shooter"
+        ],
+        [
+          "bomber",
+          "summoner"
+        ],
+        [
+          "boss"
+        ]
+      ]
+    }
+  ]
+}

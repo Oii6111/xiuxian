@@ -1,0 +1,271 @@
+{
+	"authority": "local_prototype_only",
+	"catalogue_version": "pixel-equipment-v1",
+	"combat": {
+		"basic_hit_mp_regen": 5,
+		"bosses": [
+			{
+				"id": "b00",
+				"tier": 10.0
+			},
+			{
+				"id": "b01",
+				"tier": 10.0
+			},
+			{
+				"id": "b02",
+				"tier": 20.0
+			},
+			{
+				"id": "b03",
+				"tier": 20.0
+			},
+			{
+				"id": "b04",
+				"tier": 30.0
+			},
+			{
+				"id": "b05",
+				"tier": 30.0
+			},
+			{
+				"id": "b06",
+				"tier": 40.0
+			},
+			{
+				"id": "b07",
+				"tier": 40.0
+			},
+			{
+				"id": "b08",
+				"tier": 50.0
+			},
+			{
+				"id": "b09",
+				"tier": 50.0
+			},
+			{
+				"id": "b10",
+				"tier": 60.0
+			},
+			{
+				"id": "b11",
+				"tier": 60.0
+			},
+			{
+				"id": "b12",
+				"tier": 70.0
+			},
+			{
+				"id": "b13",
+				"tier": 70.0
+			},
+			{
+				"id": "b14",
+				"tier": 80.0
+			},
+			{
+				"id": "b15",
+				"tier": 80.0
+			},
+			{
+				"id": "b16",
+				"tier": 90.0
+			},
+			{
+				"id": "b17",
+				"tier": 90.0
+			},
+			{
+				"id": "b18",
+				"tier": 100.0
+			},
+			{
+				"id": "b19",
+				"tier": 100.0
+			}
+		],
+		"heal_unlock_distinct_clears": 2,
+		"named_boss_daily_limit": null,
+		"per_frame_network": false,
+		"practice_grants_progress": false,
+		"realm_step_distinct_bosses": 4,
+		"skill_costs": {
+			"dodge_stamina": 24,
+			"heal_mp": 45,
+			"shield_mp": 24,
+			"sword_mp": 18
+		}
+	},
+	"daily_reward": {
+		"cultivation": 10,
+		"days": 1,
+		"days_are_cumulative": true,
+		"group": "daily_plan",
+		"once_per_character_per_day": true,
+		"qi": 100,
+		"seals": 1,
+		"tasks": [
+			"medication",
+			"planned_record"
+		],
+		"timezone": "Asia/Shanghai"
+	},
+	"equipment": {
+		"bonuses_apply": "next_battle",
+		"cumulative_pity": false,
+		"high_score_weights": [
+			55.0,
+			30.0,
+			11.0,
+			3.5,
+			0.5
+		],
+		"keep_duplicate_instances": true,
+		"low_score_weights": [
+			35.0,
+			33.0,
+			22.0,
+			8.0,
+			2.0
+		],
+		"rarities": [
+			"普通",
+			"精良",
+			"史诗",
+			"传说",
+			"神话"
+		],
+		"sampling": "uniform_slot_then_uniform_template_in_slot",
+		"single_cost": 70,
+		"slots": [
+			"weapon",
+			"robe",
+			"boots",
+			"amulet"
+		],
+		"support": "1 - clamp(mean(clamp_each_initial_attribute_0_100), 0, 100) / 100",
+		"templates": [
+			{
+				"names": [
+					"青竹剑",
+					"听风剑",
+					"流云剑",
+					"太初剑",
+					"九霄神剑"
+				],
+				"slot": "weapon",
+				"stat": "attack",
+				"values": [
+					3,
+					6,
+					10,
+					16,
+					24
+				]
+			},
+			{
+				"names": [
+					"素布衣",
+					"云纹衣",
+					"玄羽袍",
+					"金霞仙衣",
+					"太虚神袍"
+				],
+				"slot": "robe",
+				"stat": "defense",
+				"values": [
+					3,
+					6,
+					10,
+					16,
+					24
+				]
+			},
+			{
+				"names": [
+					"护身衫",
+					"青玉衫",
+					"长生衣",
+					"不灭仙衣",
+					"万象神衣"
+				],
+				"slot": "robe",
+				"stat": "life",
+				"values": [
+					8,
+					16,
+					26,
+					40,
+					60
+				]
+			},
+			{
+				"names": [
+					"布履",
+					"踏风靴",
+					"逐月靴",
+					"凌霄仙履",
+					"踏虚神履"
+				],
+				"slot": "boots",
+				"stat": "stamina",
+				"values": [
+					5,
+					10,
+					15,
+					22,
+					30
+				]
+			},
+			{
+				"names": [
+					"凝气佩",
+					"凝神佩",
+					"星河佩",
+					"天元仙佩",
+					"混元神佩"
+				],
+				"slot": "amulet",
+				"stat": "spirit",
+				"values": [
+					5,
+					10,
+					15,
+					22,
+					30
+				]
+			}
+		],
+		"ten_cost": 700,
+		"ten_guarantee": {
+			"minimum_rarity_index": 2,
+			"upgrade_last_only_if_all_below_minimum": true
+		},
+		"weights": "lerp(high_score_weights, low_score_weights, support)"
+	},
+	"family": {
+		"companion_scope": "account",
+		"max_elders": 2,
+		"owner_count": 1,
+		"resources_per_character": true
+	},
+	"resources": {
+		"legacy_qi": {
+			"local_path": "qi",
+			"separate_from_wish_qi": true
+		},
+		"seals": {
+			"local_path": "seals",
+			"scope": "character"
+		},
+		"wish_qi": {
+			"initial": 0,
+			"local_path": "equipment.qi",
+			"mapping_requires_c_approval": true,
+			"proposed_c_field": "spirit_stones"
+		}
+	},
+	"rules_version": "pixel-local-v1",
+	"schema_version": 1
+}

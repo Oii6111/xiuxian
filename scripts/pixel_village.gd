@@ -1,12 +1,23 @@
 extends Node2D
 
 const State = preload("res://scripts/game_state.gd")
+const FamilyRoster = preload("res://scripts/family_roster.gd")
 const Player = preload("res://scripts/pixel_player.gd")
-const Interface = preload("res://scripts/pixel_campaign/village_ui.gd")
+const Interface = preload("res://scripts/gameplay_interface.gd")
 const Assets = preload("res://scripts/pixel_assets.gd")
 const Effects = preload("res://scripts/pixel_effects.gd")
+@export var interface_override: Script
 const SPAWN = Vector2(681, 565)
 var state = State.new()
+var family = FamilyRoster.new()
+var account_api: Node
+var account_ready = false
+var companion_api: Node
+var companion_actor: Node2D
+var companion_tasks: Node
+var account_cache_root_override = ""
+var account_legacy_source_override = ""
+var pending_account_roster: RefCounted
 var player: CharacterBody2D
 var ui: Control
 var font: SystemFont
@@ -30,10 +41,20 @@ func _ready() -> void:
 	title_font = SystemFont.new()
 	title_font.font_names = PackedStringArray(["KaiTi", "STKaiti", "SimSun"])
 	_setup_inputs()
-	if not "--preview" in OS.get_cmdline_user_args():
-		state.load_game()
+	family.persist_enabled = false
+	family.save_file_override = state.save_file_override
+	if not state.health_profile_id.is_empty() or state.profile_created:
+		family.adopt_legacy(state)
 	else:
-		state.persist_enabled = false
+		state = family.owner_state
+	account_ready = "--preview" in OS.get_cmdline_user_args() or "--skip-intro" in OS.get_cmdline_user_args()
+	account_api = Node.new()
+	account_api.set_script(preload("res://scripts/account_client.gd"))
+	add_child(account_api)
+	companion_api = Node.new()
+	companion_api.set_script(preload("res://scripts/companion_client.gd"))
+	companion_api.game = self
+	add_child(companion_api)
 	if "--female" in OS.get_cmdline_user_args():
 		state.avatar_id = "female"
 		state.player_name = "清岚"
@@ -46,10 +67,20 @@ func _ready() -> void:
 	var layer = CanvasLayer.new()
 	add_child(layer)
 	ui = Control.new()
-	ui.set_script(Interface)
+	ui.set_script(interface_override if interface_override != null else Interface)
 	ui.game = self
 	layer.add_child(ui)
 	ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	companion_actor = Node2D.new()
+	companion_actor.set_script(preload("res://scripts/companion_actor.gd"))
+	companion_actor.game = self
+	add_child(companion_actor)
+	companion_tasks = Node.new()
+	companion_tasks.set_script(preload("res://scripts/companion_task_client.gd"))
+	companion_tasks.game = self
+	add_child(companion_tasks)
+	if "--wechat-link-demo" in OS.get_cmdline_user_args():
+		_setup_wechat_demo.call_deferred()
 	_handle_capture.call_deferred()
 
 func _setup_inputs() -> void:
@@ -81,21 +112,39 @@ func _build_background() -> void:
 	add_child(effects)
 
 func _load_sprites() -> void:
-	avatar_frames["male"] = Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4)
-	avatar_frames["female"] = Assets.frames("res://assets/gameplay/female-walk.png", 4, 4)
+	avatar_frames["male"] = Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4, 0.2)
+	avatar_frames["female"] = Assets.frames("res://assets/gameplay/female-walk-v2.png", 4, 4, 0.2)
 	walk_textures = avatar_frames[state.avatar_id]
 	portrait = Assets.portrait(walk_textures[0])
 
+
 func apply_avatar(id: String, nickname: String) -> void:
+	var before_avatar = state.avatar_id
+	var before_name = state.player_name
+	var before_identity = state.family_identity.duplicate(true)
+	var before_created = state.profile_created
 	state.choose_avatar(id, nickname)
+	if not state.save_game():
+		state.avatar_id = before_avatar
+		state.player_name = before_name
+		state.family_identity = before_identity
+		state.profile_created = before_created
+		ui.toast("形象保存失败，已保留原来的角色。")
+	sync_avatar_from_state()
+	ui.refresh()
+
+func sync_avatar_from_state() -> void:
 	walk_textures = avatar_frames[state.avatar_id]
 	portrait = Assets.portrait(walk_textures[0])
 	player.walk_textures = walk_textures
 	player.sprite.texture = walk_textures[0]
 	player.facing = 0
 	player_name_label.text = state.player_name
-	state.save_game()
-	ui.refresh()
+
+func _exit_tree() -> void:
+	family.dispose()
+	if pending_account_roster != null:
+		pending_account_roster.dispose()
 
 func _build_roads() -> void:
 	# Main plaza and house steps, measured against the clean 1440x900 background.
@@ -107,10 +156,10 @@ func _build_roads() -> void:
 	roads.append(_corridor([Vector2(781, 600), Vector2(850, 632), Vector2(939, 668), Vector2(1024, 698), Vector2(1101, 670), Vector2(1167, 651)], 27))
 	roads.append(_corridor([Vector2(1144, 665), Vector2(1160, 605), Vector2(1193, 560), Vector2(1222, 509), Vector2(1256, 456), Vector2(1289, 405)], 33))
 	roads.append(PackedVector2Array([Vector2(1194, 375), Vector2(1255, 352), Vector2(1353, 367), Vector2(1350, 419), Vector2(1284, 450), Vector2(1224, 433)]))
-	var points = [SPAWN, Vector2(530, 521), Vector2(402, 480), Vector2(717, 434), Vector2(752, 366), Vector2(794, 316), Vector2(819, 256), Vector2(857, 206), Vector2(781, 600), Vector2(850, 632), Vector2(939, 668), Vector2(1024, 698), Vector2(1144, 665), Vector2(1160, 605), Vector2(1193, 560), Vector2(1222, 509), Vector2(1256, 456), Vector2(1289, 405)]
+	var points = [SPAWN, Vector2(530, 521), Vector2(402, 480), Vector2(717, 434), Vector2(752, 366), Vector2(794, 316), Vector2(819, 256), Vector2(857, 206), Vector2(781, 600), Vector2(850, 632), Vector2(939, 668), Vector2(1024, 698), Vector2(1144, 665), Vector2(1160, 605), Vector2(1193, 560), Vector2(1222, 509), Vector2(1256, 456), Vector2(1289, 405), Vector2(275, 503)]
 	for i in range(points.size()):
 		navigation.add_point(i, points[i])
-	for edge in [[0, 1], [1, 2], [0, 3], [3, 4], [4, 5], [5, 6], [6, 7], [0, 8], [8, 9], [9, 10], [10, 11], [11, 12], [12, 13], [13, 14], [14, 15], [15, 16], [16, 17]]:
+	for edge in [[0, 1], [1, 2], [0, 3], [3, 4], [4, 5], [5, 6], [6, 7], [0, 8], [8, 9], [9, 10], [10, 11], [11, 12], [12, 13], [13, 14], [14, 15], [15, 16], [16, 17], [2, 18]]:
 		navigation.connect_points(edge[0], edge[1])
 	# A real physics obstruction along the family home's facade.
 	var body = StaticBody2D.new()
@@ -146,13 +195,20 @@ func can_walk(point: Vector2) -> bool:
 
 func _build_sites() -> void:
 	sites = [
-		{"id": "home", "title": "家族洞府", "position": Vector2(402, 480), "node": 2, "label": Vector2(340, 287)},
-		{"id": "battle", "title": "渡劫台", "position": Vector2(857, 206), "node": 7, "label": Vector2(934, 110)},
-		{"id": "boss", "title": "世界首领", "position": Vector2(1289, 405), "node": 17, "label": Vector2(1366, 264)},
-		{"id": "records", "title": "天机碑", "position": Vector2(1144, 665), "node": 12, "label": Vector2(1170, 487)}
+		{"id": "home", "title": "健康档案", "position": Vector2(402, 480), "node": 2, "label": Vector2(340, 287)},
+		{"id": "battle", "title": "演武台", "position": Vector2(857, 206), "node": 7, "label": Vector2(934, 110)},
+		{"id": "boss", "title": "属性试炼", "position": Vector2(1289, 405), "node": 17, "label": Vector2(1366, 264)},
+		{"id": "records", "title": "天机碑", "position": Vector2(1144, 665), "node": 12, "label": Vector2(1170, 487)},
+		{"id": "gacha", "title": "聚宝阁", "position": Vector2(275, 503), "node": 18, "label": Vector2(155, 451)}
 	]
+	var treasure_stand = Node2D.new()
+	treasure_stand.name = "TreasureStand"
+	treasure_stand.set_script(preload("res://scripts/treasure_stand.gd"))
+	treasure_stand.position = Vector2(275, 485)
+	treasure_stand.z_index = 480
+	add_child(treasure_stand)
 	for site in sites:
-		var vertical = site.id != "home"
+		var vertical = site.id not in ["home", "gacha"]
 		var plaque = PanelContainer.new()
 		plaque.position = site.label
 		plaque.z_index = 1200
@@ -315,6 +371,30 @@ func _handle_capture() -> void:
 	for arg in args:
 		if arg.begins_with("--capture="):
 			await get_tree().create_timer(1.0).timeout
+			if "--preview" in args and ("--show-family" in args or "--show-family-form" in args or "--show-family-health" in args):
+				var father = family.add_member({"name": "张建国", "age": 68, "sex": "男", "relation": "父亲", "title": "青松真人", "avatar": "male", "mode": "family", "consent": true})
+				var father_state = family.state_for(father.id)
+				father_state.apply_health_profile(father_state.HealthProfile.mock(40, 1))
+				father_state.record_task("planned_record", true)
+				father_state.complete_boss("b00", {"time": 36})
+				family.add_member({"name": "李秀兰", "age": 65, "sex": "女", "relation": "母亲", "title": "云霞仙子", "avatar": "female", "mode": "family", "consent": true})
+				family.select_member(father.id)
+				state = father_state
+				sync_avatar_from_state()
+				ui.refresh()
+				ui.open_family()
+				if "--show-family-form" in args:
+					ui.family_panel.show_form(father.id)
+				if "--show-family-health" in args:
+					ui.activate_family(family.members[1].id, true)
+			if "--show-login" in args:
+				ui.open_login()
+			if "--show-register" in args:
+				ui.open_login()
+				ui.account_panel.register_mode = true
+				ui.account_panel.build()
+			if "--show-family-empty" in args:
+				ui.open_family()
 			if "--show-start" in args:
 				ui.show_start()
 			if "--show-record" in args:
@@ -322,6 +402,24 @@ func _handle_capture() -> void:
 			if "--show-recovery" in args:
 				state.begin_recovery(true)
 				ui.open_recovery()
+			if "--show-health-entry" in args:
+				ui.open_health_entry()
+			if "--show-profile" in args:
+				ui.open_home()
+			if "--show-stages" in args or "--show-corridor" in args:
+				ui.open_boss()
+				for option in args:
+					if option.begins_with("--corridor-index="):
+						ui.corridor.focus_boss(int(option.trim_prefix("--corridor-index=")))
+			if "--show-arena" in args:
+				var requested_boss = "b00"
+				for option in args:
+					if option.begins_with("--boss-id="):
+						requested_boss = option.trim_prefix("--boss-id=")
+				ui.start_corridor_boss(requested_boss)
+			if "--show-unlocked" in args:
+				state.complete_stage("attack", 10)
+				state.complete_stage("attack", 20)
 			if "--show-battle" in args:
 				ui.start_battle()
 				ui.combat.use_skill(2)
@@ -333,8 +431,62 @@ func _handle_capture() -> void:
 				ui.combat.rules.target_position = ui.combat.hero.position
 				await get_tree().create_timer(0.2).timeout
 				ui.combat.use_skill(0)
+			if "--show-skills" in args:
+				ui.start_boss(false)
+				ui.combat.hero.position = Vector2(835, 610)
+				ui.combat.rules.phase = "windup"
+				ui.combat.rules.target_position = Vector2(835, 610)
+				ui.combat.use_skill(2)
+				ui.combat.use_skill(0)
+			if "--show-heal" in args:
+				ui.start_boss(false)
+				ui.combat.rules.hp -= 180
+				ui.combat.use_skill(3)
+			if "--show-treasure" in args or "--show-treasure-results" in args or "--show-equipment" in args:
+				if state.health_profile_id.is_empty():
+					state.apply_health_profile(state.HealthProfile.mock(40, 1))
+				if "--preview" in args and ("--show-treasure-results" in args or "--show-equipment" in args):
+					state.equipment.qi = 700
+					state.equipment_rng.seed = 20261031
+					state.draw_equipment(10, "preview-ten")
+					state.equip_item(state.equipment.inventory[0].id)
+				ui.open_treasure("bag" if "--show-equipment" in args else "wish")
+				if "--show-equipment" in args:
+					ui.treasure.selected_id = state.equipment.inventory[0].id
+					ui.treasure.build()
+			if "--show-companion-choice" in args:
+				ui.open_companion(true)
+			if "--show-companion-map" in args or "--show-companion-chat" in args:
+				family.choose_companion("gourd_dragon", "团团")
+				companion_actor.refresh_pet()
+				ui.refresh()
+				if "--show-companion-chat" in args:
+					ui.open_companion()
+					ui.companion_panel.send_message("下一步做什么？")
+					await get_tree().process_frame
 			if "--show-reward" in args:
-				ui.open_reward("家人的坚持，化作你的守护。\n修为 +10  ·  灵气 +4  ·  守护符 +1  ·  灵印 +1")
+				ui.open_reward("家人的坚持，化作你的守护。\n修为 +10  ·  灵印 +1")
 			await get_tree().process_frame
 			await capture(arg.trim_prefix("--capture="))
 			get_tree().quit()
+
+func _setup_wechat_demo() -> void:
+	# Explicit preview flag: synthetic family, no writes to player saves or accounts.
+	family.persist_enabled = false
+	account_api.allow_autostart = false
+	if family.state_for("wechat-demo-father") == null:
+		var demo = State.new()
+		demo.cultivation = 0
+		demo.seals = 0
+		demo.days = 0
+		demo.medication_required = false
+		demo.choose_avatar("male", "联调守护者")
+		family.bind_state("wechat-demo-father", {"name": "演示家人", "relation": "父亲", "age": 68, "sex": "男", "mode": "family", "consent": true}, demo)
+	family.active_id = "wechat-demo-father"
+	state = family.active_state()
+	family.choose_companion("gourd_dragon", "团团")
+	sync_avatar_from_state()
+	companion_actor.refresh_pet()
+	ui.refresh()
+	companion_tasks.refresh_now()
+	ui.open_companion()

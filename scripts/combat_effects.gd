@@ -1,4 +1,5 @@
 extends Node2D
+## Pixel-snapped 2D ink, cloud and jade effects; no 3D resources.
 var view: Control
 
 func _process(_delta: float) -> void:
@@ -6,92 +7,101 @@ func _process(_delta: float) -> void:
 
 func ellipse(center: Vector2, radius: Vector2, color: Color, width: float = 2) -> void:
 	var points = PackedVector2Array()
-	for i in range(65):
-		var angle = i * TAU / 64
-		points.append((center + Vector2(cos(angle), sin(angle)) * radius).snapped(Vector2(2, 2)))
+	for i in range(49):
+		var angle = i * TAU / 48
+		points.append((center + Vector2(cos(angle), sin(angle)) * radius).snapped(Vector2(3, 3)))
 	draw_polyline(points, color, width)
 
-func bolt(from: Vector2, to: Vector2, color: Color, seed_value: float, width: float = 3) -> void:
+func cloud(center: Vector2, scale_value: float, alpha: float) -> void:
+	for i in range(3):
+		var points = PackedVector2Array()
+		for j in range(20):
+			var angle = j * TAU / 19
+			var radius = 4 + j * 0.75
+			points.append((center + Vector2((i - 1) * 20 + cos(angle) * radius, sin(angle) * radius * 0.6) * scale_value).snapped(Vector2(3, 3)))
+		draw_polyline(points, Color(0.72, 0.94, 0.9, alpha), 3)
+
+func bolt(from: Vector2, to: Vector2, time: float) -> void:
 	var points = PackedVector2Array()
 	for i in range(13):
 		var point = from.lerp(to, i / 12.0)
 		if i > 0 and i < 12:
-			point.x += sin(i * 31.3 + seed_value) * 39
-		points.append(point.snapped(Vector2(2, 2)))
-	draw_polyline(points, Color(color, 0.16), width * 5)
-	draw_polyline(points, color, width)
-	draw_polyline(points, Color("fffbdc"), 1.5)
+			point.x += sin(i * 31.3 + floor(time * 20)) * 28
+		points.append(point.snapped(Vector2(3, 3)))
+	draw_polyline(points, Color(0.7, 0.38, 0.9, 0.2), 18)
+	draw_polyline(points, Color(view.encounter.color).lightened(0.25) if not view.encounter.is_empty() else Color("d69df0"), 4)
 
 func _draw() -> void:
-	if not is_instance_valid(view):
+	if not is_instance_valid(view) or not is_instance_valid(view.hero):
 		return
+	var rules = view.rules
 	var time: float = view.clock
 	var hero: Vector2 = view.hero.position
-	if view.mode == "tribulation":
-		var center = Vector2(895, 553)
-		ellipse(center, Vector2(210, 66), Color(1, 0.79, 0.3, 0.6))
-		for i in range(24):
-			var angle = i * TAU / 24 + time * 0.12
-			var p = center + Vector2(cos(angle) * 205, sin(angle) * 65)
-			draw_rect(Rect2(p.snapped(Vector2(2, 2)), Vector2(4, 4)), Color("ffe49c"))
-		if view.shield_visual > 0 or view.rules.shield > 0:
-			var dome = PackedVector2Array()
-			for i in range(49):
-				var angle = PI + i * PI / 48
-				dome.append((center + Vector2(cos(angle) * 210, sin(angle) * 210)).snapped(Vector2(2, 2)))
-			var fill = dome.duplicate()
-			draw_colored_polygon(fill, Color(1, 0.77, 0.22, 0.1))
-			draw_polyline(dome, Color(1, 0.8, 0.25, 0.25), 13)
-			draw_polyline(dome, Color("ffdd7b"), 4)
-			ellipse(center, Vector2(210, 54), Color("ffdf85"), 3)
-			for ratio in [-0.7, -0.35, 0.35, 0.7]:
-				var curve = PackedVector2Array()
-				for j in range(25):
-					var t = j / 24.0
-					curve.append(center + Vector2(ratio * 210 * sqrt(1 - t * t), -210 * t))
-				draw_polyline(curve, Color(1, 0.86, 0.4, 0.35), 2)
-			for x in [-140, -70, 0, 70, 140]:
-				var y = -sqrt(210 * 210 - x * x)
-				var p = center + Vector2(x, y)
-				draw_rect(Rect2(p - Vector2(4, 4), Vector2(8, 8)), Color("fff0b5"), false, 2)
-		if view.lightning_visual > 0:
-			var end = Vector2(895, 341) if view.shield_visual > 0 or view.rules.shield > 0 else Vector2(895, 469)
-			bolt(Vector2(930, -20), end, Color("ffdf7d"), floor(time * 18), 6)
-			bolt(Vector2(690, -15), end, Color("88c6ff"), floor(time * 18) + 10, 2)
-		if view.cast_visual > 0:
-			bolt(hero + Vector2(35, -85), Vector2(810, 430), Color("83d1ff"), floor(time * 20), 2)
-			for i in range(4):
-				var p = hero + Vector2(40 + i * 18, -100 - sin(time * 5 + i) * 25)
-				draw_rect(Rect2(p.snapped(Vector2(2, 2)), Vector2(12, 21)), Color("efbd53"))
-				draw_line(p + Vector2(4, 4), p + Vector2(8, 16), Color("9f4b2d"), 2)
-	else:
-		var rules = view.rules
-		if rules.phase in ["windup", "breath"] and not rules.finished:
-			var target: Vector2 = rules.target_position
-			var end = target - Vector2(0, 65)
-			var area = PackedVector2Array()
-			for j in range(49):
-				var angle = j * TAU / 48
-				area.append(target + Vector2(cos(angle) * 90, sin(angle) * 55))
-			var color = Color(1, 0.23, 0.19, 0.21 + sin(time * 13) * 0.06)
-			draw_colored_polygon(area, color)
-			area.append(area[0])
-			draw_polyline(area, Color("ff7355"), 2)
-			if rules.phase == "breath":
-				for i in range(4):
-					bolt(Vector2(995, 315), end + Vector2(0, (i - 1.5) * 15), Color("cd6aff"), floor(time * 25) + i * 2, 4)
-		if rules.shield_time > 0:
-			ellipse(hero + Vector2(0, -73), Vector2(63, 80), Color("82ddff"), 4)
-			ellipse(hero + Vector2(0, -73), Vector2(69, 85), Color(0.5, 0.84, 1, 0.22), 7)
-		if rules.dodge_time > 0:
+	if rules.phase in ["windup", "breath"] and not rules.finished:
+		var target: Vector2 = rules.target_position
+		var area = PackedVector2Array()
+		for j in range(49):
+			var angle = j * TAU / 48
+			area.append((target + Vector2(cos(angle) * rules.attack_radius.x, sin(angle) * rules.attack_radius.y)).snapped(Vector2(2, 2)))
+		draw_colored_polygon(area, Color(1, 0.23, 0.19, 0.2 + sin(time * 13) * 0.06))
+		area.append(area[0])
+		draw_polyline(area, Color("ff7355"), 2)
+		if rules.phase == "breath":
 			for i in range(3):
-				ellipse(hero + Vector2(-i * 20, -35), Vector2(20, 30), Color(0.5, 0.8, 1, 0.4 - i * 0.1))
-		if view.cast_visual > 0:
-			var origin = hero + Vector2(45, -70)
-			var travel = 1 - view.cast_visual / 0.38
-			var center = origin.lerp(Vector2(1100, 400), clampf(travel, 0, 1))
-			draw_arc(center, 65, -1.2, 1.2, 24, Color(0.4, 0.8, 1, 0.25), 16)
-			draw_arc(center, 58, -1.2, 1.2, 24, Color("bdedff"), 5)
-	for i in range(12):
-		var p = Vector2(180 + i * 107, 500 + sin(i * 3.5 + time * 0.5) * 180)
-		draw_rect(Rect2(p.snapped(Vector2(2, 2)), Vector2(2, 2)), Color(1, 0.9, 0.5, 0.3))
+				bolt(view.boss_anchor + Vector2(-60, -view.boss_height * 0.55), target + Vector2(0, -65 + (i - 1) * 16), time + i)
+	# The jade buckle is a character detail, not an equipment system.
+	var jade = (hero + Vector2(10, -64)).snapped(Vector2(2, 2))
+	draw_rect(Rect2(jade - Vector2(8, 8), Vector2(16, 18)), Color("a4d6aa"))
+	draw_rect(Rect2(jade - Vector2(5, 5), Vector2(10, 12)), Color("416f5b"))
+	var active = rules.heal_cast > 0 or view.heal_visual > 0
+	var eye_color = Color("ffdf9c") if active else Color("bed7a6")
+	draw_rect(Rect2(jade + Vector2(-5, -3), Vector2(3, 3)), eye_color)
+	draw_rect(Rect2(jade + Vector2(3, -3), Vector2(3, 3)), eye_color)
+	draw_rect(Rect2(jade + Vector2(-2, 3), Vector2(5, 3)), Color("1f4239"))
+	if rules.shield_time > 0 and rules.shield_hp > 0:
+		var center = hero + Vector2(0, -74)
+		ellipse(center, Vector2(63, 83), Color("b4e5e3"), 4)
+		ellipse(center, Vector2(68, 88), Color(0.65, 0.9, 0.9, 0.2), 7)
+		for i in range(3):
+			var angle = time * 1.9 + i * TAU / 3
+			cloud(center + Vector2(cos(angle) * 58, sin(angle) * 73), 0.55, 0.9)
+		if view.shield_impact > 0:
+			ellipse(center, Vector2(74, 94) * (1.0 + (0.6 - view.shield_impact) * 0.3), Color(0.12, 0.3, 0.28, view.shield_impact), 5)
+	if view.shield_break_visual > 0:
+		var spread = (0.55 - view.shield_break_visual) * 95
+		for i in range(6):
+			var angle = i * TAU / 6
+			cloud(hero + Vector2(0, -70) + Vector2(cos(angle), sin(angle)) * (45 + spread), 0.45, view.shield_break_visual)
+	if view.dodge_visual > 0:
+		for i in range(4):
+			var point: Vector2 = view.dodge_origin.lerp(hero, i / 4.0)
+			cloud(point + Vector2(0, -16), 1.0 - i * 0.12, view.dodge_visual * (1.6 - i * 0.2))
+		cloud(hero + Vector2(0, 2), 1.2, view.dodge_visual * 1.8)
+	if view.cast_visual > 0:
+		var travel = 1.0 - view.cast_visual / view.cast_duration
+		var length = 720.0 if view.sword_visual else 120.0
+		var center: Vector2 = view.cast_origin + view.cast_direction * length * travel
+		var angle: float = view.cast_direction.angle()
+		var arc = PackedVector2Array()
+		for i in range(25):
+			var a = angle - 1.15 + i * 2.3 / 24
+			arc.append((center + Vector2(cos(a), sin(a)) * (68 if view.sword_visual else 47)).snapped(Vector2(3, 3)))
+		draw_polyline(arc, Color(0.18, 0.35, 0.3, 0.5), 15 if view.sword_visual else 8)
+		draw_polyline(arc, Color("8fd0b4"), 7 if view.sword_visual else 3)
+		if view.sword_visual:
+			draw_polyline(arc, Color("d0efd0"), 2)
+			for i in range(8):
+				var leaf = center + Vector2(sin(i * 2.2 + time * 8) * 60 - i * 12, (i - 4) * 13)
+				leaf = leaf.snapped(Vector2(3, 3))
+				draw_colored_polygon(PackedVector2Array([leaf, leaf + Vector2(12, -3), leaf + Vector2(21, 3), leaf + Vector2(9, 6)]), Color("6f9d79"))
+	if active:
+		var alpha = 0.85 if rules.heal_cast > 0 else view.heal_visual
+		for i in range(14):
+			var angle = i * TAU / 14 + time * 1.7
+			var radius = 20 + fmod(i * 11.0 + time * 55, 110)
+			var point = jade + Vector2(cos(angle) * radius, sin(angle) * radius * 0.7)
+			draw_rect(Rect2(point.snapped(Vector2(3, 3)), Vector2(4, 4)), Color(0.58, 0.91, 0.72, alpha))
+		cloud(hero + Vector2(0, -17), 1.4, alpha)
+		ellipse(jade, Vector2(20, 24), Color(1, 0.86, 0.58, alpha), 4)
+		if view.heal_visual > 0:
+			ellipse(hero + Vector2(0, -70), Vector2(55, 78), Color(0.72, 1, 0.75, view.heal_visual), 5)

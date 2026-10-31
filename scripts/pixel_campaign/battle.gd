@@ -72,7 +72,16 @@ func _ready() -> void:
 	_build_hud()
 	_update_actors()
 	_refresh()
+	var touch = get_node_or_null("/root/TouchControls")
+	if touch != null and touch.visible:
+		# 触屏模式下右侧按键由统一触控层绘制，战斗不再自建一排按钮。
+		touch.bind_battle(self)
 	set_process_input(true)
+
+func _exit_tree() -> void:
+	var touch = get_node_or_null("/root/TouchControls")
+	if touch != null:
+		touch.unbind_battle(self)
 
 func _setup_input() -> void:
 	for spec in [["realm_left",KEY_A,KEY_LEFT],["realm_right",KEY_D,KEY_RIGHT],["realm_up",KEY_W,KEY_UP],["realm_down",KEY_S,KEY_DOWN]]:
@@ -255,28 +264,57 @@ func _build_hud() -> void:
 	objective=_label(middle,"",15,Color("e5d5b9"))
 	_button(row,"暂歇  [Esc]",func():set_paused(true))
 	_button(row,"返回地图",func():set_paused(true))
-	var lower=_card(Rect2(18,728,316,155),self,DARK)
+	var touch_layout := _touch_layout()
+	var lower_rect := Rect2(18, 470, 316, 150) if touch_layout else Rect2(18, 728, 316, 155)
+	var lower=_card(lower_rect,self,DARK)
 	status=_label(lower,"",15,Color("ffebc5"))
 	health=_bar(lower,Color("8ac69b"),17)
 	energy=_bar(lower,Color("80bcd2"),12)
 	stamina=_bar(lower,Color("dfbc68"),12)
-	var action_row=HBoxContainer.new()
-	action_row.position=Vector2(356,752)
-	action_row.add_theme_constant_override("separation",10)
-	action_row.z_index=1100
-	add_child(action_row)
-	for i in range(5):
-		var action=i
-		var button=_button(action_row,"",func():perform_action(action),i==1)
-		button.custom_minimum_size=Vector2(202,68)
-		buttons.append(button)
+	var action_layer=Control.new()
+	action_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	action_layer.mouse_filter=Control.MOUSE_FILTER_IGNORE
+	action_layer.z_index=1100
+	add_child(action_layer)
+	if not touch_layout:
+		for i in range(5):
+			var action=i
+			var button=_button(action_layer,"",func():perform_action(action),i==1)
+			button.focus_mode=Control.FOCUS_NONE
+			button.position=Vector2(356+i*212,752)
+			button.size=Vector2(202,68)
+			button.custom_minimum_size=Vector2(202,68)
+			buttons.append(button)
 	hint=_label(self,"",18,Color("fff0cd"))
-	hint.position=Vector2(354,838)
-	hint.size=Vector2(1064,42)
+	if touch_layout:
+		hint.position=Vector2(24,148)
+		hint.size=Vector2(760,84)
+	else:
+		hint.position=Vector2(354,838)
+		hint.size=Vector2(1064,42)
 	hint.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
 	hint.add_theme_color_override("font_outline_color",DARK)
 	hint.add_theme_constant_override("outline_size",5)
 	hint.z_index=1200
+
+func _touch_layout() -> bool:
+	var touch = get_node_or_null("/root/TouchControls")
+	return touch != null and touch.visible
+
+func battle_action_state() -> Array:
+	## 给统一触控层用：冷却与禁用状态，顺序与 perform_action 的 action 编号一致。
+	if rules == null:
+		return []
+	var cds = [rules.attack_cd, rules.skill_cd, rules.guard_cd, rules.dash_cd, 0.0]
+	var out: Array = []
+	for i in range(5):
+		var disabled: bool = rules.finished or rules.paused or float(cds[i]) > 0
+		if i == 1 and rules.energy < 24:
+			disabled = true
+		if i == 3 and rules.stamina < 24:
+			disabled = true
+		out.append({"cooldown": float(cds[i]), "disabled": disabled})
+	return out
 
 func _refresh() -> void:
 	if rules == null or health == null:return
@@ -291,14 +329,15 @@ func _refresh() -> void:
 	boss_health.value=rules.boss_hp
 	boss_caption.text="%s  %d / %d%s" % [entry.name,ceili(rules.boss_hp),ceili(rules.boss_max)," · 散祟护阵" if rules.living_minions()>0 else (" · 护障尚存" if rules.remaining_nodes()>0 else " · 护障已解")]
 	objective.text=rules.objective_text()
-	hint.text="WASD / 方向键移动 · "+rules.hint
+	hint.text=("左侧摇杆移动 · 右侧按键出招 · "+rules.hint) if _touch_layout() else ("WASD / 方向键移动 · "+rules.hint)
 	var cds=[rules.attack_cd,rules.skill_cd,rules.guard_cd,rules.dash_cd,0.0]
 	var captions=["近身攻击 [J]",selected_skill+" [1]","定时护盾 [K]","闪避 [空格]","操作阵眼 [E]"]
 	for i in range(buttons.size()):
 		buttons[i].disabled=rules.finished or rules.paused or float(cds[i])>0
 		buttons[i].text=captions[i]+("\n冷却 %.1f 秒" % float(cds[i]) if float(cds[i])>0 else "\n"+["挥剑","消耗24真气","把握命中时机","消耗24体力","靠近发光印记"][i])
-	if rules.energy<24:buttons[1].disabled=true
-	if rules.stamina<24:buttons[3].disabled=true
+	if buttons.size() == 5:
+		if rules.energy<24:buttons[1].disabled=true
+		if rules.stamina<24:buttons[3].disabled=true
 	for i in range(node_labels.size()):
 		node_labels[i].text=("✓ "+str(rules.nodes[i].label)) if rules.nodes[i].done else str(rules.nodes[i].label)+" · E"
 

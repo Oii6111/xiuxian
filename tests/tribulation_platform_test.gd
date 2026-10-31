@@ -62,6 +62,8 @@ func _run() -> void:
 	scene.celebrated.connect(_on_celebrated)
 	root.add_child(scene)
 	await process_frame
+	expect(scene.background_texture != null and scene.cultivator_texture != null, "渡劫台加载真实背景和人物帧")
+	expect(scene._stage_buttons.size() == 5 and scene._state_buttons.size() == 4, "渡劫台操作区按流程分组")
 	# 没有服务端确认通道：明确失败，状态不变。
 	await scene.begin_tribulation()
 	expect(scene.status.contains("BACKEND_UNAVAILABLE") and scene.current_state() == "cultivating", "no authority means no local confirmation")
@@ -72,6 +74,7 @@ func _run() -> void:
 	expect(scene.lamps == 0, "lamps need an active tribulation")
 	await scene.begin_tribulation()
 	expect(scene.current_state() == "tribulation" and scene.status == "渡劫台亮起", "authority confirms tribulation")
+	expect(scene._strike_active > 0.0 and scene._strike_count > 0, "开启渡劫立即触发雷击视觉反馈")
 	scene.light_lamp()
 	scene.light_lamp()
 	expect(scene.lamps == 2 and scene.current_state() == "tribulation", "lamps are visual only and never change state")

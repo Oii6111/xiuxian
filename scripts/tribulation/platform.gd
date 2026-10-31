@@ -42,6 +42,7 @@ var _state_buttons: Dictionary = {}
 var _status_label: Label
 var _state_badge: Label
 var _strike_active: float = 0.0
+var _strike_phase: int = 0 # 0 idle, 1 warning, 2 impact, 3 recovery
 var _strike_count: int = 0
 var _visual_actor_anchor := Vector2(710, 548)
 
@@ -234,13 +235,27 @@ func _request_id(prefix: String) -> String:
 func _process(delta: float) -> void:
 	_clock += delta
 	_flash = maxf(0.0, _flash - delta)
-	_strike_active = maxf(0.0, _strike_active - delta)
-	if current_state() == "tribulation":
+	if _strike_phase == 1:
+		_strike_active = maxf(0.0, _strike_active - delta)
 		if _strike_active <= 0.0:
-			var interval := 2.4 + sin(_clock * 0.7) * 0.45
-			if fmod(_clock, interval) < delta:
-				_trigger_lightning()
-	else:
+			_strike_phase = 2
+			_strike_active = 0.24
+			_flash = 0.24
+	elif _strike_phase == 2:
+		_strike_active = maxf(0.0, _strike_active - delta)
+		if _strike_active <= 0.0:
+			_strike_phase = 3
+			_strike_active = 0.72
+	elif _strike_phase == 3:
+		_strike_active = maxf(0.0, _strike_active - delta)
+		if _strike_active <= 0.0:
+			_strike_phase = 0
+	if current_state() == "tribulation" and _strike_phase == 0:
+		var interval := 2.8 + sin(_clock * 0.7) * 0.5
+		if fmod(_clock, interval) < delta:
+			_trigger_lightning()
+	elif current_state() != "tribulation":
+		_strike_phase = 0
 		_strike_active = 0.0
 	queue_redraw()
 
@@ -477,8 +492,9 @@ func _refresh() -> void:
 
 func _trigger_lightning() -> void:
 	_strike_count += 1
-	_strike_active = 0.42
-	_flash = 0.42
+	_strike_phase = 1
+	_strike_active = 0.78
+	_flash = 0.0
 
 func _draw_panel(rect: Rect2, fill: Color, border: Color) -> void:
 	draw_rect(rect, fill)
@@ -486,33 +502,64 @@ func _draw_panel(rect: Rect2, fill: Color, border: Color) -> void:
 	draw_line(rect.position + Vector2(16, 52), Vector2(rect.end.x - 16, rect.position.y + 52), Color(border.r, border.g, border.b, 0.4), 1.0)
 
 func _draw_platform(center: Vector2) -> void:
+	var pulse := 0.0
+	if _strike_phase > 0:
+		pulse = 10.0 + sin(_clock * 10.0) * 5.0
 	draw_set_transform(center, 0.0, Vector2(1.55, 0.42))
-	draw_circle(Vector2.ZERO, 188.0, Color(0.02, 0.06, 0.12, 0.75))
-	draw_arc(Vector2.ZERO, 170.0, 0.0, TAU, 64, Color("f4c65d"), 7.0)
-	draw_arc(Vector2.ZERO, 128.0, 0.0, TAU, 64, Color("77ddff"), 4.0)
+	draw_circle(Vector2.ZERO, 188.0 + pulse, Color(0.02, 0.06, 0.12, 0.82))
+	draw_arc(Vector2.ZERO, 170.0 + pulse, 0.0, TAU, 64, Color("f4c65d"), 7.0)
+	draw_arc(Vector2.ZERO, 128.0 + pulse * 0.6, 0.0, TAU, 64, Color("77ddff"), 4.0)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	for index in range(8):
 		var angle := TAU * float(index) / 8.0 + _clock * 0.12
-		var point := center + Vector2(cos(angle) * 190.0, sin(angle) * 76.0)
+		var point := center + Vector2(cos(angle) * (190.0 + pulse), sin(angle) * (76.0 + pulse * 0.35))
 		draw_circle(point, 8.0 + sin(_clock * 3.0 + index) * 2.0, Color("ffd86b"))
+
+func _draw_storm_cloud() -> void:
+	if current_state() != "tribulation":
+		return
+	var cloud_alpha := 0.28 + sin(_clock * 1.2) * 0.05
+	for index in range(9):
+		var x := 390.0 + index * 82.0 + sin(_clock * 0.4 + index) * 9.0
+		var y := 142.0 + sin(_clock * 0.8 + index * 0.7) * 8.0
+		draw_circle(Vector2(x, y), 54.0 + (index % 3) * 10.0, Color(0.02, 0.05, 0.12, cloud_alpha))
+		draw_circle(Vector2(x + 30.0, y + 12.0), 40.0, Color(0.03, 0.08, 0.18, cloud_alpha * 0.9))
 
 func _draw_lightning(center: Vector2) -> void:
 	var target := center - Vector2(0, 155)
-	var wobble := sin(_clock * 17.0 + _strike_count) * 18.0
+	var target_ring := target + Vector2(0, 20)
+	if _strike_phase == 1:
+		# 预警阶段：雷云收束、目标圈锁定角色，让玩家先看懂雷要打在哪里。
+		draw_arc(target_ring, 72.0 + sin(_clock * 9.0) * 7.0, 0.0, TAU, 48, Color(0.44, 0.88, 1.0, 0.85), 4.0)
+		draw_arc(target_ring, 95.0 + sin(_clock * 7.0) * 8.0, 0.0, TAU, 48, Color(1.0, 0.74, 0.3, 0.35), 3.0)
+		draw_line(Vector2(target.x, 160), Vector2(target.x, target.y - 12), Color(0.52, 0.86, 1.0, 0.42), 3.0)
+		for branch in range(3):
+			var branch_x := target.x + (branch - 1) * 44.0
+			draw_line(Vector2(branch_x, 178), Vector2(target.x + (branch - 1) * 18.0, target.y - 20), Color(0.55, 0.75, 1.0, 0.28), 2.0)
+		return
+	var wobble := sin(_clock * 20.0 + _strike_count) * 14.0
 	var points := PackedVector2Array([
-		Vector2(center.x - 25.0 + wobble, 120), Vector2(center.x + 35.0, 205),
-		Vector2(center.x - 18.0, 255), Vector2(center.x + 28.0, 320), target
+		Vector2(center.x - 25.0 + wobble, 118), Vector2(center.x + 35.0, 195),
+		Vector2(center.x - 18.0, 245), Vector2(center.x + 28.0, 310), target
 	])
-	var alpha := 0.34 if _strike_active <= 0.0 else 0.98
-	draw_polyline(points, Color(0.35, 0.75, 1.0, alpha * 0.28), 18.0)
-	draw_polyline(points, Color(0.86, 0.96, 1.0, alpha), 5.0)
-	if _strike_active > 0.0:
-		draw_circle(target, 30.0 + _strike_active * 24.0, Color(0.7, 0.9, 1.0, _strike_active * 0.8))
-		draw_arc(target, 52.0, 0.0, TAU, 36, Color(1.0, 0.84, 0.42, _strike_active * 2.2), 5.0)
+	var alpha := 0.72 if _strike_phase == 3 else 1.0
+	draw_polyline(points, Color(0.35, 0.75, 1.0, alpha * 0.3), 22.0 if _strike_phase == 2 else 13.0)
+	draw_polyline(points, Color(0.86, 0.96, 1.0, alpha), 7.0 if _strike_phase == 2 else 4.0)
+	if _strike_phase == 2:
+		for branch in range(3):
+			var end_point := target + Vector2((branch - 1) * 58.0, 12.0 + branch * 8.0)
+			var branch_points := PackedVector2Array([target, target + Vector2((branch - 1) * 22.0, -36.0), end_point])
+			draw_polyline(branch_points, Color(0.72, 0.9, 1.0, 0.9), 3.0)
+		draw_circle(target, 44.0, Color(0.7, 0.9, 1.0, 0.45))
+		draw_arc(target, 70.0, 0.0, TAU, 40, Color(1.0, 0.84, 0.42, 0.95), 7.0)
+	elif _strike_phase == 3:
+		draw_circle(target, 30.0 + _strike_active * 22.0, Color(0.45, 0.83, 1.0, _strike_active * 0.38))
+		draw_arc(target, 52.0, 0.0, TAU, 36, Color(1.0, 0.84, 0.42, _strike_active), 4.0)
 
 func _draw_cultivator(center: Vector2) -> void:
 	var bob := sin(_clock * 2.2) * 3.0 if current_state() == "tribulation" else 0.0
-	var actor_center := center + Vector2(0, -112 + bob)
+	var impact_shake := sin(_clock * 70.0) * 13.0 if _strike_phase == 2 else 0.0
+	var actor_center := center + Vector2(impact_shake, -112 + bob)
 	if cultivator_texture != null:
 		var actor_size := Vector2(190, 190)
 		draw_texture_rect(cultivator_texture, Rect2(actor_center - Vector2(actor_size.x / 2.0, actor_size.y), actor_size), false, Color.WHITE)
@@ -524,9 +571,12 @@ func _draw_cultivator(center: Vector2) -> void:
 		draw_line(actor_center + Vector2(22, 43), actor_center + Vector2(35, 88), Color("d7e8ed"), 10.0)
 	if current_state() == "tribulation":
 		draw_arc(actor_center - Vector2(0, 55), 62.0 + sin(_clock * 2.0) * 5.0, 0.0, TAU, 48, Color(0.38, 0.9, 1.0, 0.8), 3.0)
-	if _strike_active > 0.0:
-		draw_circle(actor_center - Vector2(0, 64), 88.0, Color(1.0, 0.82, 0.45, _strike_active * 0.18))
-		draw_rect(Rect2(actor_center - Vector2(100, 190), Vector2(200, 210)), Color(1.0, 0.32, 0.27, _strike_active * 0.14))
+	if _strike_phase > 0:
+		var shield_alpha := 0.18 + sin(_clock * 8.0) * 0.05
+		draw_arc(actor_center - Vector2(0, 64), 88.0 + sin(_clock * 10.0) * 5.0, 0.0, TAU, 48, Color(0.45, 0.9, 1.0, shield_alpha + 0.35), 4.0)
+		if _strike_phase == 2:
+			draw_rect(Rect2(actor_center - Vector2(100, 190), Vector2(200, 210)), Color(1.0, 0.32, 0.27, 0.25))
+			draw_circle(actor_center - Vector2(0, 64), 102.0, Color(1.0, 0.95, 0.8, 0.16))
 
 func _draw() -> void:
 	var viewport := Rect2(Vector2.ZERO, size)
@@ -559,6 +609,7 @@ func _draw() -> void:
 	draw_string(_font, Vector2(58, 682), "灯火只代表陪伴，不改变渡劫结果", HORIZONTAL_ALIGNMENT_LEFT, 280, 13, Color("8ea5b8"))
 
 	var center := _visual_actor_anchor
+	_draw_storm_cloud()
 	_draw_platform(center)
 	_draw_cultivator(center)
 	if state == "tribulation":

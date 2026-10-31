@@ -59,6 +59,7 @@ func _run() -> void:
 	await platform.confirm_pending()
 	await platform.update_stage("admission")
 	await platform.update_stage("emergency")
+	await create_timer(0.82).timeout
 	platform.light_lamp()
 	platform.light_lamp()
 	await capture("tribulation")

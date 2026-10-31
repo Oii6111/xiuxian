@@ -74,7 +74,9 @@ func _run() -> void:
 	expect(scene.lamps == 0, "lamps need an active tribulation")
 	await scene.begin_tribulation()
 	expect(scene.current_state() == "tribulation" and scene.status == "渡劫台亮起", "authority confirms tribulation")
-	expect(scene._strike_active > 0.0 and scene._strike_count > 0, "开启渡劫立即触发雷击视觉反馈")
+	expect(scene._strike_active > 0.0 and scene._strike_count > 0 and scene._strike_phase == 1, "开启渡劫先进入雷击预警阶段")
+	await create_timer(0.82).timeout
+	expect(scene._strike_phase in [2, 3], "雷击预警后进入命中或余波阶段")
 	scene.light_lamp()
 	scene.light_lamp()
 	expect(scene.lamps == 2 and scene.current_state() == "tribulation", "lamps are visual only and never change state")

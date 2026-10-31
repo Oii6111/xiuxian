@@ -5,6 +5,7 @@ extends Control
 const LEVEL_SCENE = preload("res://scenes/combat/level.tscn")
 const PLATFORM_SCENE = preload("res://scenes/tribulation/platform.tscn")
 const DemoKernel = preload("res://scripts/combat/demo_kernel.gd")
+const Assets = preload("res://scripts/pixel_assets.gd")
 var demo_authority: bool = "--demo-authority" in OS.get_cmdline_user_args()
 var current: Control = null
 var _demo: Node = null
@@ -75,6 +76,11 @@ func open(kind: String) -> bool:
 			scene.allies_enabled = true
 		"platform":
 			scene = PLATFORM_SCENE.instantiate()
+			scene.background_texture = load("res://assets/gameplay/tribulation-stage.png")
+			var demo_frames := Assets.frames("res://assets/combat_animations/hero_male_runtime_v1.png", 4, 4, 0.05, true)
+			if not demo_frames.is_empty():
+				scene.cultivator_texture = demo_frames[mini(0, demo_frames.size() - 1)]
+			scene.cultivator_name = "演示渡劫者"
 			if demo_authority:
 				_demo = DemoKernel.new()
 				add_child(_demo)
@@ -86,8 +92,9 @@ func open(kind: String) -> bool:
 				scene.kernel = _demo
 				var banner := Label.new()
 				banner.text = "演示替身确认，非真实家属确认"
-				banner.position = Vector2(60, 170)
-				banner.add_theme_color_override("font_color", Color(1.0, 0.6, 0.4))
+				banner.position = Vector2(390, 90)
+				banner.add_theme_font_size_override("font_size", 14)
+				banner.add_theme_color_override("font_color", Color(1.0, 0.72, 0.42))
 				scene.add_child(banner)
 		_:
 			return false

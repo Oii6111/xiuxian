@@ -428,6 +428,7 @@ func open_recovery() -> void:
 	lifecycle_panel.background_texture = Assets.texture("res://assets/gameplay/tribulation-stage.png")
 	lifecycle_panel.cultivator_texture = game.walk_textures[8]
 	lifecycle_panel.cultivator_id = role_id
+	lifecycle_panel.cultivator_name = game.state.player_name
 	var record: Dictionary = game.state.lifecycle_record()
 	lifecycle_panel.lamps = int(record.lamps)
 	if not str(record.template_id).is_empty():
@@ -890,4 +891,6 @@ func start_companion_practice() -> void:
 	_open_combat("practice")
 	if is_instance_valid(combat) and combat.mode == "practice":
 		combat.enable_companion()
+
+
 

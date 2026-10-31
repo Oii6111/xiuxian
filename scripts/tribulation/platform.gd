@@ -3,12 +3,13 @@ extends Control
 ## 所有状态迁移都走 GameKernel 的 lifecycle.* 命令；没有服务端确认通道时明确显示失败，不在本地伪造确认。
 ## 护法只影响画面与留言，不影响渡劫结果；到达出院阶段不会自动结算，庆典必须另行确认。
 const Rules = preload("res://scripts/systems/lifecycle/lifecycle_rules.gd")
+const Assets = preload("res://scripts/pixel_assets.gd")
 ## 仅用于显示的中文名称；规则与命令仍使用英文标识。
 const STATE_NAMES: Dictionary = {"cultivating": "修行", "tribulation": "渡劫", "seclusion": "闭关", "ascended": "飞升"}
 const STAGE_NAMES: Dictionary = {
-	"admission": "入院", "emergency": "急诊处置", "monitoring": "监护观察", "ward": "转入普通病房", "discharge": "出院",
-	"preop": "术前准备", "surgery": "手术", "recovery": "术后恢复",
-	"acute": "加重期", "stable": "稳定期", "improving": "好转"
+	"admission": "引雷入阵", "emergency": "天雷淬体", "monitoring": "守心渡劫", "ward": "雷息调养", "discharge": "劫后归元",
+	"preop": "凝神备战", "surgery": "破境淬体", "recovery": "灵台回稳",
+	"acute": "雷势加剧", "stable": "稳住心神", "improving": "劫云渐散"
 }
 signal celebrated(cultivator_id: String)
 signal lamps_changed(count: int)
@@ -19,6 +20,7 @@ var quiet_background_texture: Texture2D
 var background_texture: Texture2D
 var cultivator_texture: Texture2D
 var cultivator_id: String = "c_demo"
+var cultivator_name: String = "渡劫者"
 var template_id: String = "cardio"
 var kernel: Node
 var lamps: int = 0
@@ -37,11 +39,24 @@ var _font: SystemFont
 var _stage_buttons: Array = []
 var _template_selector: OptionButton
 var _state_buttons: Dictionary = {}
+var _status_label: Label
+var _state_badge: Label
+var _strike_active: float = 0.0
+var _strike_count: int = 0
+var _visual_actor_anchor := Vector2(710, 548)
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_font = SystemFont.new()
+	_font.fallbacks = [preload("res://assets/fonts/NotoSansSC-Regular.otf")]
 	_font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "KaiTi"])
+	if background_texture == null:
+		background_texture = load("res://assets/gameplay/tribulation-stage.png")
+	if cultivator_texture == null:
+		var frames := Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4, 0.05, true)
+		if not frames.is_empty():
+			cultivator_texture = frames[0]
 	if kernel == null:
 		kernel = get_node_or_null("/root/GameKernel")
 	var current: Dictionary = _entry()
@@ -51,46 +66,88 @@ func _ready() -> void:
 	_refresh()
 
 func _build_controls() -> void:
-	var column := VBoxContainer.new()
-	column.position = Vector2(60, 720)
-	column.size.x = 1320
-	column.add_theme_constant_override("separation", 12)
-	add_child(column)
-	var row := HFlowContainer.new()
-	row.add_theme_constant_override("h_separation", 12)
-	column.add_child(row)
-	for stage in Rules.TEMPLATES[template_id].stages:
+	# 视觉布局固定为：左侧流程、中央渡劫台、右侧角色状态；操作按钮不再堆在画面底部。
+	var title := Label.new()
+	title.text = "渡劫台"
+	title.position = Vector2(48, 25)
+	title.add_theme_font_override("font", _font)
+	title.add_theme_font_size_override("font_size", 36)
+	title.add_theme_color_override("font_color", Color("f7e2ae"))
+	add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = "让角色站上法阵，承受天雷，守住心神"
+	subtitle.position = Vector2(52, 70)
+	subtitle.add_theme_font_override("font", _font)
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", Color("bfd3e7"))
+	add_child(subtitle)
+
+	_template_selector = OptionButton.new()
+	_template_selector.position = Vector2(58, 150)
+	_template_selector.size = Vector2(292, 42)
+	_template_selector.add_theme_font_override("font", _font)
+	_template_selector.add_theme_font_size_override("font_size", 16)
+	for key in Rules.TEMPLATES:
+		_template_selector.add_item(Rules.TEMPLATES[key].title)
+		_template_selector.set_item_metadata(_template_selector.item_count - 1, key)
+	var initial_index: int = Rules.TEMPLATES.keys().find(template_id)
+	_template_selector.select(maxi(0, initial_index))
+	_template_selector.item_selected.connect(func(index: int) -> void:
+		if current_state() != "cultivating":
+			status = "渡劫期间不能更换雷劫模板"
+			_refresh()
+			return
+		template_id = str(_template_selector.get_item_metadata(index))
+		template_chosen.emit(template_id)
+		_rebuild_stage_buttons()
+		_refresh()
+	)
+	add_child(_template_selector)
+
+	_status_label = Label.new()
+	_status_label.position = Vector2(1100, 146)
+	_status_label.size = Vector2(278, 44)
+	_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_status_label.add_theme_font_override("font", _font)
+	_status_label.add_theme_font_size_override("font_size", 13)
+	_status_label.max_lines_visible = 2
+	_status_label.add_theme_color_override("font_color", Color("f4dfad"))
+	add_child(_status_label)
+	_state_badge = Label.new()
+	_state_badge.position = Vector2(1100, 250)
+	_state_badge.size = Vector2(278, 32)
+	_state_badge.add_theme_font_override("font", _font)
+	_state_badge.add_theme_font_size_override("font_size", 22)
+	_state_badge.add_theme_color_override("font_color", Color("8ee7ff"))
+	add_child(_state_badge)
+
+	_rebuild_stage_buttons()
+	var actions: Array = [
+		["开启渡劫", "begin", true], ["痊愈归元", "celebrate", false],
+		["闭关 / 出关", "seclusion", false], ["羽化飞升", "ascend", false],
+		["护法点灯", "lamp", false], ["重试上次操作", "retry", false],
+		["保存庆典卡片", "share", false], ["返回修行", "back", false]
+	]
+	for index in range(actions.size()):
+		var item: Array = actions[index]
 		var button := Button.new()
-		button.text = STAGE_NAMES.get(stage, stage)
-		button.pressed.connect(func() -> void: update_stage(stage))
-		row.add_child(button)
-		_stage_buttons.append(button)
-	var actions := HFlowContainer.new()
-	actions.add_theme_constant_override("h_separation", 12)
-	column.add_child(actions)
-	for item in [["开启渡劫", "begin"], ["痊愈出院", "celebrate"], ["闭关 / 出关", "seclusion"], ["羽化飞升", "ascend"]]:
-		var button := Button.new()
-		button.text = item[0]
-		var action: String = item[1]
-		_state_buttons[action] = button
-		button.pressed.connect(func() -> void: request_confirmation(action))
-		actions.add_child(button)
-	var lamp := Button.new()
-	lamp.text = "护法点灯"
-	lamp.pressed.connect(light_lamp)
-	actions.add_child(lamp)
-	var retry := Button.new()
-	retry.text = "重试上次操作"
-	retry.pressed.connect(func() -> void: request_confirmation(_last_action))
-	actions.add_child(retry)
-	var share := Button.new()
-	share.text = "保存庆典卡片"
-	share.pressed.connect(export_card)
-	actions.add_child(share)
-	var back := Button.new()
-	back.text = "返回"
-	back.pressed.connect(func() -> void: left.emit())
-	actions.add_child(back)
+		button.text = str(item[0])
+		button.position = Vector2(1090, 330 + index * 50)
+		button.size = Vector2(292, 42)
+		button.add_theme_font_override("font", _font)
+		button.add_theme_font_size_override("font_size", 16)
+		_style_button(button, bool(item[2]))
+		var action: String = str(item[1])
+		match action:
+			"lamp": button.pressed.connect(light_lamp)
+			"retry": button.pressed.connect(func() -> void: request_confirmation(_last_action))
+			"share": button.pressed.connect(export_card)
+			"back": button.pressed.connect(func() -> void: left.emit())
+			_: button.pressed.connect(func() -> void: request_confirmation(action))
+		if action in ["begin", "celebrate", "seclusion", "ascend"]:
+			_state_buttons[action] = button
+		add_child(button)
+
 	_dialog = ConfirmationDialog.new()
 	_dialog.title = "家属确认"
 	_dialog.get_ok_button().text = "确认"
@@ -98,25 +155,41 @@ func _build_controls() -> void:
 	_dialog.confirmed.connect(confirm_pending)
 	_dialog.canceled.connect(cancel_pending)
 	add_child(_dialog)
-	var templates := OptionButton.new()
-	_template_selector = templates
-	templates.position = Vector2(60, 120)
-	for key in Rules.TEMPLATES:
-		templates.add_item(Rules.TEMPLATES[key].title)
-		templates.set_item_metadata(templates.item_count - 1, key)
-	var initial_index: int = Rules.TEMPLATES.keys().find(template_id)
-	templates.select(maxi(0, initial_index))
-	templates.item_selected.connect(func(index: int) -> void:
-		if current_state() != "cultivating":
-			status = "渡劫期间保留已选模板"
-			return
-		template_id = str(templates.get_item_metadata(index))
-		template_chosen.emit(template_id)
-		for i in range(_stage_buttons.size()):
-			_stage_buttons[i].text = STAGE_NAMES[Rules.TEMPLATES[template_id].stages[i]]
-		_refresh()
-	)
-	add_child(templates)
+
+func _rebuild_stage_buttons() -> void:
+	for button in _stage_buttons:
+		if is_instance_valid(button):
+			button.queue_free()
+	_stage_buttons.clear()
+	var stages: Array = Rules.TEMPLATES[template_id].stages
+	for index in range(stages.size()):
+		var stage: String = stages[index]
+		var button := Button.new()
+		button.text = STAGE_NAMES.get(stage, stage)
+		button.position = Vector2(58 + index * 152, 756)
+		button.size = Vector2(140, 42)
+		button.add_theme_font_override("font", _font)
+		button.add_theme_font_size_override("font_size", 14)
+		_style_button(button, false)
+		button.pressed.connect(func() -> void: update_stage(stage))
+		_stage_buttons.append(button)
+		add_child(button)
+
+func _style_button(button: Button, primary: bool) -> void:
+	var normal := StyleBoxFlat.new()
+	normal.bg_color = Color("8d6838") if primary else Color("21364b")
+	normal.border_color = Color("f1cd82") if primary else Color("49667c")
+	normal.set_border_width_all(1)
+	normal.set_corner_radius_all(8)
+	var hover := normal.duplicate()
+	hover.bg_color = Color("b28346") if primary else Color("2d526c")
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", hover)
+	button.add_theme_stylebox_override("disabled", StyleBoxFlat.new())
+	button.add_theme_color_override("font_color", Color("fff1c9"))
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_disabled_color", Color("718398"))
 
 ## 按钮先呈现确认与取消，只有家属点击确认后才调用业务命令。
 func request_confirmation(action: String) -> void:
@@ -160,7 +233,15 @@ func _request_id(prefix: String) -> String:
 
 func _process(delta: float) -> void:
 	_clock += delta
-	_flash = maxf(0, _flash - delta)
+	_flash = maxf(0.0, _flash - delta)
+	_strike_active = maxf(0.0, _strike_active - delta)
+	if current_state() == "tribulation":
+		if _strike_active <= 0.0:
+			var interval := 2.4 + sin(_clock * 0.7) * 0.45
+			if fmod(_clock, interval) < delta:
+				_trigger_lightning()
+	else:
+		_strike_active = 0.0
 	queue_redraw()
 
 func export_card() -> void:
@@ -242,6 +323,7 @@ func begin_tribulation() -> void:
 		return
 	celebrating = false
 	status = "渡劫台亮起" if confirmed.data.complete else "还需再次确认"
+	_trigger_lightning()
 	_refresh()
 
 func update_stage(stage_key: String) -> void:
@@ -262,6 +344,7 @@ func update_stage(stage_key: String) -> void:
 	else:
 		_flash = 0.65
 		status = "落下一重雷劫"
+		_trigger_lightning()
 	_refresh()
 
 ## 护法只增加一盏灯和留言，不影响渡劫结果，也不改任何状态。
@@ -376,61 +459,127 @@ func _refresh() -> void:
 	var state: String = current_state()
 	if is_instance_valid(_template_selector):
 		_template_selector.disabled = busy or state != "cultivating"
-	for button in _stage_buttons:
+	var stage_index: int = int(_entry().get("stage_index", -1))
+	for index in range(_stage_buttons.size()):
+		var button: Button = _stage_buttons[index]
 		button.disabled = busy or state != "tribulation"
+		var stage_key: String = Rules.TEMPLATES[template_id].stages[index]
+		button.text = ("✓ " if index <= stage_index else "") + STAGE_NAMES.get(stage_key, stage_key)
+		_style_button(button, index == stage_index)
 	for action in _state_buttons:
 		var allowed: bool = state in ["tribulation", "seclusion"] if action in ["ascend", "seclusion"] else (state == "cultivating" if action == "begin" else state == "tribulation")
 		_state_buttons[action].disabled = busy or not allowed
+	if is_instance_valid(_state_badge):
+		_state_badge.text = "状态 · " + (STATE_NAMES.get(state, state) if not state.is_empty() else "等待同步")
+	if is_instance_valid(_status_label):
+		_status_label.text = status if not status.is_empty() else "角色尚未进入雷阵。请先确认开启渡劫。"
 	queue_redraw()
 
-func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.08, 0.14))
-	if current_state() == "seclusion" and quiet_background_texture != null:
-		draw_texture_rect(quiet_background_texture, Rect2(Vector2.ZERO, size), false, Color(0.4, 0.4, 0.45))
-	elif background_texture != null:
-		draw_texture_rect(background_texture, Rect2(Vector2.ZERO, size), false, Color(0.36, 0.36, 0.42))
-	if cultivator_texture != null:
-		var portrait_size := Vector2(cultivator_texture.get_width(), cultivator_texture.get_height())
-		portrait_size *= 140.0 / portrait_size.y
-		draw_texture_rect(cultivator_texture, Rect2(Vector2(1260, 590) - Vector2(portrait_size.x / 2.0, portrait_size.y), portrait_size), false)
+func _trigger_lightning() -> void:
+	_strike_count += 1
+	_strike_active = 0.42
+	_flash = 0.42
 
-	var entry: Dictionary = _entry()
-	var stage_index: int = int(entry.get("stage_index", -1))
-	var count: int = Rules.TEMPLATES[template_id].stages.size()
-	for index in range(count if current_state() not in ["seclusion", "ascended"] else 0):
-		var lit: bool = index <= stage_index
-		var center := Vector2(240 + index * 240, 330)
-		draw_circle(center, 54.0, Color(0.85, 0.8, 0.35) if lit else Color(0.2, 0.22, 0.3))
-		if index == stage_index:
-			draw_arc(center, 64.0, 0.0, TAU, 48, Color(1.0, 0.95, 0.7), 4.0)
-		var stage_key: String = Rules.TEMPLATES[template_id].stages[index]
-		var label_color: Color = Color(1.0, 0.95, 0.7) if index == stage_index else Color(0.7, 0.75, 0.85)
-		draw_string(_font, center + Vector2(-90, 110), STAGE_NAMES.get(stage_key, stage_key), HORIZONTAL_ALIGNMENT_CENTER, 180, 22, label_color)
-	for lamp in range(lamps):
-		draw_circle(Vector2(120 + lamp * 44, 560), 14.0, Color(1.0, 0.85, 0.4))
-	if current_state() == "seclusion":
-		if quiet_background_texture == null:
-			draw_rect(Rect2(500, 250, 440, 260), Color("#243f46"))
-			draw_rect(Rect2(630, 335, 180, 175), Color("#142b35"))
-		else:
-			draw_rect(Rect2(440, 275, 560, 190), Color(0.06, 0.12, 0.15, 0.85))
-			draw_rect(Rect2(440, 275, 560, 190), Color("#b9ba8c"), false, 2)
-			draw_string(_font, Vector2(605, 380), "静守 · 闭关", HORIZONTAL_ALIGNMENT_LEFT, -1, 36, Color("#ead9ac"))
-		draw_arc(Vector2(720, 360), 160 + sin(_clock) * 4, PI, TAU, 40, Color("#b9ba8c"), 3)
-		draw_string(_font, Vector2(530, 565), "专业的人负责照护，家人负责陪伴", HORIZONTAL_ALIGNMENT_LEFT, -1, 24)
-	if _flash > 0 and current_state() == "tribulation":
-		var bolt := PackedVector2Array([Vector2(700, 175), Vector2(660, 230), Vector2(735, 222), Vector2(690, 300)])
-		draw_polyline(bolt, Color(0.9, 0.95, 1, _flash), 7)
-	if current_state() == "ascended":
-		for star in range(18):
-			draw_circle(Vector2(140 + star * 70, 130 + (star * 37) % 100), 4.0 + star % 3, Color(0.85, 0.9, 1.0))
-	if celebrating:
-		for spark in range(24):
-			draw_circle(Vector2(180 + spark * 48, 150 + (spark % 5) * 36), 6.0, Color.from_hsv(spark / 24.0, 0.6, 1.0))
-	var title: String = "%s · 状态：%s" % [Rules.TEMPLATES[template_id].title if current_state() == "tribulation" else "家人修行", STATE_NAMES.get(current_state(), current_state()) if not current_state().is_empty() else "未同步"]
-	draw_string(_font, Vector2(60, 80), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 30, Color(0.95, 0.9, 0.75))
-	draw_string(_font, Vector2(60, 650), status, HORIZONTAL_ALIGNMENT_LEFT, -1, 26, Color(0.95, 0.9, 0.75))
-	draw_string(_font, Vector2(60, 690), "护法只影响画面与留言，不影响渡劫结果", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color(0.7, 0.75, 0.85))
+func _draw_panel(rect: Rect2, fill: Color, border: Color) -> void:
+	draw_rect(rect, fill)
+	draw_rect(rect, border, false, 2.0)
+	draw_line(rect.position + Vector2(16, 52), Vector2(rect.end.x - 16, rect.position.y + 52), Color(border.r, border.g, border.b, 0.4), 1.0)
+
+func _draw_platform(center: Vector2) -> void:
+	draw_set_transform(center, 0.0, Vector2(1.55, 0.42))
+	draw_circle(Vector2.ZERO, 188.0, Color(0.02, 0.06, 0.12, 0.75))
+	draw_arc(Vector2.ZERO, 170.0, 0.0, TAU, 64, Color("f4c65d"), 7.0)
+	draw_arc(Vector2.ZERO, 128.0, 0.0, TAU, 64, Color("77ddff"), 4.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	for index in range(8):
+		var angle := TAU * float(index) / 8.0 + _clock * 0.12
+		var point := center + Vector2(cos(angle) * 190.0, sin(angle) * 76.0)
+		draw_circle(point, 8.0 + sin(_clock * 3.0 + index) * 2.0, Color("ffd86b"))
+
+func _draw_lightning(center: Vector2) -> void:
+	var target := center - Vector2(0, 155)
+	var wobble := sin(_clock * 17.0 + _strike_count) * 18.0
+	var points := PackedVector2Array([
+		Vector2(center.x - 25.0 + wobble, 120), Vector2(center.x + 35.0, 205),
+		Vector2(center.x - 18.0, 255), Vector2(center.x + 28.0, 320), target
+	])
+	var alpha := 0.34 if _strike_active <= 0.0 else 0.98
+	draw_polyline(points, Color(0.35, 0.75, 1.0, alpha * 0.28), 18.0)
+	draw_polyline(points, Color(0.86, 0.96, 1.0, alpha), 5.0)
+	if _strike_active > 0.0:
+		draw_circle(target, 30.0 + _strike_active * 24.0, Color(0.7, 0.9, 1.0, _strike_active * 0.8))
+		draw_arc(target, 52.0, 0.0, TAU, 36, Color(1.0, 0.84, 0.42, _strike_active * 2.2), 5.0)
+
+func _draw_cultivator(center: Vector2) -> void:
+	var bob := sin(_clock * 2.2) * 3.0 if current_state() == "tribulation" else 0.0
+	var actor_center := center + Vector2(0, -112 + bob)
+	if cultivator_texture != null:
+		var actor_size := Vector2(190, 190)
+		draw_texture_rect(cultivator_texture, Rect2(actor_center - Vector2(actor_size.x / 2.0, actor_size.y), actor_size), false, Color.WHITE)
+	else:
+		# 测试/演示场景没有注入纹理时仍绘制一个清晰的人物轮廓。
+		draw_circle(actor_center - Vector2(0, 58), 24.0, Color("f2c29b"))
+		draw_rect(Rect2(actor_center - Vector2(35, 35), Vector2(70, 78)), Color("416b89"))
+		draw_line(actor_center + Vector2(-22, 43), actor_center + Vector2(-35, 88), Color("d7e8ed"), 10.0)
+		draw_line(actor_center + Vector2(22, 43), actor_center + Vector2(35, 88), Color("d7e8ed"), 10.0)
+	if current_state() == "tribulation":
+		draw_arc(actor_center - Vector2(0, 55), 62.0 + sin(_clock * 2.0) * 5.0, 0.0, TAU, 48, Color(0.38, 0.9, 1.0, 0.8), 3.0)
+	if _strike_active > 0.0:
+		draw_circle(actor_center - Vector2(0, 64), 88.0, Color(1.0, 0.82, 0.45, _strike_active * 0.18))
+		draw_rect(Rect2(actor_center - Vector2(100, 190), Vector2(200, 210)), Color(1.0, 0.32, 0.27, _strike_active * 0.14))
+
+func _draw() -> void:
+	var viewport := Rect2(Vector2.ZERO, size)
+	draw_rect(viewport, Color("081525"))
+	if background_texture != null:
+		draw_texture_rect(background_texture, viewport, false, Color(0.9, 0.95, 1.0, 0.92))
+	draw_rect(viewport, Color(0.02, 0.04, 0.1, 0.46))
+	_draw_panel(Rect2(32, 124, 320, 590), Color(0.03, 0.08, 0.14, 0.9), Color("4c7591"))
+	_draw_panel(Rect2(1072, 124, 336, 590), Color(0.03, 0.08, 0.14, 0.94), Color("4c7591"))
+	draw_rect(Rect2(370, 126, 680, 590), Color(0.02, 0.04, 0.1, 0.28))
+	draw_rect(Rect2(370, 126, 680, 590), Color("5c91ad"), false, 2.0)
+
+	var state: String = current_state()
+	var stage_index: int = int(_entry().get("stage_index", -1))
+	var stages: Array = Rules.TEMPLATES[template_id].stages
+	draw_string(_font, Vector2(58, 188), "雷劫流程", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("9ddfff"))
+	draw_string(_font, Vector2(58, 222), "模板 · " + Rules.TEMPLATES[template_id].title, HORIZONTAL_ALIGNMENT_LEFT, 280, 15, Color("d4e1ee"))
+	var line_start := Vector2(86, 285)
+	if stages.size() > 1:
+		draw_line(line_start, line_start + Vector2(0, 270), Color("38566d"), 4.0)
+	for index in range(stages.size()):
+		var y := 285.0 + index * 67.0
+		var reached := index <= stage_index and state == "tribulation"
+		var active := index == stage_index and state == "tribulation"
+		draw_circle(Vector2(86, y), 14.0 if not active else 19.0, Color("f2c45d") if reached else Color("243d52"))
+		if active:
+			draw_arc(Vector2(86, y), 27.0 + sin(_clock * 3.0) * 3.0, 0, TAU, 40, Color("7fe5ff"), 3.0)
+		draw_string(_font, Vector2(120, y + 7), STAGE_NAMES.get(stages[index], stages[index]), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color("fff0c5") if reached else Color("9eb4c8"))
+	draw_string(_font, Vector2(58, 650), "护法灯火  %02d / 24" % lamps, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("ffd875"))
+	draw_string(_font, Vector2(58, 682), "灯火只代表陪伴，不改变渡劫结果", HORIZONTAL_ALIGNMENT_LEFT, 280, 13, Color("8ea5b8"))
+
+	var center := _visual_actor_anchor
+	_draw_platform(center)
+	_draw_cultivator(center)
+	if state == "tribulation":
+		_draw_lightning(center)
+		draw_string(_font, Vector2(510, 190), "天雷正在聚集", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("b8edff"))
+		draw_string(_font, Vector2(540, 665), "角色正在承受雷劫", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color("ffe0a0"))
+	else:
+		draw_string(_font, Vector2(548, 190), "角色待命 · 点击开启渡劫", HORIZONTAL_ALIGNMENT_LEFT, -1, 20, Color("d7e4ed"))
+	if _flash > 0.0:
+		draw_rect(Rect2(370, 126, 680, 590), Color(0.8, 0.95, 1.0, _flash * 0.10))
+
+	draw_string(_font, Vector2(1100, 198), "渡劫者", HORIZONTAL_ALIGNMENT_LEFT, -1, 22, Color("9ddfff"))
+	draw_string(_font, Vector2(1100, 226), cultivator_name, HORIZONTAL_ALIGNMENT_LEFT, 278, 24, Color("fff0c5"))
+	var vitality := clampf(float(stage_index + 1) / maxf(1.0, float(stages.size())), 0.0, 1.0) if state == "tribulation" else 0.0
+	draw_string(_font, Vector2(1100, 288), "雷劫承受度", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9db6c9"))
+	draw_rect(Rect2(1100, 300, 278, 13), Color("1c3142"))
+	draw_rect(Rect2(1100, 300, 278 * vitality, 13), Color("f0bd56") if vitality < 0.8 else Color("74d4c2"))
+	draw_string(_font, Vector2(1100, 307), "%d%%" % roundi(vitality * 100.0), HORIZONTAL_ALIGNMENT_RIGHT, 278, 13, Color("fff0c5"))
+	draw_string(_font, Vector2(1100, 730), "每次推进阶段都会触发一记可见雷击。", HORIZONTAL_ALIGNMENT_LEFT, 290, 13, Color("8ea5b8"))
+	draw_string(_font, Vector2(1100, 748), "家属确认后才能归元或飞升。", HORIZONTAL_ALIGNMENT_LEFT, 290, 13, Color("8ea5b8"))
+	draw_string(_font, Vector2(58, 742), "阶段推进", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("9db6c9"))
 
 func _exit_tree() -> void:
 	for child in get_children():

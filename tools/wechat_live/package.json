@@ -1,0 +1,8 @@
+{
+  "name": "xiuxian-wechat-live",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24.13.0 <25" },
+  "dependencies": { "qrcode-terminal": "0.12.0" }
+}

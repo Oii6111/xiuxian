@@ -16,10 +16,14 @@ var generation = 0
 var owner_scope = ""
 var last_sync = ""
 var poll_seconds = 15.0
+var live_account_service = false
 
 func _ready() -> void:
 	endpoint = OS.get_environment("XIUXIAN_COMPANION_TASK_URL").strip_edges()
 	read_token = OS.get_environment("XIUXIAN_COMPANION_TASK_READ_TOKEN").strip_edges()
+	live_account_service = OS.get_environment("XIUXIAN_WECHAT_LINK_ENABLED") == "1"
+	if live_account_service:
+		poll_seconds = 2.0
 	if "--wechat-link-demo" in OS.get_cmdline_user_args():
 		poll_seconds = 1.0
 
@@ -62,6 +66,11 @@ func _process(delta: float) -> void:
 		if not owner_scope.is_empty():
 			clear_state()
 		return
+	if live_account_service:
+		if not game.account_api.is_authenticated():
+			return
+		endpoint = game.account_api.authenticated_service_url + "/api/v1/companion/state"
+		read_token = game.account_api.token
 	if not configured():
 		return
 	if owner_scope != scope():

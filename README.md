@@ -1,4 +1,4 @@
-# 疯狂修仙，中 · 松风四式（Godot 像素闯关）
+# 疯狂修仙，中（Godot 像素闯关）
 
 > **A/B/C/D 已整合**：年轻人在网页玩游戏（C 服务同时托管客户端），老人只用微信扫码绑定 AI Bot。运行与接口见 [docs/BCD_INTEGRATION.md](docs/BCD_INTEGRATION.md)。
 

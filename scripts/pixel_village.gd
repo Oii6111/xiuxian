@@ -164,6 +164,9 @@ func start_guest_mode() -> void:
 	else:
 		state = family.owner_state
 	state.persist_enabled = false
+	# A guest gets one free ten-pull so the complete onboarding loop is playable
+	# immediately after the sample health profile is confirmed.
+	state.equipment.starter_ten_pulls = 1
 	companion_api.reset_session()
 	companion_tasks.clear_state()
 	sync_avatar_from_state()

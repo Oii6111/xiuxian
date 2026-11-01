@@ -35,8 +35,10 @@ func run() -> void:
 			await process_frame
 		check(panel.chosen_paths.size() == 3 and panel.draft.recognition_mode == "sample", "Guest mode selects all three raw sample images and prepares the sample baseline")
 		panel.confirm_draft()
-		await process_frame
+		for i in range(2):
+			await process_frame
 		check(not is_instance_valid(game.ui.health_entry) and game.state.health_baseline.recognition_mode == "sample", "Guest sample baseline can be confirmed without an account")
+		check(int(game.state.equipment.get("starter_ten_pulls", 0)) == 1 and is_instance_valid(game.ui.treasure), "Guest confirmation opens the pavilion with one free ten-pull")
 	game.ui.logout_account()
 	await process_frame
 	check(not game.account_ready and is_instance_valid(game.ui.account_panel), "Guest exit returns to the login screen")

@@ -225,7 +225,8 @@ func draw_equipment(count: int, request_id: String) -> Dictionary:
 		return previous.duplicate(true)
 	if float(equipment.initial_score) < 0:
 		return {"ok": false, "message": "请先确认一份基础档案，再来聚宝阁祈愿。"}
-	var cost = Equipment.SINGLE_COST * count
+	var starter_bonus = count == 10 and int(equipment.get("starter_ten_pulls", 0)) > 0
+	var cost = 0 if starter_bonus else Equipment.SINGLE_COST * count
 	if int(equipment.qi) < cost:
 		return {"ok": false, "message": "灵气不足，还差 %d。每日有效习惯记录可获得 100 灵气。" % (cost - int(equipment.qi))}
 	var before = equipment.duplicate(true)
@@ -240,10 +241,12 @@ func draw_equipment(count: int, request_id: String) -> Dictionary:
 		# Upgrade the last card, never downgrade a naturally rolled legendary/mythic.
 		items[-1].rarity = 2
 	equipment.qi -= cost
+	if starter_bonus:
+		equipment.starter_ten_pulls = maxi(0, int(equipment.starter_ten_pulls) - 1)
 	equipment.next_id += count
 	equipment.draw_count += count
 	equipment.inventory.append_array(items)
-	var receipt = {"ok": true, "request_id": request_id, "count": count, "cost": cost, "items": items.duplicate(true), "guaranteed": guaranteed}
+	var receipt = {"ok": true, "request_id": request_id, "count": count, "cost": cost, "items": items.duplicate(true), "guaranteed": guaranteed, "starter_bonus": starter_bonus}
 	equipment.receipts[request_id] = receipt
 	equipment.last_request = request_id
 	# Save the debit, items and receipt together BEFORE any reveal animation.

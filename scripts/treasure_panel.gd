@@ -19,6 +19,117 @@ var skip_button: Button
 var result_grid: GridContainer
 var status_label: Label
 
+## Lightweight reveal presentation used by the local and remote receipt views.
+## The result is still decided by the authoritative draw response; this control
+## only animates the already committed rarity and never changes the item.
+class GachaRevealFX extends Control:
+	var rarity: int = 0
+	var state: String = "idle"
+	var clock: float = 0.0
+	var progress: float = 0.0
+	var _tween: Tween
+
+	func _ready() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+		set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		z_index = 3
+
+	func _process(delta: float) -> void:
+		if state == "idle":
+			return
+		clock += delta
+		queue_redraw()
+
+	func begin_reveal(delay: float = 0.0) -> void:
+		if is_instance_valid(_tween) and _tween.is_running():
+			_tween.kill()
+		state = "queued"
+		progress = 0.0
+		queue_redraw()
+		_tween = create_tween()
+		if delay > 0.0:
+			_tween.tween_interval(delay)
+		_tween.tween_callback(_start_reveal)
+
+	func _start_reveal() -> void:
+		state = "revealing"
+		clock = 0.0
+		_tween = create_tween()
+		_tween.tween_method(_set_progress, 0.0, 1.0, 0.72).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		_tween.tween_callback(_finish_reveal)
+
+	func _set_progress(value: float) -> void:
+		progress = value
+		queue_redraw()
+
+	func _finish_reveal() -> void:
+		progress = 1.0
+		state = "revealed"
+		queue_redraw()
+
+	func complete_reveal() -> void:
+		if is_instance_valid(_tween) and _tween.is_running():
+			_tween.kill()
+		_finish_reveal()
+
+	func _palette() -> Array[Color]:
+		if rarity >= 4:
+			return [Color("ff697b"), Color("fff2b0"), Color("ff9cdb")]
+		if rarity >= 3:
+			return [Color("ffd36b"), Color("fff7ce"), Color("ffb548")]
+		if rarity >= 2:
+			return [Color("b68aff"), Color("f0dcff"), Color("7bd9ff")]
+		if rarity == 1:
+			return [Color("66b8ff"), Color("d8f4ff"), Color("56d6ce")]
+		return [Color("e5e4df"), Color("ffffff"), Color("9fa7b2")]
+
+	func _draw() -> void:
+		if state == "idle":
+			return
+		var palette = _palette()
+		var center = size * 0.5
+		var max_radius = minf(size.x, size.y) * 0.62
+		var pulse = sin(clock * 8.0) * 0.08 + 0.92
+		var alpha = (0.18 + progress * 0.22) * pulse
+		# A restrained glow for every result keeps common items readable.
+		draw_circle(center, max_radius * (0.24 + progress * 0.24), Color(palette[0], alpha * 0.22))
+		draw_arc(center, max_radius * (0.35 + progress * 0.28), -clock * 1.6, TAU - clock * 1.6, 32, Color(palette[0], alpha), 2.0)
+		if rarity >= 1:
+			# Blue/teal sparkles mirror the small flash used by common premium banners.
+			for index in range(8):
+				var angle = float(index) * TAU / 8.0 + clock * 0.9
+				var distance = max_radius * (0.30 + fmod(float(index) * 0.07 + progress * 0.45, 0.44))
+				var point = center + Vector2(cos(angle), sin(angle)) * distance
+				var spark = 2.0 + (1.5 if rarity >= 2 else 0.0)
+				draw_circle(point, spark, Color(palette[index % 3], alpha * 1.8))
+		if rarity >= 2:
+			# Purple and above get a short radial burst when the card turns face up.
+			for index in range(12):
+				var angle = float(index) * TAU / 12.0 + clock * 0.35
+				var inner = max_radius * (0.18 + progress * 0.18)
+				var outer = max_radius * (0.35 + progress * 0.52)
+				draw_line(center + Vector2(cos(angle), sin(angle)) * inner,
+					center + Vector2(cos(angle), sin(angle)) * outer,
+					Color(palette[index % 3], alpha * 0.78), 2.0)
+		if rarity >= 3:
+			# Gold/red results use a rotating diamond and crossing ribbons.
+			var diamond = max_radius * (0.22 + progress * 0.16)
+			var diamond_points = PackedVector2Array([
+				center + Vector2(0, -diamond), center + Vector2(diamond, 0),
+				center + Vector2(0, diamond), center + Vector2(-diamond, 0)
+			])
+			draw_polyline(diamond_points, Color(palette[1], alpha * 1.25), 2.5)
+			draw_polyline(PackedVector2Array([center + Vector2(-max_radius, max_radius * 0.42),
+			center + Vector2(max_radius, -max_radius * 0.42)]), Color(palette[0], alpha * 0.45), 3.0)
+			draw_polyline(PackedVector2Array([center + Vector2(-max_radius, -max_radius * 0.42),
+			center + Vector2(max_radius, max_radius * 0.42)]), Color(palette[2], alpha * 0.45), 3.0)
+		if rarity >= 4:
+			# Mythic results finish with a white-hot ring and four-point star.
+			draw_arc(center, max_radius * (0.48 + progress * 0.12), clock * 1.8, TAU + clock * 1.8, 48, Color(palette[1], alpha * 1.5), 4.0)
+			var star = max_radius * (0.18 + progress * 0.10)
+			draw_line(center - Vector2(star, 0), center + Vector2(star, 0), Color(palette[1], alpha * 1.6), 3.0)
+			draw_line(center - Vector2(0, star), center + Vector2(0, star), Color(palette[1], alpha * 1.6), 3.0)
+
 class WishSeal extends Control:
 	var clock = 0.0
 	func _ready() -> void:
@@ -139,7 +250,11 @@ func build() -> void:
 	progress.add_theme_stylebox_override("fill", box(Color("c6a162")))
 	left.add_child(progress)
 	var remaining = maxi(0, Rules.TEN_COST - int(game.state.equipment.qi))
-	text(left, "十连已备齐" if remaining == 0 else "距十连还差 %d 灵气" % remaining, 16, MUTED_TEXT)
+	var starter_pulls = int(game.state.equipment.get("starter_ten_pulls", 0))
+	if starter_pulls > 0:
+		text(left, "新手赠送 · 免费十连 × %d" % starter_pulls, 18, GOLD_TEXT)
+	else:
+		text(left, "十连已备齐" if remaining == 0 else "距十连还差 %d 灵气" % remaining, 16, MUTED_TEXT)
 	paragraph_text(left, "每日有效习惯记录 +100\n单抽 70 · 十连 700\n积攒七天，即可十连。漏记不清零。", 16)
 	action(left, "查看今日习惯", ui.open_record)
 	var separator = HSeparator.new()
@@ -205,7 +320,8 @@ func build_wish() -> void:
 		var guidance = paragraph_text(right, "装备收入行囊后可查看与穿戴。加成独立于健康基础属性，下一场战斗生效。", 17)
 		guidance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	else:
-		text(right, "最近一次祈愿 · %d 抽 · 消耗 %d 灵气" % [receipt.count, receipt.cost], 17, MUTED_TEXT)
+		var starter_label = " · 新手赠送" if receipt.get("starter_bonus", false) else ""
+		text(right, "最近一次祈愿 · %d 抽 · 消耗 %d 灵气%s" % [receipt.count, receipt.cost, starter_label], 17, GOLD_TEXT if receipt.get("starter_bonus", false) else MUTED_TEXT)
 		result_grid = GridContainer.new()
 		result_grid.columns = 5
 		result_grid.add_theme_constant_override("h_separation", 10)
@@ -223,11 +339,12 @@ func build_wish() -> void:
 	actions.add_theme_constant_override("separation", 12)
 	right.add_child(actions)
 	single_button = action(actions, "祈愿一次 · 70", func(): summon(1))
-	ten_button = action(actions, "十连祈愿 · 700", func(): summon(10), true)
+	var can_use_starter = int(game.state.equipment.get("starter_ten_pulls", 0)) > 0
+	ten_button = action(actions, "新手赠送 · 免费十连" if can_use_starter else "十连祈愿 · 700", func(): summon(10), true)
 	single_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ten_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	single_button.disabled = busy or int(game.state.equipment.qi) < Rules.SINGLE_COST or float(game.state.equipment.initial_score) < 0
-	ten_button.disabled = busy or int(game.state.equipment.qi) < Rules.TEN_COST or float(game.state.equipment.initial_score) < 0
+	ten_button.disabled = busy or (not can_use_starter and int(game.state.equipment.qi) < Rules.TEN_COST) or float(game.state.equipment.initial_score) < 0
 	skip_button = action(actions, "跳过动画", finish_reveal)
 	skip_button.visible = busy
 
@@ -236,6 +353,7 @@ func item_card(parent: Node, item: Dictionary, dimensions: Vector2) -> Button:
 	var card = Button.new()
 	card.custom_minimum_size = dimensions
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.clip_contents = true
 	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	card.tooltip_text = "%s · %s\n%s\n点击查看与穿戴" % [info.quality, info.name, Rules.bonus_text(item)]
 	var background = box(Color("262a35").lerp(info.color.darkened(0.7), 0.25), info.color, 2)
@@ -272,6 +390,10 @@ func item_card(parent: Node, item: Dictionary, dimensions: Vector2) -> Button:
 	for child in column.get_children():
 		if child is Control:
 			child.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var reveal_fx = GachaRevealFX.new()
+	reveal_fx.name = "GachaRevealFX"
+	reveal_fx.rarity = info.rarity
+	card.add_child(reveal_fx)
 	card.pressed.connect(func():
 		finish_reveal()
 		selected_id = info.id
@@ -298,6 +420,9 @@ func summon(count: int) -> void:
 	reveal_tween = create_tween().set_parallel(true)
 	for i in range(result_cards.size()):
 		reveal_tween.tween_property(result_cards[i], "modulate:a", 1.0, 0.3).set_delay(i * 0.08)
+		var reveal_fx = result_cards[i].get_node_or_null("GachaRevealFX") as GachaRevealFX
+		if reveal_fx != null:
+			reveal_fx.begin_reveal(i * 0.08)
 	reveal_tween.chain().tween_callback(finish_reveal)
 
 ## 由 C 扣费并生成装备；成功后刷新本角色读模型，并按原卡片样式展示同一回执。
@@ -338,12 +463,15 @@ func finish_reveal() -> void:
 	for card in result_cards:
 		if is_instance_valid(card):
 			card.modulate.a = 1
+			var reveal_fx = card.get_node_or_null("GachaRevealFX") as GachaRevealFX
+			if reveal_fx != null:
+				reveal_fx.complete_reveal()
 	if is_instance_valid(skip_button):
 		skip_button.hide()
 	if is_instance_valid(single_button):
 		single_button.disabled = int(game.state.equipment.qi) < Rules.SINGLE_COST or float(game.state.equipment.initial_score) < 0
 	if is_instance_valid(ten_button):
-		ten_button.disabled = int(game.state.equipment.qi) < Rules.TEN_COST or float(game.state.equipment.initial_score) < 0
+		ten_button.disabled = (int(game.state.equipment.get("starter_ten_pulls", 0)) <= 0 and int(game.state.equipment.qi) < Rules.TEN_COST) or float(game.state.equipment.initial_score) < 0
 
 func build_bag() -> void:
 	var right = panel_at(Rect2(428, 138, 922, 696))

@@ -667,7 +667,11 @@ func commit(payload: Dictionary) -> void:
 	committed = true
 	ui.refresh()
 	ui.close_modal()
-	ui.toast("基础状态已保存，开始修行吧！")
+	if game.guest_mode and int(target_state.equipment.get("starter_ten_pulls", 0)) > 0:
+		ui.toast("基础状态已保存，游客赠送一次免费十连。")
+		ui.call_deferred("open_treasure", "wish")
+	else:
+		ui.toast("基础状态已保存，开始修行吧！")
 
 func shutdown() -> void:
 	if disposed:

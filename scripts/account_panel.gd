@@ -72,6 +72,8 @@ func build() -> void:
 		register_avatar = option(avatars, "我的形象", ["男修", "女修"], 0)
 	status_label = paragraph(right, "注册或登录自己的账号后，再添加两位家人。", 16)
 	submit_button = action(right, "注册并登录" if register_mode else "登录游戏", submit, true)
+	paragraph(right, "现场演示：不需要注册，直接进入一份模拟好的家庭数据。", 15)
+	action(right, "游客演示 · 无需注册  →", func(): ui.start_guest_demo())
 
 func switch_mode(value: bool) -> void:
 	if game.account_api.busy:

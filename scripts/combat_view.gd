@@ -11,7 +11,9 @@ const SKILL_NAMES = ["听风剑诀", "踏云步", "云罡护体", "饕餮归元"
 var encounter: Dictionary = {}
 var boss_anchor = Vector2(1130, 510)
 var boss_height: float = 410
-var game: Node2D
+## The main village is Node2D; the standalone demo hub is Control. Both expose
+## the same state/asset facade, so the view only needs a Node here.
+var game: Node
 var ui: Control
 var mode: String = "boss"
 var support: int = 0

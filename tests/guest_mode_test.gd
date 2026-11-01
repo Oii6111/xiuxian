@@ -39,6 +39,14 @@ func run() -> void:
 			await process_frame
 		check(not is_instance_valid(game.ui.health_entry) and game.state.health_baseline.recognition_mode == "sample", "Guest sample baseline can be confirmed without an account")
 		check(int(game.state.equipment.get("starter_ten_pulls", 0)) == 1 and is_instance_valid(game.ui.treasure), "Guest confirmation opens the pavilion with one free ten-pull")
+		game.ui.start_corridor_boss("b00")
+		await process_frame
+		var combat = game.ui.combat
+		check(is_instance_valid(combat) and combat.rules.brain != null, "Guest Boss uses the named PR4 behavior brain")
+		check(combat.rules.boss_id == "b00" and combat.rules.boss_max_hp == int(combat.rules.brain.definition.max_hp), "Guest Boss keeps the normal encounter health value")
+		check(combat.rules.hp > 0 and combat.rules.max_hp > 0 and combat.rules.stats.attack > 0, "Guest demo starts with a nonzero basic combat baseline")
+		if is_instance_valid(combat):
+			combat.leave_battle()
 	game.ui.logout_account()
 	await process_frame
 	check(not game.account_ready and is_instance_valid(game.ui.account_panel), "Guest exit returns to the login screen")

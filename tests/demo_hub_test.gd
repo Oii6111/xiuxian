@@ -26,6 +26,8 @@ func _run() -> void:
 	await process_frame
 	expect(hub.current == null and hub._menu.visible, "leaving returns to the menu")
 	expect(hub.open("boss") and hub.current.boss_mode, "boss target enables boss mode")
+	await process_frame
+	expect(hub.current.rules.brain != null and hub.current.rules.boss_max_hp > 0 and hub.current.rules.hp > 0, "demo Boss uses the PR4 behavior brain and a nonzero baseline")
 	expect(not hub.current.allies_enabled, "plain boss target has no teammate")
 	hub.close()
 	await process_frame

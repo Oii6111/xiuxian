@@ -7,6 +7,10 @@ const Actions = preload("res://scripts/systems/combat/action_atlas.gd")
 const BossRules = preload("res://scripts/boss_rules.gd")
 const Effects = preload("res://scripts/combat_effects.gd")
 const SKILL_NAMES = ["听风剑诀", "踏云步", "云罡护体", "饕餮归元"]
+const HIT_BURST_TIME := 0.40
+const SAP_FLOW_TIME := 0.62
+const SAP_PULSE_TIME := 0.26
+const SPLIT_BURST_TIME := 0.70
 @export var boss_id: String = ""
 var encounter: Dictionary = {}
 var boss_anchor = Vector2(1130, 510)
@@ -39,6 +43,9 @@ var hero_moving: bool = false
 var roll_remaining: float = 0
 var roll_direction := Vector2.RIGHT
 var hit_bursts: Array = []
+var sap_flows: Array = []
+var sap_pulse_visual := 0.0
+var split_bursts: Array = []
 var enemy_intent: Label
 var enemy_cast: ProgressBar
 var hit_stop: float = 0
@@ -172,13 +179,17 @@ func _bar(parent: Node, color: Color) -> ProgressBar:
 	return bar
 
 func _build_hud() -> void:
-	var title = ui.card(Rect2(20, 18, 410, 90), self, Color("342922"))
-	title.add_theme_constant_override("separation", 4)
-	var name_label = ui.label_into(title, "松风四式 · " + ("演武练习" if mode == "practice" else "属性试炼"), 27, Color("f3d19a"))
+	var title = ui.card(Rect2(20, 18, 300, 84), self, Color("342922"))
+	title.add_theme_constant_override("separation", 2)
+	var name_label = ui.label_into(title, "松风四式 · " + ("演武练习" if mode == "practice" else "属性试炼"), 24, Color("f3d19a"))
 	name_label.add_theme_font_override("font", game.title_font)
-	ui.label_into(title, encounter.arena if not encounter.is_empty() else "%s线 / %d 档 / %s" % [entered_state.ATTRIBUTE_LABELS[rules.track], rules.tier, entered_state.realm()], 16, Color("e2c89e"))
-	var boss_card = ui.card(Rect2(452, 18, 738, 170), self, Color("342922"))
-	boss_card.add_theme_constant_override("separation", 8)
+	var location: String = encounter.arena if not encounter.is_empty() else "%s线 / %d 档 / %s" % [entered_state.ATTRIBUTE_LABELS[rules.track], rules.tier, entered_state.realm()]
+	var subtitle := str(encounter.get("subtitle", ""))
+	if not subtitle.is_empty():
+		location += " · " + subtitle
+	ui.label_into(title, location, 16, Color("e2c89e"))
+	var boss_card = ui.card(Rect2(336, 18, 856, 148), self, Color("342922"))
+	boss_card.add_theme_constant_override("separation", 5)
 	top_label = ui.label_into(boss_card, "", 19, Color("f8e5c2"))
 	meter = _bar(boss_card, Color("b76075"))
 	enemy_intent = ui.label_into(boss_card, "", 16, Color("f2ce91"))
@@ -194,17 +205,27 @@ func _build_hud() -> void:
 	_touch_pause_button.position = Vector2(1231, 80)
 	_touch_pause_button.size.x = 185
 	_touch_pause_button.hide()
-	var status = ui.card(Rect2(20, 125, 292, 274), self, Color("342922"))
+	var status = ui.card(Rect2(20, 112, 300, 190), self, Color("342922"))
 	status.add_theme_constant_override("separation", 7)
-	ui.label_into(status, entered_state.player_name, 23, Color("f5ddb4"))
+	ui.label_into(status, entered_state.player_name, 21, Color("f5ddb4"))
 	for i in range(3):
-		vital_labels.append(ui.label_into(status, "", 16, Color("f6e3c3")))
-		vital_bars.append(_bar(status, [Color("bd6a63"), Color("63aebd"), Color("a4bc6c")][i]))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		status.add_child(row)
+		var label: Label = ui.label_into(row, "", 16, Color("f6e3c3"))
+		label.autowrap_mode = TextServer.AUTOWRAP_OFF
+		label.custom_minimum_size.x = 128
+		vital_labels.append(label)
+		var bar := _bar(row, [Color("bd6a63"), Color("63aebd"), Color("a4bc6c")][i])
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		vital_bars.append(bar)
 	player_status = ui.label_into(status, "", 15, Color("dfcda9"))
-	message = ui.label_into(self, "靠近目标普攻回灵；剑诀、护盾与归元共用灵力。", 21, Color("fff0c6"))
+	message = ui.label_into(self, str(encounter.get("tactics", "靠近目标普攻回灵；剑诀、护盾与归元共用灵力。")), 21, Color("fff0c6"))
 	message.position = Vector2(330, 690)
 	message.size = Vector2(1070, 38)
 	message.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	message.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	message.add_theme_color_override("font_outline_color", Color("2b2830"))
 	message.add_theme_constant_override("outline_size", 6)
 	impact_text = ui.label_into(self, "", 34, Color("c8f3d6"))
@@ -226,6 +247,8 @@ func _build_hud() -> void:
 		skill_nodes.append(button)
 	_keyboard_tips = ui.label_into(self, "WASD 移动  ·  按住 J 连击  ·  1 剑诀  ·  2 / 空格 踏云  ·  3 / K 护盾  ·  4 / R 归元  ·  体力自动恢复 · P 暂停", 16, Color("fff0c6"))
 	_keyboard_tips.position = Vector2(25, 858)
+	_keyboard_tips.size.x = 1390
+	_keyboard_tips.autowrap_mode = TextServer.AUTOWRAP_OFF
 	_keyboard_tips.add_theme_color_override("font_outline_color", Color("29242e"))
 	_keyboard_tips.add_theme_constant_override("outline_size", 5)
 
@@ -233,8 +256,8 @@ func _update_touch_hud(enabled: bool) -> void:
 	_skill_row.visible = not enabled
 	_keyboard_tips.visible = not enabled
 	_touch_pause_button.visible = enabled and not rules.finished
-	message.position = Vector2(275, 208) if enabled else Vector2(330, 690)
-	message.size.x = 890 if enabled else 1070
+	message.position = Vector2(336, 178) if enabled else Vector2(330, 690)
+	message.size.x = 856 if enabled else 1070
 
 func touch_actions_active() -> bool:
 	return rules != null and not paused and not rules.finished
@@ -261,7 +284,10 @@ func perform_action(action: int) -> void:
 		4: use_skill(3)
 
 func refresh() -> void:
-	top_label.text = "%s  %d / %d    用时 %.1f 秒" % [rules.boss_name, rules.boss_hp, rules.boss_max_hp, rules.elapsed] + (" · 第%d阶段 · 散祟%d" % [rules.stage_index + 1, rules.active_adds()] if not encounter.is_empty() else "")
+	top_label.text = "%s  %d / %d    用时 %.1f 秒" % [rules.boss_name, rules.boss_hp, rules.boss_max_hp, rules.elapsed]
+	if not encounter.is_empty():
+		var add_name := "分身" if rules.brain != null and rules.brain.definition.has("wood_split_interval") else "散祟"
+		top_label.text += " · 第%d阶段 · %s %d" % [rules.stage_index + 1, add_name, rules.active_adds()]
 	meter.max_value = rules.boss_max_hp
 	meter.value = rules.boss_hp
 	if rules.brain != null:
@@ -328,11 +354,13 @@ func _landed_impact(damage: int, impacts: Array, counter: bool, is_sword: bool) 
 	hurt_visual = .22
 	if counter: counter_visual = .7
 	if rules.brain != null:
-		hit_stop = .035 if not is_sword else .055
-		_jolt(3 if not is_sword else 5,.10)
+		hit_stop = .060 if counter else (.055 if is_sword else .035)
+		_jolt(5 if is_sword or counter else 3, .12)
 		_sound("hit")
 	for impact in impacts:
-		hit_bursts.append({"position":impact.position,"life":.42,"counter":counter})
+		var target_height := boss_height if impact.boss else 82.0
+		var position := Vector2(impact.position) - Vector2(0, target_height * .42)
+		hit_bursts.append({"position": position, "life": HIT_BURST_TIME, "counter": counter, "sword": is_sword})
 		floating("-%d" % impact.damage,Vector2(impact.position)-Vector2(30,boss_height+10 if impact.boss else 100),Color("ffe5a3") if counter else Color("c8f3d6"))
 
 func basic_attack() -> void:
@@ -379,10 +407,12 @@ func use_skill(choice: int) -> void:
 func floating(text: String, at: Vector2, color: Color = Color("c8f3d6")) -> void:
 	var popup: Label = impact_text.duplicate()
 	popup.text = text
+	popup.autowrap_mode = TextServer.AUTOWRAP_OFF
 	popup.add_theme_color_override("font_color",color)
-	popup.position = at
 	popup.z_index = 11
 	add_child(popup)
+	popup.reset_size()
+	popup.position = Vector2(clampf(at.x, 0.0, maxf(0.0, size.x - popup.size.x)), at.y)
 	popup.show()
 	var tween := create_tween().set_parallel(true)
 	tween.tween_property(popup,"position:y",at.y-34,.55)
@@ -406,9 +436,12 @@ func _process(delta: float) -> void:
 			return
 	clock += delta
 	hero_hurt_visual = maxf(0,hero_hurt_visual-delta)
-	for burst in hit_bursts: burst.life -= delta
-	for i in range(hit_bursts.size()-1,-1,-1):
-		if hit_bursts[i].life<=0: hit_bursts.remove_at(i)
+	for effects in [hit_bursts, sap_flows, split_bursts]:
+		for i in range(effects.size() - 1, -1, -1):
+			effects[i].life -= delta
+			if effects[i].life <= 0:
+				effects.remove_at(i)
+	sap_pulse_visual = maxf(0.0, sap_pulse_visual - delta)
 	perfect_visual = maxf(0,perfect_visual-delta)
 	counter_visual = maxf(0,counter_visual-delta)
 	phase_flash = maxf(0,phase_flash-delta)
@@ -457,7 +490,8 @@ func _process(delta: float) -> void:
 			_jolt(4, .20)
 			_sound("phase")
 			phase_flash = .75
-			message.text = "第%d阶段 · 新招式出现，已显示的预兆保持不变。" % (last_stage+1)
+			if split_bursts.is_empty():
+				message.text = "第%d阶段 · 新招式出现，已显示的预兆保持不变。" % (last_stage+1)
 	if not rules.finished and Input.is_physical_key_pressed(KEY_J) and rules.attack_cd<=0 and rules.heal_cast<=0:
 		basic_attack()
 	_hero_pose()
@@ -552,6 +586,12 @@ func show_result() -> void:
 	ui.button(actions, "返回长廊", ui.open_boss)
 	ui.button(actions, "回到仙村", ui.close_modal)
 
+func add_sprite_height(add: Dictionary) -> float:
+	match str(add.get("variant", "")):
+		"large": return boss_height * .49
+		"small": return boss_height * .30
+	return 74.0
+
 func _refresh_adds() -> void:
 	while _add_sprites.size() < rules.adds.size():
 		var frames: Array[Texture2D] = Assets.frames("res://assets/pixel_campaign/minion_sheet.png", 5, 2, 0.1, true)
@@ -559,14 +599,43 @@ func _refresh_adds() -> void:
 		sprite.z_index = 2
 		_add_sprites.append(sprite)
 	for i in range(_add_sprites.size()):
-		_add_sprites[i].visible = rules.adds[i].hp > 0 and not rules.finished
+		var sprite := _add_sprites[i]
+		if i >= rules.adds.size():
+			sprite.hide()
+			continue
 		var add: Dictionary = rules.adds[i]
-		_add_sprites[i].position = add.position + Vector2(0, sin(clock*13+i)*3 if add.phase == "seek" else 0)
-		_add_sprites[i].rotation = sin(clock*13+i)*.07 if add.phase == "seek" else -.10
-		_add_sprites[i].modulate = Color("ffc58a") if add.phase == "windup" else Color.WHITE
+		sprite.visible = add.hp > 0 and not rules.finished
+		if not sprite.visible:
+			continue
+		var move_x: float = add.position.x - sprite.position.x
+		sprite.position = add.position + Vector2(0, sin(clock*13+i)*3 if add.phase == "seek" else 0)
+		sprite.z_index = 3 if float(add.position.y) > hero.position.y else 1
+		var variant := str(add.get("variant", ""))
+		if variant in ["large", "small"] and not boss_bank.is_empty():
+			var height := add_sprite_height(add)
+			var frame := int(clock * 8.0 + i) % 4
+			var tint := Color("ffd388") if variant == "large" else Color("adeb9e")
+			match str(add.phase):
+				"bud":
+					frame = 8
+					height *= lerpf(.55, 1.0, smoothstep(0.0, .60, float(add.clock)))
+				"windup":
+					frame = 5
+					tint = tint.lightened(.32)
+				"lunge": frame = 6
+				"recover": frame = 7
+			Actions.apply(sprite, boss_bank, frame, height)
+			sprite.rotation = 0.0
+			if add.phase in ["windup", "lunge"]:
+				sprite.flip_h = Vector2(add.target).x > Vector2(add.position).x
+			elif absf(move_x) > 0.1:
+				sprite.flip_h = move_x > 0.0
+			sprite.modulate = tint
+			continue
+		sprite.rotation = sin(clock*13+i)*.07 if add.phase == "seek" else -.10
+		sprite.modulate = Color("ffc58a") if add.phase == "windup" else Color.WHITE
 		var stretch := Vector2(1.16,.88) if add.phase == "lunge" else Vector2.ONE
-		_add_sprites[i].scale = stretch*74/_add_sprites[i].texture.get_height()
-		_add_sprites[i].z_index = 3 if float(add.position.y) > hero.position.y else 1
+		sprite.scale = stretch * add_sprite_height(add) / sprite.texture.get_height()
 
 func enable_companion() -> bool:
 	if mode != "practice" or companion != null:
@@ -598,11 +667,28 @@ func _enemy_feedback(event: Dictionary) -> void:
 		"windup":
 			var kind: String = str(rules.brain.move.kind) if rules.brain != null else "circle"
 			var advice := {"charge":"横向闪开冲锋路线", "leap":"离开落点，等它落地再反击", "volley":"从弹道之间穿过", "nova":"贴近内圈，或退到环外", "slash":"绕到侧后方", "beam":"横向移出吐息线", "eruption":"观察起势，及时移动", "cross":"走向十字之间的空隙"}
-			message.text = str(event.get("attack", rules.boss_name)) + " · " + str(advice.get(kind,"观察动作，收招时反击"))
+			var hint: String = advice.get(kind, "观察动作，收招时反击")
+			if rules.brain != null and rules.brain.move.get("style") == "sap":
+				hint = "藤脉已锁定 · 横移避开连续吸血"
+			message.text = str(event.get("attack", rules.boss_name)) + " · " + hint
 			_sound("tell")
 		"release":
 			_sound("rush" if event.kind in ["charge","leap"] else ("shot" if event.kind == "volley" else "impact"))
 		"volley_burst": _sound("shot")
+		"sap_pulse":
+			sap_pulse_visual = SAP_PULSE_TIME
+			_sound("shot")
+		"drain":
+			var position := Vector2(event.position)
+			sap_flows.append({"source": Vector2(event.source_position), "target": position, "life": SAP_FLOW_TIME})
+			floating("+%d 回血" % int(event.amount), position - Vector2(22, boss_height * .68), Color("b9ff9e"))
+			message.text = "%s汲取生命 · 恢复 %d" % [rules.boss_name, int(event.amount)]
+		"split":
+			var position := Vector2(event.position)
+			split_bursts.append({"position": position, "life": SPLIT_BURST_TIME})
+			floating("分裂 ×%d" % int(event.count), position - Vector2(45, 172), Color("e9e5a4"))
+			message.text = "%s正在长出分身 · 趁萌芽时清理" % rules.boss_name
+			_sound("phase")
 		"combo_link": message.text = "连段未结束 · 准备第%d / %d击，保留体力。" % [event.next,event.total]
 		"stagger":
 			phase_flash = .5

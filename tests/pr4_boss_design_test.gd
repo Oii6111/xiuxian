@@ -66,6 +66,7 @@ func _run() -> void:
 	_locked_tell()
 	_projectile_and_charge()
 	_rules_checks()
+	_wood_heart_checks()
 	var output := FileAccess.open("res://work/boss-polish/design-report.json",FileAccess.WRITE)
 	output.store_string(JSON.stringify({"checks":checks,"failures":failures,"bosses":report},"  "))
 	output.close()
@@ -144,3 +145,68 @@ func _rules_checks() -> void:
 	var position: Vector2 = one.boss_position
 	one.step(1,Vector2(500,600))
 	expect(one.finished and not one.won and one.boss_position==position,"lifecycle change interrupts locomotion and prevents a false win")
+
+func _drain_cast(stage: int = 0) -> RefCounted:
+	var rules = Boss.new(fresh(), 0, 10, "attack", false, Catalogue.entry("b03"))
+	var brain: RefCounted = rules.brain
+	brain.definition.moves = [brain.definition.moves[2]]
+	brain.position = Vector2(950, 575)
+	brain.stage = stage
+	rules.stage_index = stage
+	rules.boss_hp = 4000
+	brain._begin(Vector2(550, 575))
+	brain.phase = "attack"
+	brain.phase_clock = 0.0
+	brain.phase_duration = float(brain.move.active)
+	return rules
+
+func _wood_heart_checks() -> void:
+	var player := Vector2(550, 575)
+	var drained = _drain_cast(1)
+	var initial_hp: int = drained.hp
+	var events: Array = drained.step(.12, player).events
+	var heal: Array = events.filter(func(event): return event.event == "drain")
+	expect(heal.size() == 1 and drained.hp < initial_hp and drained.boss_hp - 4000 == (initial_hp - drained.hp) * 8,
+		"wood heart recovers only from health actually taken")
+	expect(drained.stage_index == 1, "drain recovery never rolls the encounter stage back")
+
+	var shielded = _drain_cast()
+	shielded.shield_hp = 1000
+	shielded.shield_time = 2.0
+	shielded.step(.12, player)
+	expect(shielded.hp == shielded.max_hp and shielded.boss_hp == 4000, "fully shielded drain gives no recovery")
+	var dodged = _drain_cast()
+	dodged.dodge()
+	dodged.step(.12, player)
+	expect(dodged.hp == dodged.max_hp and dodged.boss_hp == 4000, "timed dodge gives no recovery")
+	var capped = _drain_cast()
+	capped.boss_hp = capped.boss_max_hp - 1
+	capped.step(.12, player)
+	expect(capped.boss_hp == capped.boss_max_hp, "drain cannot overheal")
+
+	var final_wave = _drain_cast(2)
+	var pulses: Array = final_wave.step(1.32, Vector2(550, 675)).events.filter(func(event): return event.event == "sap_pulse")
+	expect(pulses.size() == 3 and final_wave.hp == final_wave.max_hp and final_wave.boss_hp == 4000,
+		"phase three fires three pulses down the locked lane and never follows a player who steps aside")
+
+	var clone_wave = Boss.new(fresh(), 0, 10, "attack", false, Catalogue.entry("b03"))
+	clone_wave.boss_hp = roundi(clone_wave.boss_max_hp * .6)
+	clone_wave._sync_stage()
+	clone_wave.brain.phase_duration = 100.0
+	expect(clone_wave.active_adds() == 2 and clone_wave.adds[0].variant == "small" and clone_wave.adds[1].variant == "large"
+		and clone_wave.adds[0].hp < clone_wave.adds[1].hp and clone_wave.adds[0].phase == "bud",
+		"phase two grows a fast small clone and a sturdy large clone with a bud warning")
+	clone_wave.hp = 10000
+	clone_wave.step(8.6, Vector2(200, 575))
+	expect(clone_wave.active_adds() == 4, "wood heart splits again on its own without exceeding the active cap")
+	for add in clone_wave.adds:
+		add.hp = 0
+	clone_wave.boss_hp = roundi(clone_wave.boss_max_hp * .25)
+	clone_wave._sync_stage()
+	expect(clone_wave.active_adds() == 3, "final phase immediately grows three clones if room is available")
+	var first_id: String = clone_wave.adds[0].id
+	for add in clone_wave.adds:
+		add.hp = 0
+	clone_wave.step(5.6, Vector2(200, 575))
+	expect(clone_wave.active_adds() == 3 and clone_wave.adds[0].id != first_id,
+		"final phase repeats sooner and replaced clones have distinct identities")

@@ -9,6 +9,8 @@ const DODGE_COST = 24
 const HEAL_COST = 45
 const SWORD_RANGE = 820.0
 const BASIC_RANGE = 210.0
+const MAX_ADDS = 4
+const WOOD_BUD_TIME = 0.55
 var combat_rank: int = 1
 var poise: float = 0
 var max_poise: float = 140
@@ -25,6 +27,9 @@ var hurt_grace: float = 0
 var pattern_index: int = 0
 var stage_index: int = 0
 var adds: Array = []
+var _wood_split_in: float = 0.0
+var _wood_split_count: int = 0
+var _wood_clone_serial: int = 0
 var _warning: Dictionary = {}
 var _base_windup: float = 1.1
 var _attack_number: int = 0
@@ -395,15 +400,47 @@ func _sync_stage() -> void:
 	# 已经显示的预兆不在中途缩短：新节奏从下一次蓄力生效。
 	if brain != null:
 		brain.stage = stage_index
+		if brain.definition.has("wood_split_interval"):
+			_spawn_wood_clones(3 if stage_index == 2 else 2)
+			_wood_split_in = float(brain.definition.wood_split_interval[stage_index - 1])
+			return
 	var summon_count: int = int(brain.definition.minions) if brain != null else stage_index + 1
 	for i in range(summon_count):
-		if active_adds() >= 4:
+		if active_adds() >= MAX_ADDS:
 			break
 		var slot: int = adds.size() % 4
 		adds.append({"id":"add_%d" % adds.size(), "hp":36 + tier / 2, "position":BossBrain.clamp_floor(boss_position + Vector2(-100 + (slot % 2) * 170, -45 + (slot / 2) * 65)), "radius":30, "phase":"seek", "clock":-1.0-slot*.22, "target":Vector2.ZERO})
 
 func active_adds() -> int:
 	return adds.filter(func(add): return add.hp > 0).size()
+
+func _spawn_wood_clones(count: int) -> void:
+	adds = adds.filter(func(add): return add.hp > 0)
+	var offsets := [Vector2(-210, 40), Vector2(205, 40), Vector2(-162, -92), Vector2(168, -78)]
+	for i in range(mini(count, MAX_ADDS - adds.size())):
+		var large := _wood_clone_serial % 2 == 1
+		var health := 215 if large else 75
+		var offset: Vector2 = offsets[_wood_clone_serial % offsets.size()]
+		var point := BossBrain.clamp_floor(boss_position + offset)
+		if absf(point.x - boss_position.x) < 125.0:
+			point = BossBrain.clamp_floor(boss_position + Vector2(-offset.x * 1.5, offset.y))
+		adds.append({"id":"wood_%d" % _wood_clone_serial, "hp":health, "max_hp":health,
+			"position":point, "radius":42 if large else 25, "variant":"large" if large else "small",
+			"speed_scale":.72 if large else 1.6, "tell":.92 if large else .57, "power":1.38 if large else .78,
+			"phase":"bud", "clock":0.0, "target":Vector2.ZERO})
+		_wood_clone_serial += 1
+		_wood_split_count += 1
+
+func _step_wood_clones(delta: float, events: Array) -> void:
+	if stage_index == 0 or not brain.definition.has("wood_split_interval"):
+		return
+	_wood_split_in -= delta
+	if _wood_split_in <= 0.0 and brain.phase in ["waiting", "breath"]:
+		_spawn_wood_clones(3 if stage_index == 2 else 2)
+		_wood_split_in = float(brain.definition.wood_split_interval[stage_index - 1])
+	if _wood_split_count > 0:
+		events.append({"event":"split", "position":boss_position, "count":_wood_split_count})
+		_wood_split_count = 0
 
 func warning_profile() -> Dictionary:
 	if _warning.is_empty():
@@ -428,6 +465,12 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 				received["direction"] = event.direction
 				received["source"] = event.get("source","")
 				events.append(received)
+				var ratio := float(event.get("drain_ratio", 0.0))
+				if ratio > 0.0 and received.event == "hurt":
+					var amount := mini(boss_max_hp - boss_hp, roundi(float(received.damage) * ratio))
+					if amount > 0:
+						boss_hp += amount
+						events.append({"event":"drain", "amount":amount, "source_position":player, "position":brain.position})
 		else:
 			if event.event == "stagger":
 				poise = 0
@@ -441,6 +484,7 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 		_warning = brain.profiles[0].duplicate(true)
 		target_position = _warning.target
 	if not finished:
+		_step_wood_clones(delta, events)
 		_step_adds(delta, player, events)
 	return {"healed":healed, "events":events}
 
@@ -450,7 +494,12 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 		if add.hp <= 0:
 			continue
 		add.clock += delta
+		var tell := float(add.get("tell", .72))
 		match str(add.phase):
+			"bud":
+				if add.clock >= WOOD_BUD_TIME:
+					add.phase = "seek"
+					add.clock = 0.0
 			"seek":
 				var offset: Vector2 = player - Vector2(add.position)
 				var direction := offset.normalized()
@@ -458,13 +507,13 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					if other != add and other.hp > 0 and Vector2(add.position).distance_to(other.position) < 55:
 						direction += (Vector2(add.position) - Vector2(other.position)).normalized() * .8
 				if offset.length() > 65:
-					add.position = BossBrain.clamp_floor(Vector2(add.position) + direction.limit_length(1) * (85 + tier*.25) * delta)
+					add.position = BossBrain.clamp_floor(Vector2(add.position) + direction.limit_length(1) * (85 + tier*.25) * float(add.get("speed_scale", 1.0)) * delta)
 				if add.clock >= .45 and offset.length() <= 115:
 					add.phase = "windup"
 					add.clock = 0.0
 					add.target = player
 			"windup":
-				if add.clock >= .72:
+				if add.clock >= tell:
 					add.phase = "lunge"
 					add.clock = 0.0
 					add["origin"] = add.position
@@ -474,12 +523,12 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					add.phase = "recover"
 					add.clock = 0.0
 					add["recover_from"] = add.position
-					var profile := {"kind":"circle", "target":add.target, "radius":Vector2(49,34), "width":20.0}
+					var profile := _add_attack_profile(add)
 					if Patterns.hits(profile, player):
-						var raw := roundi(12+(combat_rank-1)*1.1)
+						var raw := roundi((12+(combat_rank-1)*1.1) * float(add.get("power", 1.0)))
 						var received := receive_damage(raw)
 						if not received.is_empty():
-							received["attack"] = "散祟扑咬"
+							received["attack"] = "木身扑袭" if add.has("variant") else "散祟扑咬"
 							received["direction"] = (player-Vector2(add.origin)).normalized()
 							events.append(received)
 			"recover":
@@ -489,13 +538,17 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					add.phase = "seek"
 					add.clock = 0.0
 
+func _add_attack_profile(add: Dictionary) -> Dictionary:
+	var size := float(add.radius) / 30.0
+	return {"kind":"circle", "target":add.target, "radius":Vector2(49,34) * size, "width":20.0}
+
 func enemy_zones() -> Array:
 	if brain == null or finished:
 		return []
 	var zones: Array = brain.zones()
 	for add in adds:
 		if add.hp > 0 and add.phase in ["windup","lunge"]:
-			zones.append({"profile":{"kind":"circle", "target":add.target, "radius":Vector2(49,34), "width":20.0}, "progress":1.0 if add.phase == "lunge" else clampf(float(add.clock)/.72,0,1), "style":"minion", "active":false})
+			zones.append({"profile":_add_attack_profile(add), "progress":1.0 if add.phase == "lunge" else clampf(float(add.clock)/float(add.get("tell", .72)),0,1), "style":"minion", "active":false})
 	return zones
 
 

@@ -262,13 +262,16 @@ func _contact(profile: Dictionary, key: String, player: Vector2, events: Array) 
 		return
 	if Patterns.hits(profile, player):
 		_spent[key] = true
-		events.append({"event":"damage", "raw":raw_damage(), "attack":move.name, "direction":(player-position).normalized(), "source":key})
+		events.append({"event":"damage", "raw":raw_damage(), "attack":move.name, "direction":(player-position).normalized(), "source":key, "drain_ratio":move.get("drain_ratio", 0.0)})
 
 func _impact(profile: Dictionary) -> void:
 	impacts.append({"profile":profile.duplicate(true), "style":move.style, "life":.48})
 
 func _active(delta: float, player: Vector2, events: Array) -> void:
 	var fraction = progress()
+	if move.kind == "beam" and move.has("drain_ratio"):
+		_pulse_drain(player, events)
+		return
 	match str(move.kind):
 		"charge":
 			var before = position
@@ -323,6 +326,17 @@ func _active(delta: float, player: Vector2, events: Array) -> void:
 				for profile in profiles:
 					_impact(profile)
 					_contact(profile, "strike", player, events)
+
+func _pulse_drain(player: Vector2, events: Array) -> void:
+	var pulses := 3 if int(move.attack_stage) == 2 else 2
+	var profile: Dictionary = profiles[0]
+	for pulse in range(pulses):
+		var key := "sap_%d" % pulse
+		if phase_clock < .08 + .56 * pulse or _spent.has(key + "_fired"):
+			continue
+		_spent[key + "_fired"] = true
+		events.append({"event":"sap_pulse", "position":position, "target":profile.target, "pulse":pulse + 1})
+		_contact(profile, key, player, events)
 
 func zones() -> Array:
 	var output: Array = []

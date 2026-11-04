@@ -52,19 +52,19 @@
 
     function fitCanvas() {
       const style = getComputedStyle(stage);
-      const width = stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      const height = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      const verticalPadding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const width = window.innerWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const height = window.innerHeight - verticalPadding;
       // Keep the fitted stage size and origin while the keyboard covers the viewport.
       if ((editing || window.visualViewport?.height < preEditHeight - 100) &&
           Math.abs(width - preEditWidth) < 4 && height < preEditHeight) {
-        stage.style.height = preEditHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + "px";
+        stage.style.height = preEditHeight + verticalPadding + "px";
         return;
       }
       stage.style.removeProperty("height");
-      const availableHeight = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      const scale = Math.min(width / 1440, availableHeight / 900);
+      const scale = Math.min(width / 1440, height / 900);
       fittedWidth = width;
-      fittedHeight = availableHeight;
+      fittedHeight = height;
       canvas.style.setProperty("--game-width", Math.floor(1440 * scale) + "px");
       canvas.style.setProperty("--game-height", Math.floor(900 * scale) + "px");
     }

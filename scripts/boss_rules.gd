@@ -11,6 +11,7 @@ const SWORD_RANGE = 820.0
 const BASIC_RANGE = 210.0
 const MAX_ADDS = 4
 const WOOD_BUD_TIME = 0.55
+const AIRBORNE_DURATION := .62
 var combat_rank: int = 1
 var poise: float = 0
 var max_poise: float = 140
@@ -30,6 +31,11 @@ var adds: Array = []
 var _wood_split_in: float = 0.0
 var _wood_split_count: int = 0
 var _wood_clone_serial: int = 0
+var slow_time := 0.0
+var airborne_time := 0.0
+var _airborne_velocity := Vector2.ZERO
+var _airborne_damage := 0
+var _airborne_attack := ""
 var _warning: Dictionary = {}
 var _base_windup: float = 1.1
 var _attack_number: int = 0
@@ -114,13 +120,15 @@ func _init(data: RefCounted, support: int = 0, challenge_tier: int = 0, challeng
 		finished = true
 		last_message = "该角色当前不能出战，请选择修行中的家人。"
 
-func _available(cooldown: float, cost: float = 0, can_cancel: bool = false) -> bool:
+func _available(cooldown: float, cost: float = 0, can_cancel: bool = false, allow_airborne: bool = false) -> bool:
 	last_message = ""
 	if not state.allows_battle():
 		finished = true
 		last_message = "该角色当前不能出战，请切换修行中的家人。"
 	elif finished:
 		last_message = "本次挑战已结束。"
+	elif airborne_time > 0 and not allow_airborne:
+		last_message = "人在空中 · 可用云罡护住落地。"
 	elif heal_cast > 0:
 		last_message = "正在归元吐纳，移动寻找安全位置。"
 	elif not pending_action.is_empty() and not can_cancel:
@@ -225,7 +233,7 @@ func _resolve_sword(origin: Vector2, direction: Vector2, targets: Array = []) ->
 	return {"ok": true, "damage": damage, "impacts":impacts, "counter":counter_used, "hit_count": hits.size(), "message": "听风剑诀 · 剑气掠过路径目标" if not hits.is_empty() else "剑气未命中，调整站位再出剑。"}
 
 func defend() -> bool:
-	if not _available(shield_cd, SHIELD_COST):
+	if not _available(shield_cd, SHIELD_COST, false, true):
 		return false
 	mp -= SHIELD_COST
 	shield_cd = 7.0
@@ -266,7 +274,7 @@ func heal() -> bool:
 	return true
 
 func receive_damage(raw_damage: int) -> Dictionary:
-	if finished:
+	if finished or airborne_time > 0:
 		return {}
 	if brain != null and hurt_grace > 0:
 		return {}
@@ -311,16 +319,21 @@ func step(delta: float, player_position: Vector2) -> Dictionary:
 	var remaining := delta
 	var events: Array = []
 	var healed := 0
+	var displacement := Vector2.ZERO
 	while remaining > .000001 and not finished:
 		var slice := minf(remaining, 1.0/60)
 		var result := _step_once(slice, player_position)
 		healed += int(result.get("healed", 0))
 		for event in result.get("events", []):
 			events.append(event)
+			if event.event == "forced_move":
+				var next := BossBrain.clamp_floor(player_position + Vector2(event.offset))
+				displacement += next - player_position
+				player_position = next
 		if result.get("event", "") == "state_changed":
 			events.append({"event":"state_changed"})
 		remaining -= slice
-	var output: Dictionary = {"healed":healed, "events":events}
+	var output: Dictionary = {"healed":healed, "events":events, "displacement":displacement}
 	for event in events:
 		if event.event in ["hurt", "blocked", "evaded", "perfect_evade", "windup", "state_changed", "stagger"]:
 			output.merge(event, true)
@@ -343,6 +356,7 @@ func _step_once(delta: float, player_position: Vector2) -> Dictionary:
 	if brain != null and poise_delay == 0 and not brain.pending_stagger:
 		poise = maxf(0,poise-delta*5)
 	hurt_grace = maxf(0, hurt_grace - delta)
+	slow_time = maxf(0, slow_time - delta)
 	attack_cd = maxf(0, attack_cd - delta)
 	sword_cd = maxf(0, sword_cd - delta)
 	shield_cd = maxf(0, shield_cd - delta)
@@ -362,7 +376,18 @@ func _step_once(delta: float, player_position: Vector2) -> Dictionary:
 			healed = mini(max_hp - hp, int(round(max_hp * 0.24)) + 12)
 			hp += healed
 	if brain != null:
-		var player_events: Array = _step_player_action(delta,player_position)
+		var player_events: Array = []
+		if airborne_time > 0:
+			var offset := _airborne_velocity * minf(delta, airborne_time)
+			player_events.append({"event":"forced_move", "offset":offset, "effect":"launch"})
+			player_position = BossBrain.clamp_floor(player_position + offset)
+			airborne_time = maxf(0, airborne_time - delta)
+			if airborne_time == 0:
+				var landing := receive_damage(_airborne_damage)
+				if not landing.is_empty():
+					landing["attack"] = _airborne_attack + " · 坠地"
+					player_events.append(landing)
+		player_events.append_array(_step_player_action(delta,player_position))
 		if finished: return {"healed":healed,"events":player_events}
 		var enemies := _step_enemies(delta,player_position,healed)
 		enemies.events = player_events+enemies.events
@@ -458,7 +483,9 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 	var events: Array = []
 	brain.stage = stage_index
 	for event in brain.step(delta, player):
-		if event.event == "damage":
+		if event.event == "signature_contact":
+			_receive_signature(event, player, events)
+		elif event.event == "damage":
 			var received := receive_damage(int(event.raw))
 			if not received.is_empty():
 				received["attack"] = event.attack
@@ -487,6 +514,63 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 		_step_wood_clones(delta, events)
 		_step_adds(delta, player, events)
 	return {"healed":healed, "events":events}
+
+func airborne_height() -> float:
+	return sin(PI * airborne_time / AIRBORNE_DURATION) * 146.0
+
+func _receive_signature(event: Dictionary, player: Vector2, events: Array) -> void:
+	var effect := str(event.effect)
+	var raw := int(event.raw)
+	if finished or airborne_time > 0:
+		return
+	if effect in ["pull", "launch"]:
+		if hurt_grace > 0:
+			return
+		var away := (player - Vector2(brain.position)).normalized()
+		if away.is_zero_approx():
+			away = Vector2(event.direction)
+		if effect == "pull":
+			if dodge_time <= 0 and (shield_time <= 0 or shield_hp <= 0):
+				var distance := clampf(player.distance_to(brain.position) - 72.0, 0.0, 158.0)
+				if distance > 0.0:
+					events.append({"event":"forced_move", "offset":-away * distance, "effect":"pull"})
+			return
+		if dodge_time > 0 or (shield_time > 0 and shield_hp > 0):
+			var guard := receive_damage(maxi(1, roundi(raw * .32)))
+			if not guard.is_empty():
+				guard["attack"] = event.attack
+				events.append(guard)
+			if guard.get("event", "") != "hurt" or finished:
+				return
+		airborne_time = AIRBORNE_DURATION
+		_airborne_velocity = away * 253.0 / AIRBORNE_DURATION
+		_airborne_damage = raw
+		_airborne_attack = str(event.attack)
+		heal_cast = 0
+		pending_action.clear()
+		events.append({"event":"signature_status", "label":"被气浪吹飞 · 可用云罡护住落地"})
+		return
+	var received := receive_damage(raw)
+	if received.is_empty():
+		return
+	received["attack"] = event.attack
+	received["direction"] = (player - brain.position).normalized()
+	events.append(received)
+	if received.event != "hurt":
+		return
+	var label := ""
+	match effect:
+		"slow":
+			slow_time = 1.65
+			label = "步履受阻 · 移动暂缓"
+		"fatigue":
+			stamina = maxf(0, stamina - 24.0)
+			label = "体力 −24"
+		"seal":
+			mp = maxf(0, mp - 18.0)
+			label = "灵力 −18"
+	if not label.is_empty():
+		events.append({"event":"signature_status", "label":label})
 
 func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 	for i in range(adds.size()):

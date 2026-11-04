@@ -4,6 +4,7 @@ const Boss = preload("res://scripts/boss_rules.gd")
 const Brain = preload("res://scripts/systems/combat/pr4_boss_brain.gd")
 const Catalogue = preload("res://scripts/trial_catalogue.gd")
 const Patterns = preload("res://scripts/systems/combat/pr4_patterns.gd")
+const Signatures = preload("res://data/combat/pr4_boss_signatures.json")
 var checks: int = 0
 var failures: Array = []
 var report: Array = []
@@ -67,6 +68,9 @@ func _run() -> void:
 	_projectile_and_charge()
 	_rules_checks()
 	_wood_heart_checks()
+	_signature_checks()
+	_wind_corridor_checks()
+	_wind_launch_checks()
 	var output := FileAccess.open("res://work/boss-polish/design-report.json",FileAccess.WRITE)
 	output.store_string(JSON.stringify({"checks":checks,"failures":failures,"bosses":report},"  "))
 	output.close()
@@ -210,3 +214,128 @@ func _wood_heart_checks() -> void:
 	clone_wave.step(5.6, Vector2(200, 575))
 	expect(clone_wave.active_adds() == 3 and clone_wave.adds[0].id != first_id,
 		"final phase repeats sooner and replaced clones have distinct identities")
+
+func _signature_checks() -> void:
+	var signatures := {}
+	for row in Catalogue.all():
+		var brain = Brain.new(row.id, Vector2(950, 575), int(row.tier))
+		var moves: Array = brain.definition.moves.filter(func(move): return move.has("signature"))
+		if row.id == "b03":
+			expect(moves.is_empty(), "wood heart retains its original drain and split")
+			continue
+		expect(moves.size() == 1, row.id + " has one authored signature")
+		if moves.size() != 1:
+			continue
+		var move: Dictionary = moves[0]
+		expect(not signatures.has(move.name), row.id + " has a distinct signature name")
+		signatures[move.name] = true
+		brain.definition.moves = moves
+		brain.stage = 2
+		brain._begin(Vector2(650, 575))
+		var preview: Array = _signature_profiles(brain).duplicate(true)
+		expect(not preview.is_empty(), row.id + " shows a signature warning before release")
+		brain.stage = 0
+		brain.step(.1, Vector2(430, 650))
+		expect(_signature_profiles(brain) == preview, row.id + " signature warning stays locked when the player moves or the stage changes")
+		var groups := {}
+		for beat in Signatures.data[row.id].beats:
+			groups[beat.at] = true
+		var last_beat := 0
+		var released := false
+		var complete_sequence := true
+		var had_safe_route := true
+		var last_zones: Array = []
+		for frame in range(300):
+			var zones := _signature_profiles(brain)
+			if not zones.is_empty() and zones != last_zones:
+				had_safe_route = had_safe_route and _has_safe_point(zones)
+				last_zones = zones.duplicate(true)
+			for event in brain.step(1.0 / 60, Vector2(430, 650)):
+				if event.event == "release":
+					released = true
+				if event.event == "signature_beat":
+					complete_sequence = complete_sequence and released and int(event.number) == last_beat + 1 and not str(event.label).is_empty()
+					last_beat = int(event.number)
+			if brain.phase in ["breath", "link"]:
+				break
+		expect(complete_sequence and last_beat == groups.size(), row.id + " delivers every signature beat in order after the tell")
+		expect(had_safe_route, row.id + " always leaves an escape space during its signature")
+	expect(signatures.size() == 19, "all remaining bosses have different authored signatures")
+
+func _signature_profiles(brain: RefCounted) -> Array:
+	return brain.signature_zones().map(func(zone): return zone.profile)
+
+func _has_safe_point(zones: Array) -> bool:
+	for y in range(470, 670, 24):
+		for x in range(175, 1230, 60):
+			var point := Vector2(x, y)
+			if not zones.any(func(profile): return Patterns.hits(profile, point)):
+				return true
+	return false
+
+func _signature_cast(id: String, target: Vector2) -> RefCounted:
+	var rules = Boss.new(fresh(), 0, 10, "attack", false, Catalogue.entry(id))
+	var brain: RefCounted = rules.brain
+	var moves: Array = brain.definition.moves.filter(func(move): return move.has("signature"))
+	if moves.is_empty():
+		return null
+	brain.definition.moves = moves
+	brain.position = Vector2(950, 575)
+	brain._begin(target)
+	rules.step(brain.phase_duration + .02, target)
+	return rules
+
+func _wind_corridor_checks() -> void:
+	var safe_lane := Brain.FLOOR.get_center()
+	var rules := _signature_cast("b10", safe_lane)
+	expect(rules != null, "closed furnace signature exists")
+	if rules == null:
+		return
+	rules.step(.30, safe_lane)
+	expect(rules.hp == rules.max_hp, "paired furnace seals leave the center lane safe")
+	var pairs: Array = rules.brain.hazards
+	expect(pairs.size() == 2 and pairs.all(func(hazard): return not Patterns.hits(hazard.profile, safe_lane)),
+		"both simultaneous wind bands persist outside the safe lane")
+
+func _wind_launch_checks() -> void:
+	var player := Vector2(650, 575)
+	var rules := _signature_cast("b12", player)
+	expect(rules != null, "folded wings signature exists")
+	if rules == null:
+		return
+	var result: Dictionary = rules.step(.24, player)
+	var pulled: Vector2 = result.get("displacement", Vector2.ZERO)
+	expect(pulled.x > 0.0 and rules.hp == rules.max_hp,
+		"the first wind beat pulls toward the boss without dealing health damage")
+	player += pulled
+	result = rules.step(.70, player)
+	var launch: Array = result.events.filter(func(event): return event.event == "forced_move" and event.get("effect") == "launch")
+	expect(not launch.is_empty() and rules.airborne_time > 0.0 and rules.airborne_height() > 0.0,
+		"the narrow follow-up sends an unguarded player visibly airborne")
+	expect(rules.hp == rules.max_hp, "fall damage waits until the player lands")
+	player += Vector2(result.get("displacement", Vector2.ZERO))
+	rules.step(1.0, player)
+	expect(rules.airborne_time == 0.0 and rules.hp < rules.max_hp,
+		"fall damage is applied on landing after the airborne state expires")
+
+	var shielded := _signature_cast("b12", Vector2(650, 575))
+	shielded.shield_hp = 1000
+	shielded.shield_time = 2.0
+	shielded.step(1.15, Vector2(650, 575))
+	expect(shielded.hp == shielded.max_hp and shielded.airborne_time == 0.0,
+		"a fully absorbed gale cannot launch the player")
+
+	var air_guard := _signature_cast("b12", Vector2(650, 575))
+	result = air_guard.step(.94, Vector2(650, 575))
+	air_guard.stats.shield = 1000
+	expect(air_guard.airborne_time > 0.0 and air_guard.defend(), "cloud shield is available after launch")
+	air_guard.step(1.0, Vector2(650, 575) + Vector2(result.displacement))
+	expect(air_guard.airborne_time == 0.0 and air_guard.hp == air_guard.max_hp,
+		"shielding mid-air can absorb the landing damage")
+
+	var dodged := _signature_cast("b12", Vector2(650, 575))
+	dodged.step(.74, Vector2(650, 575))
+	dodged.dodge()
+	dodged.step(.24, Vector2(650, 575))
+	expect(dodged.hp == dodged.max_hp and dodged.airborne_time == 0.0,
+		"timed cloud step prevents wind launch")

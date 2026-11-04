@@ -12,6 +12,8 @@ static func hits(profile: Dictionary, point: Vector2) -> bool:
 	return false
 
 static func polygons(profile: Dictionary) -> Array:
+	if profile.has("polygons"):
+		return profile.polygons
 	var areas: Array = _raw_polygons(profile)
 	if not profile.has("clip"):
 		return areas

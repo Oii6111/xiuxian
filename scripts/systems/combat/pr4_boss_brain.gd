@@ -3,6 +3,7 @@ extends RefCounted
 ## Coordinates are foot positions. Tells, projectiles and collision use the same profiles.
 const Patterns = preload("res://scripts/systems/combat/pr4_patterns.gd")
 const CONFIG = preload("res://data/combat/pr4_boss_moves.json")
+const SIGNATURES = preload("res://data/combat/pr4_boss_signatures.json")
 const FLOOR = Rect2(150, 458, 1080, 222)
 var progression: Dictionary
 var combo_index: int = 0
@@ -33,9 +34,20 @@ var _start = Vector2.ZERO
 var _end = Vector2.ZERO
 var _landed = false
 var _spent: Dictionary = {}
+var _signature_next := 0
+var _signature_wave := 0
+var _signature_waves := 0
 
 func _init(id: String, spawn: Vector2, rank: int) -> void:
 	definition = CONFIG.data.bosses[id].duplicate(true)
+	var signature: Dictionary = SIGNATURES.data.get(id, {})
+	if not signature.is_empty():
+		for candidate in definition.moves:
+			if candidate.id == signature.move:
+				candidate.name = signature.name
+				candidate.tell = signature.get("tell", candidate.tell)
+				candidate.signature = signature
+				break
 	progression = definition.progression.duplicate(true)
 	position = clamp_floor(spawn)
 	tier = rank
@@ -92,7 +104,7 @@ func step(delta: float, player: Vector2) -> Array:
 				phase_clock = 0
 				phase_duration = float(move.active)
 				events.append({"event":"release", "kind":move.kind})
-				if move.kind == "volley":
+				if move.kind == "volley" and not move.has("signature"):
 					_fire(0)
 		"attack":
 			_active(delta, player, events)
@@ -204,6 +216,9 @@ func _begin(player: Vector2, linked: bool = false) -> void:
 	phase_duration = maxf(float(progression.min_tell), float(move.tell) * (1 - stage * .045) * float(progression.tell))
 	_landed = false
 	_spent.clear()
+	if move.has("signature"):
+		profiles = _build_signature(target)
+		return
 	profiles = _build_profiles(target)
 	if move.kind == "volley":
 		var travel := 0.0
@@ -212,6 +227,72 @@ func _begin(player: Vector2, linked: bool = false) -> void:
 
 func _shape(kind: String, center: Vector2, radius: Vector2) -> Dictionary:
 	return {"kind":kind, "origin":_start, "target":center, "radius":radius, "width":float(move.width), "direction":facing, "inner":.48, "clip":FLOOR.grow(2)}
+
+func _build_signature(player: Vector2) -> Array:
+	var output: Array = []
+	var center := FLOOR.get_center()
+	var locked := clamp_floor(player)
+	var anchors := {"boss": _start, "player": locked, "arena": center, "mirror": center * 2.0 - locked}
+	_signature_next = 0
+	_signature_wave = 0
+	_signature_waves = 0
+	var previous := -1.0
+	var duration := .75
+	for beat in move.signature.beats:
+		if int(beat.get("stage", 0)) > stage:
+			continue
+		var anchor: Vector2 = anchors[beat.get("anchor", "player")]
+		var offset: Array = beat.get("offset", [0, 0])
+		var from: Array = beat.get("from", [0, 0])
+		var size: Array = beat.get("radius", [92, 48])
+		var profile := _shape(beat.shape, anchor + Vector2(offset[0], offset[1]), Vector2(size[0], size[1]))
+		profile.origin = anchor + Vector2(from[0], from[1])
+		profile.width = float(beat.get("width", 30.0))
+		profile.angle = profile.width if beat.shape == "cone" else 0.0
+		profile.merge(beat)
+		profile.polygons = Patterns.polygons(profile)
+		var time := float(beat.at)
+		if time != previous:
+			_signature_waves += 1
+			previous = time
+		var tail := .73 if beat.get("effect", "") == "launch" else .26
+		duration = maxf(duration, time + tail)
+		output.append(profile)
+	move.active = duration
+	return output
+
+func signature_zones() -> Array:
+	var output: Array = []
+	if not move.has("signature") or phase not in ["windup", "attack"] or _signature_next >= profiles.size():
+		return output
+	var time := float(profiles[_signature_next].at)
+	var warning := progress()
+	if phase == "attack":
+		var previous := 0.0 if _signature_next == 0 else float(profiles[_signature_next - 1].at)
+		warning = 1.0 if _signature_next == 0 else clampf((phase_clock - previous) / (time - previous), 0.0, 1.0)
+	for i in range(_signature_next, profiles.size()):
+		if float(profiles[i].at) != time:
+			break
+		output.append({"profile": profiles[i], "progress": warning, "style": move.style, "active": false,
+			"number": _signature_wave + 1, "total": _signature_waves})
+	return output
+
+func _step_signature(player: Vector2, events: Array) -> void:
+	while _signature_next < profiles.size() and phase_clock + .00001 >= float(profiles[_signature_next].at):
+		var profile: Dictionary = profiles[_signature_next]
+		if _signature_next == 0 or profile.at != profiles[_signature_next - 1].at:
+			_signature_wave += 1
+			events.append({"event":"signature_beat", "number":_signature_wave, "total":_signature_waves, "label":profile.get("label", "")})
+		_impact(profile)
+		var raw := roundi(raw_damage() * float(profile.get("scale", 1.0)))
+		var effect := str(profile.get("effect", ""))
+		if Patterns.hits(profile, player):
+			events.append({"event":"signature_contact", "raw":raw, "effect":effect, "attack":move.name,
+				"direction":facing, "source":"signature_%d" % _signature_next})
+		if profile.has("residue"):
+			hazards.append({"profile":profile, "style":move.style, "life":float(profile.residue), "clock":0.0, "tick":0,
+				"raw":maxi(1, roundi(raw * .40)), "attack":str(move.name)+"余势"})
+		_signature_next += 1
 
 func _build_profiles(player: Vector2) -> Array:
 	var radius = Vector2(move.radius[0], move.radius[1])
@@ -269,6 +350,9 @@ func _impact(profile: Dictionary) -> void:
 
 func _active(delta: float, player: Vector2, events: Array) -> void:
 	var fraction = progress()
+	if move.has("signature"):
+		_step_signature(player, events)
+		return
 	if move.kind == "beam" and move.has("drain_ratio"):
 		_pulse_drain(player, events)
 		return
@@ -342,7 +426,9 @@ func zones() -> Array:
 	var output: Array = []
 	for hazard in hazards:
 		output.append({"profile":hazard.profile,"progress":1.0,"style":hazard.style,"active":true,"residue":true})
-	if phase == "windup":
+	if move.has("signature"):
+		output.append_array(signature_zones())
+	elif phase == "windup":
 		for profile in profiles:
 			output.append({"profile":profile, "progress":progress(), "style":move.style, "active":false})
 	elif phase == "attack" and move.kind == "charge":

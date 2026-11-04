@@ -1,5 +1,6 @@
 extends Node2D
 const Actions = preload("res://scripts/systems/combat/action_atlas.gd")
+const Patterns = preload("res://scripts/systems/combat/pr4_patterns.gd")
 ## Pixel-snapped 2D ink, cloud and jade effects; no 3D resources.
 var view: Control
 var ground_only: bool = false
@@ -41,7 +42,7 @@ func _draw() -> void:
 	if view.companion_flash > 0 and is_instance_valid(view.companion_sprite):
 		draw_line(view.companion_sprite.position + Vector2(0, -55), view.boss_anchor + Vector2(0, -80), Color(0.8, 0.95, 0.7, view.companion_flash * 2), 3)
 
-	var hero: Vector2 = view.hero.position
+	var hero: Vector2 = view.hero.position - Vector2(0, rules.airborne_height())
 	if ground_only:
 		_ground()
 		return
@@ -50,6 +51,13 @@ func _draw() -> void:
 	elif rules.brain == null and rules.phase == "breath" and not rules.finished:
 		bolt(view.boss_anchor+Vector2(-60,-view.boss_height*.55),rules.target_position,time)
 	_challenge_effects()
+	if view.wind_visual > 0.0:
+		_wind_cues(hero)
+	if view.landing_visual > 0.0:
+		var fade: float = view.landing_visual / view.LANDING_FLASH_TIME
+		var radius := Vector2(36, 15).lerp(Vector2(88, 30), 1.0 - fade)
+		ellipse(view.landing_position, radius, Color(.98, .90, .72, fade), 4.0)
+		_burst(view.landing_position, radius, "stone", fade * .75, 1.0 - fade)
 	_add_bars()
 	if rules.shield_time > 0 and rules.shield_hp > 0:
 		var center = hero + Vector2(0, -74)
@@ -108,21 +116,101 @@ func _draw() -> void:
 
 
 func _ground() -> void:
-	# Only real shadows and live effects; collision geometry is private to the rules.
 	var rules: RefCounted = view.rules
 	var shadow = Color(.08,.07,.13,.28)
-	draw_circle(view.hero.position,33,shadow)
+	var height: float = rules.airborne_height()
+	draw_circle(view.hero.position, lerpf(33.0, 18.0, clampf(height / 180.0, 0.0, 1.0)), shadow)
 	if rules.brain == null: return
 	var brain: RefCounted = rules.brain
 	ellipse(rules.boss_position,Vector2(view.boss_height*.25,23),shadow,14)
-	# A lingering attack still has its real flame/root effect, without an area outline.
+	for impact in brain.impacts:
+		var profile: Dictionary = impact.profile
+		if profile.has("at"):
+			var fade := clampf(float(impact.life) / .48, 0.0, 1.0)
+			var tint := _signature_tint(profile, str(impact.style))
+			_paint_signature_zone(profile, tint, fade * .28, fade * .90)
 	for hazard in brain.hazards:
 		var profile: Dictionary = hazard.profile
-		_draw_action_fx(str(hazard.style),profile.target,fposmod(view.clock*2.2,1),Vector2(profile.radius)*2,.7)
+		if profile.has("at"):
+			var tint := _signature_tint(profile, str(hazard.style))
+			_paint_signature_zone(profile, tint, .16, .48)
+		else:
+			_draw_action_fx(str(hazard.style),profile.target,fposmod(view.clock*2.2,1),Vector2(profile.radius)*2,.7)
+	for zone in brain.signature_zones():
+		var profile: Dictionary = zone.profile
+		var progress := clampf(float(zone.progress), 0.0, 1.0)
+		var tint := _signature_tint(profile, str(zone.style))
+		_paint_signature_zone(profile, tint, lerpf(.15, .26, progress), lerpf(.61, .97, progress))
+		_signature_badge(profile, int(zone.number), tint)
 	for add in rules.adds:
 		if add.hp > 0:
 			var radius := float(add.get("radius", 30.0))
 			ellipse(add.position, Vector2(radius * .70, radius * .34), shadow, 8)
+
+func _signature_tint(profile: Dictionary, style: String) -> Color:
+	match str(profile.get("effect", "")):
+		"pull": return Color("b7f5f1")
+		"launch": return Color("b8d7ff")
+		"slow": return Color("9ed2fa")
+		"fatigue": return Color("ffcc91")
+		"seal": return Color("efb8ff")
+	return _palette(str(profile.get("style", style)))
+
+func _paint_signature_zone(profile: Dictionary, tint: Color, fill_alpha: float, edge_alpha: float) -> void:
+	var edges := {}
+	for polygon: PackedVector2Array in Patterns.polygons(profile):
+		if polygon.size() < 3:
+			continue
+		draw_colored_polygon(polygon, Color(tint, fill_alpha))
+		for i in range(polygon.size()):
+			var from := polygon[i]
+			var to := polygon[(i + 1) % polygon.size()]
+			var start := Vector2i((from * 16.0).round())
+			var end := Vector2i((to * 16.0).round())
+			var key := Vector4i(start.x, start.y, end.x, end.y)
+			if start.x > end.x or (start.x == end.x and start.y > end.y):
+				key = Vector4i(end.x, end.y, start.x, start.y)
+			# Ring geometry is made of quads. Shared edges are inside the hit area.
+			if not edges.erase(key):
+				edges[key] = [from, to]
+	for segment in edges.values():
+		draw_line(segment[0], segment[1], Color(.08, .10, .15, edge_alpha), 7.0)
+		draw_line(segment[0], segment[1], Color(tint, edge_alpha), 3.0)
+
+func _signature_badge(profile: Dictionary, number: int, tint: Color) -> void:
+	var center := Vector2(profile.target)
+	if profile.kind == "line":
+		center = center.lerp(Vector2(profile.origin), .5)
+	elif profile.kind == "cone":
+		center += Vector2(profile.direction) * 66.0
+	center = center.clamp(Vector2(173, 480), Vector2(1207, 658))
+	draw_circle(center, 18.0, Color(.08, .11, .17, .93))
+	draw_arc(center, 17.0, 0.0, TAU, 24, tint, 2.0)
+	var text := str(number)
+	var font := ThemeDB.fallback_font
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 21).x
+	draw_string(font, center + Vector2(-width * .5, 7), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, tint)
+
+func _wind_cues(hero: Vector2) -> void:
+	var source: Vector2 = view.boss_anchor - Vector2(0, view.boss_height * .43)
+	var target := hero - Vector2(0, 65)
+	var pull: bool = view.wind_effect == "pull"
+	if pull:
+		var swap := source
+		source = target
+		target = swap
+	var forward := (target - source).normalized()
+	var across := forward.orthogonal()
+	var opacity: float = minf(1.0, view.wind_visual / .35)
+	var color := Color("c8f7f1") if pull else Color("d5e6ff")
+	for i in range(10):
+		var progress := fposmod(view.clock * 2.8 - i * .11, 1.0)
+		var edge := float(i % 5 - 2)
+		var stream := sin(progress * PI) * edge * 18.0
+		var point := source.lerp(target, progress) + across * stream
+		var length := 24.0 + absf(edge) * 8.0
+		var stroke := PackedVector2Array([point - forward * length, point - forward * 7.0 + across * edge * 2.0, point])
+		draw_polyline(stroke, Color(color, opacity * sin(progress * PI)), 3.0)
 
 func _add_bars() -> void:
 	if view.rules.finished:
@@ -204,7 +292,7 @@ func _boss_effects() -> void:
 		var mark = boss+Vector2(0,-view.boss_height-20)
 		draw_line(mark+Vector2(0,-8),mark+Vector2(0,4),Color("ffe6a6"),4)
 		draw_rect(Rect2(mark+Vector2(-2,9),Vector2(4,4)),Color("ffe6a6"))
-	if brain.phase == "attack":
+	if brain.phase == "attack" and not move.has("signature"):
 		match str(move.kind):
 			"charge":
 				for i in range(0,brain.trail.size(),3):
@@ -267,7 +355,16 @@ func _boss_effects() -> void:
 	for impact in brain.impacts:
 		var age = 1-float(impact.life)/.48
 		var profile: Dictionary = impact.profile
-		if profile.kind in ["circle","ring","cross"]:
+		if profile.has("at"):
+			var style := str(profile.get("style", impact.style))
+			if profile.kind == "line":
+				for i in range(5):
+					var point := Vector2(profile.origin).lerp(Vector2(profile.target), (i + .5) / 5.0)
+					_draw_action_fx(style, point, age, Vector2(100, 85), 1.0 - age)
+			else:
+				var radius: Vector2 = Vector2(profile.radius).clamp(Vector2(60, 40), Vector2(320, 150))
+				_burst(profile.target, radius, style, 1.0 - age, age)
+		elif profile.kind in ["circle","ring","cross"]:
 			_draw_action_fx(str(impact.style),profile.target,age,Vector2.ONE*clampf(Vector2(profile.radius).x*1.5,150,370),1-age*.45)
 			_burst(profile.target,profile.radius,str(impact.style),1-age,age)
 
@@ -377,7 +474,7 @@ func _challenge_effects() -> void:
 	if view.phase_flash>0:
 		var t: float = 1-view.phase_flash/.75
 		ellipse(boss,Vector2(70,35)*(1+t*4),Color(1,.82,.48,view.phase_flash*.65),4)
-	if brain.phase == "attack" and brain.move.kind == "volley" and fmod(brain.phase_clock,.34)<.12:
+	if brain.phase == "attack" and brain.move.kind == "volley" and not brain.move.has("signature") and fmod(brain.phase_clock,.34)<.12:
 		var center = boss+Vector2(brain.facing.x*view.boss_height*.2,-view.boss_height*.45)
 		var color = _palette(brain.move.style)
 		for i in range(6):

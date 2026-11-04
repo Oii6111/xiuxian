@@ -11,6 +11,7 @@ const HIT_BURST_TIME := 0.40
 const SAP_FLOW_TIME := 0.62
 const SAP_PULSE_TIME := 0.26
 const SPLIT_BURST_TIME := 0.70
+const LANDING_FLASH_TIME := 0.42
 @export var boss_id: String = ""
 var encounter: Dictionary = {}
 var boss_anchor = Vector2(1130, 510)
@@ -46,6 +47,10 @@ var hit_bursts: Array = []
 var sap_flows: Array = []
 var sap_pulse_visual := 0.0
 var split_bursts: Array = []
+var wind_visual := 0.0
+var wind_effect := ""
+var landing_visual := 0.0
+var landing_position := Vector2.ZERO
 var enemy_intent: Label
 var enemy_cast: ProgressBar
 var hit_stop: float = 0
@@ -299,8 +304,18 @@ func refresh() -> void:
 			enemy_intent.text += "  ·  连段 %d/%d" % [brain.combo_index+1,brain.combo_total]
 		if rules.phase == "windup":
 			enemy_intent.text += "  ·  %.1f 秒" % maxf(0, brain.phase_duration-brain.phase_clock)
-		enemy_cast.value = brain.progress() * 100
-		enemy_cast.visible = rules.phase in ["windup", "breath", "stagger"] and not rules.finished
+		var signature_zones: Array = brain.signature_zones()
+		var cast_progress: float = brain.progress()
+		if not signature_zones.is_empty():
+			var beat: Dictionary = signature_zones[0]
+			enemy_intent.text += "  ·  第 %d/%d 段" % [beat.number, beat.total]
+			var beat_label := str(beat.profile.get("label", ""))
+			if not beat_label.is_empty():
+				enemy_intent.text += " · " + beat_label
+			if rules.phase == "attack":
+				cast_progress = beat.progress
+		enemy_cast.value = cast_progress * 100
+		enemy_cast.visible = (rules.phase in ["windup", "breath", "stagger"] or not signature_zones.is_empty()) and not rules.finished
 		poise_bar.max_value = rules.max_poise
 		poise_bar.value = rules.poise
 		poise_label.text = "第%d关 · 破势 %d/%d · 精准闪避 %d" % [rules.combat_rank,rules.poise,rules.max_poise,rules.perfect_dodges]
@@ -318,9 +333,14 @@ func refresh() -> void:
 		vital_bars[i].max_value = maximum[i]
 		vital_bars[i].value = current[i]
 	player_status.text = "云罡护盾 %d\n%s" % [rules.shield_hp, "吐纳 %.1f 秒 · 移动减速" % rules.heal_cast if rules.heal_cast > 0 else "本局资源 · 不扣健康属性"]
+	var airborne: bool = rules.airborne_time > 0.0
+	if airborne:
+		player_status.text += "\n腾空 · 可施放护盾"
+	elif rules.slow_time > 0.0:
+		player_status.text += "\n迟滞 · 移速下降"
 	if rules.brain != null:
 		player_status.text += "\n" + ("反击就绪 %.1f 秒" % rules.counter_time if rules.counter_time>0 else "普攻连击 %d / 3" % rules.combo_step)
-	basic_button.disabled = rules.finished or roll_remaining>0 or rules.attack_cd > 0 or rules.heal_cast > 0
+	basic_button.disabled = rules.finished or airborne or roll_remaining>0 or rules.attack_cd > 0 or rules.heal_cast > 0
 	var cooldowns = [rules.sword_cd, rules.dodge_cd, rules.shield_cd, rules.heal_cd]
 	var descriptions = ["18 灵力 · 路径剑气", "24 体力 · 位移 / 闪避", "24 灵力 · 短时护盾", "45 灵力 · 吐纳恢复"]
 	for i in range(4):
@@ -336,7 +356,7 @@ func refresh() -> void:
 		if i == 3 and rules.heal_cast > 0:
 			detail = "吐纳 %.1f 秒" % rules.heal_cast
 		skill_nodes[i].text = SKILL_NAMES[i] + " [%d]\n" % (i + 1) + detail
-		skill_nodes[i].disabled = not unlocked or (roll_remaining>0 and i!=1) or rules.finished or rules.heal_cast > 0 or cooldowns[i] > 0 or not enough or (i == 3 and rules.hp == rules.max_hp)
+		skill_nodes[i].disabled = not unlocked or (airborne and i != 2) or (roll_remaining>0 and i!=1) or rules.finished or rules.heal_cast > 0 or cooldowns[i] > 0 or not enough or (i == 3 and rules.hp == rules.max_hp)
 
 func _slash(is_sword: bool, damage: int, impacts: Array = [], counter: bool = false) -> void:
 	sword_visual = is_sword
@@ -364,7 +384,7 @@ func _landed_impact(damage: int, impacts: Array, counter: bool, is_sword: bool) 
 		floating("-%d" % impact.damage,Vector2(impact.position)-Vector2(30,boss_height+10 if impact.boss else 100),Color("ffe5a3") if counter else Color("c8f3d6"))
 
 func basic_attack() -> void:
-	if paused or roll_remaining>0:
+	if paused or rules.airborne_time > 0.0 or roll_remaining>0:
 		return
 	var result = rules.start_action("basic",hero.position)
 	if result.ok:
@@ -376,6 +396,8 @@ func basic_attack() -> void:
 
 func use_skill(choice: int) -> void:
 	if paused or rules.finished or choice < 0 or choice > 3 or (roll_remaining>0 and choice!=1):
+		return
+	if rules.airborne_time > 0.0 and choice != 2:
 		return
 	match choice:
 		0:
@@ -442,6 +464,8 @@ func _process(delta: float) -> void:
 			if effects[i].life <= 0:
 				effects.remove_at(i)
 	sap_pulse_visual = maxf(0.0, sap_pulse_visual - delta)
+	wind_visual = maxf(0.0, wind_visual - delta)
+	landing_visual = maxf(0.0, landing_visual - delta)
 	perfect_visual = maxf(0,perfect_visual-delta)
 	counter_visual = maxf(0,counter_visual-delta)
 	phase_flash = maxf(0,phase_flash-delta)
@@ -465,7 +489,10 @@ func _process(delta: float) -> void:
 	if not rules.finished:
 		var direction = Input.get_vector("move_left","move_right","move_forward","move_back")
 		hero_moving = not direction.is_zero_approx()
-		if roll_remaining>0:
+		if rules.airborne_time > 0.0:
+			hero_moving = false
+			roll_remaining = 0.0
+		elif roll_remaining>0:
 			var distance := minf(roll_remaining,delta*145/.18)
 			hero.position += roll_direction*distance
 			roll_remaining -= distance
@@ -473,10 +500,24 @@ func _process(delta: float) -> void:
 		else:
 			if hero_moving: facing = direction.normalized()
 			var movement := .3 if rules.heal_cast>0 else (.65 if cast_visual>0 else 1.0)
+			if rules.slow_time > 0.0:
+				movement *= .62
 			hero.position += direction*255*delta*movement
 		_clamp_hero()
 		var shield_before: int = rules.shield_hp
+		var was_airborne: bool = rules.airborne_time > 0.0
 		var result = rules.step(delta, hero.position)
+		var displacement: Vector2 = result.get("displacement", Vector2.ZERO)
+		if not displacement.is_zero_approx():
+			hero.position += displacement
+			_clamp_hero()
+		if rules.airborne_time > 0.0:
+			hero_moving = false
+			roll_remaining = 0.0
+			cast_visual = 0.0
+		elif was_airborne:
+			landing_visual = LANDING_FLASH_TIME
+			landing_position = hero.position
 		if shield_before > 0 and rules.shield_hp == 0:
 			shield_break_visual = 0.55
 		if int(result.get("healed", 0)) > 0:
@@ -484,7 +525,7 @@ func _process(delta: float) -> void:
 			floating("+%d" % result.healed, hero.position - Vector2(20, 160))
 			message.text = "饕餮归元 · 暖光回流，生命恢复。"
 		for event in result.get("events", [result]):
-			_enemy_feedback(event)
+			_enemy_feedback(event, not displacement.is_zero_approx())
 		if rules.stage_index > last_stage:
 			last_stage = rules.stage_index
 			_jolt(4, .20)
@@ -658,7 +699,7 @@ func _sound(cue: String) -> void:
 		boss_audio.stream = load(path)
 		boss_audio.play()
 
-func _enemy_feedback(event: Dictionary) -> void:
+func _enemy_feedback(event: Dictionary, displaced: bool = false) -> void:
 	match str(event.get("event", "")):
 		"player_hit":
 			var hit: Dictionary = event.result
@@ -668,13 +709,32 @@ func _enemy_feedback(event: Dictionary) -> void:
 			var kind: String = str(rules.brain.move.kind) if rules.brain != null else "circle"
 			var advice := {"charge":"横向闪开冲锋路线", "leap":"离开落点，等它落地再反击", "volley":"从弹道之间穿过", "nova":"贴近内圈，或退到环外", "slash":"绕到侧后方", "beam":"横向移出吐息线", "eruption":"观察起势，及时移动", "cross":"走向十字之间的空隙"}
 			var hint: String = advice.get(kind, "观察动作，收招时反击")
-			if rules.brain != null and rules.brain.move.get("style") == "sap":
-				hint = "藤脉已锁定 · 横移避开连续吸血"
+			if rules.brain != null:
+				var signature: Dictionary = rules.brain.move.get("signature", {})
+				if not signature.is_empty():
+					hint = str(signature.get("tactics", hint))
+				elif rules.brain.move.get("style") == "sap":
+					hint = "藤脉已锁定 · 横移避开连续吸血"
 			message.text = str(event.get("attack", rules.boss_name)) + " · " + hint
 			_sound("tell")
 		"release":
 			_sound("rush" if event.kind in ["charge","leap"] else ("shot" if event.kind == "volley" else "impact"))
 		"volley_burst": _sound("shot")
+		"signature_beat":
+			var beat_label := str(event.get("label", ""))
+			message.text = "第 %d/%d 段" % [event.number, event.total]
+			if not beat_label.is_empty():
+				message.text += " · " + beat_label
+			_sound("shot")
+		"signature_status":
+			message.text = str(event.get("label", ""))
+		"forced_move":
+			var effect := str(event.effect)
+			if effect != wind_effect or wind_visual <= 0.0:
+				message.text = "逆风吸近 · 向侧面脱离" if effect == "pull" else "罡风吹飞 · 可施放护盾抵挡落地冲击"
+				_sound("rush")
+			wind_effect = effect
+			wind_visual = .52
 		"sap_pulse":
 			sap_pulse_visual = SAP_PULSE_TIME
 			_sound("shot")
@@ -713,14 +773,15 @@ func _enemy_feedback(event: Dictionary) -> void:
 			if event.get("attack_interrupted",false): cast_visual = 0
 			shield_impact = .6 if event.absorbed > 0 else 0
 			message.text = str(event.get("attack","攻击")) + "造成 %d 点伤害。" % event.damage + ("归元被中断。" if event.interrupted else "")
-			floating("-%d" % event.damage, hero.position-Vector2(20,160),Color("ffb6a0"))
+			floating("-%d" % event.damage, hero.position-Vector2(20,160+rules.airborne_height()),Color("ffb6a0"))
 			hero.modulate = Color("ffaaa0")
 			create_tween().tween_property(hero,"modulate",Color.WHITE,.4)
 			if rules.brain != null:
 				hit_stop = .055
 				_jolt(6, .16)
-				hero.position += Vector2(event.get("direction",Vector2.ZERO)) * 22
-				_clamp_hero()
+				if not displaced:
+					hero.position += Vector2(event.get("direction",Vector2.ZERO)) * 22
+					_clamp_hero()
 				_sound("impact")
 
 func _boss_pose(_delta: float) -> void:
@@ -733,9 +794,10 @@ func _boss_pose(_delta: float) -> void:
 		return
 	boss_anchor = rules.boss_position
 	boss_frame_index = Actions.boss_frame(rules,clock,hurt_visual)
+	var signature_attack: bool = rules.phase == "attack" and rules.brain.move.has("signature")
 	if not boss_bank.is_empty(): Actions.apply(dragon,boss_bank,boss_frame_index,boss_height)
 	var lift := 0.0
-	if rules.phase=="attack" and rules.brain.move.kind=="leap": lift = sin(rules.brain.progress()*PI)*145
+	if rules.phase=="attack" and rules.brain.move.kind=="leap" and not signature_attack: lift = sin(rules.brain.progress()*PI)*145
 	dragon.position = boss_anchor+Vector2(0,-lift)
 	dragon.rotation = 0
 	dragon.flip_h = rules.brain.facing.x>.15
@@ -756,7 +818,9 @@ func _exit_tree() -> void:
 func _hero_pose() -> void:
 	if hero_bank.is_empty(): return
 	hero_frame_index = 15
-	if roll_remaining>0:
+	if rules.airborne_time > 0.0:
+		hero_frame_index = 14
+	elif roll_remaining>0:
 		hero_frame_index = 12 if roll_remaining>115 else 13
 	elif hero_hurt_visual>0:
 		hero_frame_index = 14
@@ -773,6 +837,7 @@ func _hero_pose() -> void:
 	elif hero_moving and not rules.finished:
 		hero_frame_index = int(clock*9)%4
 	Actions.apply(hero,hero_bank,hero_frame_index,148)
+	hero.offset.y -= rules.airborne_height() / hero.scale.y
 	hero.rotation = 0
 	hero.flip_h = (rules.boss_position.x<hero.position.x) if cast_visual>0 else facing.x<-.15
 

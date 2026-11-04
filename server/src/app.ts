@@ -168,4 +168,3 @@ export async function buildApp(options: AppOptions = {}) {
   }
   return { app, db, auth, game, bindings, health, outbox, realtime };
 }
-

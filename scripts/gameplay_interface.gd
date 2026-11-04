@@ -23,6 +23,9 @@ var companion_button: Button
 var wechat_task_label: Label
 var lifecycle_panel: Control
 var lifecycle_gateway: Node
+var guest_elder_id := ""
+var guest_bound := false
+var guest_task_done := false
 
 func _ready() -> void:
 	super._ready()
@@ -344,6 +347,9 @@ func refresh_wechat_tasks(state) -> void:
 	refresh()
 
 func bind_wechat(state) -> void:
+	if not guest_elder_id.is_empty():
+		guest_show_qr()
+		return
 	var invite = await game.account_api.api.request_api("/api/v2/bindings/invitations", HTTPClient.METHOD_POST, {"cultivator_id": state.cultivator_id})
 	if not invite.ok:
 		toast(str(invite.message))
@@ -469,7 +475,7 @@ func _a_battle_allowed() -> bool:
 		return false
 	return true
 
-func open_health_entry(guest: bool = false) -> void:
+func open_health_entry() -> void:
 	close_modal()
 	modal_open = true
 	game.player.blocked = true
@@ -478,7 +484,6 @@ func open_health_entry(guest: bool = false) -> void:
 	health_entry.set_script(load("res://scripts/health_entry_panel.gd"))
 	health_entry.game = game
 	health_entry.ui = self
-	health_entry.guest_mode = guest
 	add_child(health_entry)
 
 func open_home() -> void:
@@ -760,13 +765,6 @@ func activate_family(id: String, fill_health: bool = false) -> bool:
 	return true
 
 
-func start_guest_mode() -> void:
-	if game.account_api.busy:
-		return
-	close_modal(true)
-	game.start_guest_mode()
-	refresh()
-	open_health_entry(true)
 func open_login() -> void:
 	close_modal(true)
 	modal_open = true
@@ -777,6 +775,145 @@ func open_login() -> void:
 	account_panel.game = game
 	account_panel.ui = self
 	add_child(account_panel)
+
+## 现场演示入口：不注册、不联网，直接准备一份可走完「绑定家人 → 健康任务 → 结算」的数据。
+func start_guest_demo() -> void:
+	close_modal(true)
+	var roster = game.FamilyRoster.new()
+	roster.persist_enabled = false
+	roster.account_bound = false
+	roster.account = {"id": "guest-demo", "name": "游客演示"}
+	roster.reset_owner({"display_name": "松风", "avatar": "male"})
+	var added = roster.add_member({"name": "王奶奶", "relation": "母亲", "age": 68, "sex": "女", "title": "王奶奶的化身", "mode": "family", "consent": true})
+	if not added.get("ok", false):
+		toast("演示数据准备失败：" + str(added.get("message", "请重试")))
+		return
+	guest_elder_id = str(added.get("id", ""))
+	var elder = roster.state_for(guest_elder_id)
+	if elder == null:
+		toast("演示数据准备失败，请重试。")
+		return
+	elder.choose_avatar("female", "王奶奶的化身")
+	elder.apply_health_profile({"profile_id": "demo-elder-profile", "revision": 1,
+		"attributes": {"life": 62, "attack": 48, "defense": 55, "spirit": 41, "stamina": 58},
+		"source": "模拟健康档案（游客演示）", "simulated": true})
+	elder.equipment.starter_ten_pulls = 1
+	elder.medication_required = true
+	elder.longterm_enabled = true
+	game.family = roster
+	game.account_ready = true
+	game.state = elder
+	game.companion_api.reset_session()
+	game.sync_avatar_from_state()
+	guest_bound = false
+	guest_task_done = false
+	refresh()
+	open_guest_guide()
+
+func open_guest_guide() -> void:
+	var content = _dialog("游客演示 · 三步走完核心流程", "王奶奶（母亲，68 岁）· 所有数据都是现场模拟，不会真的发微信")
+	paragraph(content, "正式产品里，家人扫描微信二维码后，每天的用药与计划完成情况由老人在微信里反馈；这里用按钮代替扫码和微信消息。", 17)
+	line(content)
+	var bind = button(content, "✅ 已绑定王奶奶的微信（演示）" if guest_bound else "① 模拟绑定王奶奶的微信（出示二维码）", guest_show_qr)
+	bind.disabled = guest_bound
+	var task = button(content, "✅ 今日健康任务已完成" if guest_task_done else "② 模拟完成今日健康任务", guest_complete_task)
+	task.disabled = guest_task_done
+	button(content, "③ 查看修行结算与健康属性", guest_show_result)
+	line(content)
+	button(content, "退出演示，回到登录", guest_exit_demo)
+
+func guest_exit_demo() -> void:
+	close_modal(true)
+	guest_bound = false
+	guest_task_done = false
+	guest_elder_id = ""
+	reset_logged_out()
+
+## 演示二维码：不接真实微信通道，只画一张可识别的占位二维码，避免现场扫码失败。
+func guest_show_qr() -> void:
+	var content = _dialog("绑定家人微信（演示）", "真实流程会在这里显示微信授权二维码；演示用占位图代替。")
+	var holder = CenterContainer.new()
+	content.add_child(holder)
+	var qr = TextureRect.new()
+	qr.texture = _demo_qr_texture()
+	qr.custom_minimum_size = Vector2(220, 220)
+	qr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	qr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	qr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	holder.add_child(qr)
+	paragraph(content, "王奶奶的微信 · 等待扫码（演示占位）", 18)
+	button(content, "模拟扫码成功", guest_confirm_qr, true)
+	button(content, "返回", guest_back_to_guide)
+
+func guest_confirm_qr() -> void:
+	guest_bound = true
+	close_modal(true)
+	open_guest_guide()
+	toast("已绑定王奶奶的微信（演示）")
+
+func guest_back_to_guide() -> void:
+	close_modal(true)
+	open_guest_guide()
+
+func _demo_qr_texture() -> Texture2D:
+	var size = 29
+	var image = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	image.fill(Color.WHITE)
+	var rng = RandomNumberGenerator.new()
+	rng.seed = 20261101
+	for y in range(size):
+		for x in range(size):
+			if rng.randf() < 0.44:
+				image.set_pixel(x, y, Color.BLACK)
+	for origin in [Vector2i(1, 1), Vector2i(size - 8, 1), Vector2i(1, size - 8)]:
+		for dy in range(7):
+			for dx in range(7):
+				var edge = dx == 0 or dy == 0 or dx == 6 or dy == 6
+				var core = dx >= 2 and dx <= 4 and dy >= 2 and dy <= 4
+				image.set_pixel(origin.x + dx, origin.y + dy, Color.BLACK if (edge or core) else Color.WHITE)
+	return ImageTexture.create_from_image(image)
+
+func guest_complete_task() -> void:
+	var elder = game.family.state_for(guest_elder_id)
+	if elder == null:
+		toast("演示家人已失效，请重新进入游客演示。")
+		return
+	game.state = elder
+	game.sync_avatar_from_state()
+	refresh()
+	var medication = elder.record_task("medication", true)
+	var planned = elder.record_task("planned_record", true)
+	guest_task_done = true
+	var content = _dialog("今日健康任务（演示）", "模拟王奶奶在微信里确认：今天的药吃了，计划也完成了。")
+	paragraph(content, "服药记录：" + str(medication.get("message", "")), 17)
+	paragraph(content, "每日计划：" + str(planned.get("message", "")), 17)
+	line(content)
+	paragraph(content, "当前修行值：修为 %d · 印记 %d · 灵气 %d" % [elder.cultivation, elder.seals, elder.qi], 19, BROWN)
+	button(content, "下一步：查看结算", guest_next_result, true)
+	button(content, "返回演示向导", guest_back_to_guide)
+
+func guest_next_result() -> void:
+	close_modal(true)
+	guest_show_result()
+
+func guest_show_result() -> void:
+	var elder = game.family.state_for(guest_elder_id)
+	if elder == null:
+		toast("演示家人已失效，请重新进入游客演示。")
+		return
+	var content = _dialog("修行结算（演示）", "健康任务完成 → 修为、印记与灵气计入王奶奶的修行进度")
+	paragraph(content, "修为 %d · 印记 %d · 灵气 %d" % [elder.cultivation, elder.seals, elder.qi], 22, BROWN)
+	paragraph(content, "五项属性：生命 %d / 攻击 %d / 防御 %d / 灵力 %d / 体力 %d" % [elder.health_attributes.get("life", 0), elder.health_attributes.get("attack", 0), elder.health_attributes.get("defense", 0), elder.health_attributes.get("spirit", 0), elder.health_attributes.get("stamina", 0)], 18)
+	paragraph(content, "来源：" + str(elder.health_source), 16)
+	line(content)
+	button(content, "回到演示向导", guest_back_to_guide, true)
+	button(content, "打开家人面板", guest_open_family)
+	button(content, "去聚宝阁 · 领取新手十连", func(): open_treasure("wish"), true)
+	button(content, "返回仙村", close_modal)
+
+func guest_open_family() -> void:
+	close_modal(true)
+	open_family()
 
 func on_account_progress(message: String) -> void:
 	if is_instance_valid(account_panel):
@@ -856,12 +993,6 @@ func finish_account_setup(import_old: bool) -> void:
 		open_family()
 
 func logout_account() -> void:
-	if game.guest_mode:
-		if not can_change_family():
-			return
-		game.reset_guest_mode()
-		open_login()
-		return
 	if not can_change_family() or game.account_api.busy:
 		return
 	if game.account_ready and not game.family.save_game():
@@ -870,8 +1001,10 @@ func logout_account() -> void:
 	game.account_api.logout()
 
 func reset_logged_out() -> void:
-	game.guest_mode = false
 	close_modal(true)
+	guest_bound = false
+	guest_task_done = false
+	guest_elder_id = ""
 	if is_instance_valid(game.companion_tasks):
 		game.companion_tasks.clear_state()
 	game.companion_api.reset_session()
@@ -891,6 +1024,3 @@ func start_companion_practice() -> void:
 	_open_combat("practice")
 	if is_instance_valid(combat) and combat.mode == "practice":
 		combat.enable_companion()
-
-
-

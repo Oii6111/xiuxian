@@ -18,6 +18,7 @@ class KeySink extends Node:
 class DummyBattle extends Node:
 	var calls: Array
 	var disabled_ids: Array = []
+	var paused := false
 
 	func _init(store: Array) -> void:
 		calls = store
@@ -28,8 +29,25 @@ class DummyBattle extends Node:
 	func battle_action_state() -> Array:
 		var out: Array = []
 		for i in range(5):
-			out.append({"cooldown": 0.0, "disabled": i in disabled_ids})
+			out.append({"cooldown": 0.0, "disabled": i in disabled_ids, "label": "归元" if i == 4 else "测试"})
 		return out
+
+	func touch_actions_active() -> bool:
+		return not paused
+
+class VillageUi extends Control:
+	var modal_open := false
+	var corridor: Control
+
+	func open_family() -> void:
+		modal_open = true
+
+class Village extends Node:
+	var account_ready := true
+	var ui := VillageUi.new()
+
+	func _ready() -> void:
+		add_child(ui)
 
 func _initialize() -> void:
 	run.call_deferred()
@@ -126,34 +144,92 @@ func run() -> void:
 	check(Input.get_action_strength("realm_right") > 0.5, "战斗里摇杆仍驱动 realm_right")
 	pad._handle_press(12, pad._joystick_center(), false)
 
-	# 布局：全部在右半屏、在屏幕内、彼此不重叠、也不压到摇杆
-	var layout_ok := true
-	var joystick_center: Vector2 = pad._joystick_center()
-	var joystick_radius: float = pad._joystick_radius()
-	for i in range(pad._battle_buttons.size()):
-		var a: Dictionary = pad._battle_buttons[i]
-		if a.center.x < 720.0 or a.center.x + a.radius > 1440.0 or a.center.y - a.radius < 0.0 or a.center.y + a.radius > 900.0:
-			layout_ok = false
-		if a.center.distance_to(joystick_center) < joystick_radius + a.radius:
-			layout_ok = false
-		for j in range(i + 1, pad._battle_buttons.size()):
-			var b: Dictionary = pad._battle_buttons[j]
-			if a.center.distance_to(b.center) < a.radius + b.radius + 4.0:
-				layout_ok = false
-	check(layout_ok, "战斗五键都在右半屏、互不遮挡、不压摇杆")
+	for dimensions in [Vector2(1440, 900), Vector2(844, 390), Vector2(667, 375)]:
+		pad.surface.size = dimensions
+		pad._layout()
+		check(layout_ok(dimensions, pad._battle_buttons), "%s 下战斗五键都在右半屏、互不遮挡、不压摇杆" % dimensions)
 	check(pad._battle_buttons[0].radius > pad._battle_buttons[1].radius, "攻击键最大")
 
+	calls.clear()
+	var heal: Dictionary = pad._battle_buttons[4]
+	pad._touch_press(13, heal.center, true)
+	pad._touch_press(13, heal.center, false)
+	check(heal.label == "归元" and calls == [4], "第五键按战斗提供的标签显示并调用对应技能")
+	dummy.paused = true
+	check(not pad._touch_press(14, heal.center, true) and not pad.surface.visible, "战斗暂停时收起按键，停止触控出招")
 	pad.unbind_battle(dummy)
 	check(not pad.is_battle(), "退出战斗后恢复探索按键")
+
+	var village := Village.new()
+	root.add_child(village)
+	current_scene = village
+	pad._layout()
+	check(layout_ok(pad.surface.size, pad._buttons), "手机横屏探索按键与摇杆均在屏内")
+	var small_center: Vector2 = pad._joystick_center()
+	pad._touch_press(15, small_center + Vector2(pad._joystick_radius(), 0), true)
+	pad._touch_press(16, pad._buttons[1].center, true)
+	check(Input.is_action_pressed("move_right") and Input.is_action_pressed("sprint"), "双指可同时移动和疾行")
+	pad._touch_press(17, pad._buttons[2].center, true)
+	pad._process(0.016)
+	check(village.ui.modal_open and not pad.surface.visible, "家人键打开面板后收起触控层")
+	check(not Input.is_action_pressed("move_right") and not Input.is_action_pressed("sprint"), "面板打开时释放已按住的动作")
+	for index in [15, 16, 17]:
+		check(pad._touch_press(index, small_center, false), "已捕获触摸的释放不会落到面板按钮")
+
+	village.ui.modal_open = false
+	var input := LineEdit.new()
+	village.ui.add_child(input)
+	input.grab_focus()
+	pad._process(0.016)
+	check(not pad.surface.visible and not pad._touch_press(18, small_center, true), "输入框聚焦时触控层不会抢触摸")
+	input.release_focus()
+	pad._process(0.016)
+	check(pad.surface.visible, "结束输入后恢复触控")
 
 	pad.surface.size = Vector2(600, 1000)
 	pad.surface.queue_redraw()
 	await process_frame
-	check(pad.visible, "竖屏时保留提示层")
+	check(pad.visible and not pad._touch_press(19, pad._joystick_center(), true), "竖屏保留提示并禁止点击不可见控件")
 
 	pad._set_enabled(false)
 	check(not pad.visible, "F8 可收起触控层")
 	check(Input.get_action_strength("move_left") < 0.1, "收起时释放所有移动动作")
 
+	var real_pad := root.get_node("TouchControls")
+	real_pad._set_enabled(true)
+	var hub := preload("res://scenes/combat/demo_hub.tscn").instantiate()
+	root.add_child(hub)
+	current_scene = hub
+	check(hub.open("boss"), "打开实际 Boss 战斗进行触控检查")
+	var combat: Control = hub.current
+	check(real_pad.battle_bound == combat and not combat._skill_row.visible, "实际 Boss 战斗用统一触控层代替桌面技能栏")
+	check(combat.battle_action_state()[4].disabled, "归元未解锁时不能点击")
+	hub.state.cleared_bosses.assign(["b00", "b01"])
+	combat.rules.hp -= 10
+	combat.refresh()
+	var button: Dictionary = real_pad._battle_buttons[4]
+	real_pad._touch_press(20, button.center, true)
+	real_pad._touch_press(20, button.center, false)
+	check(combat.rules.heal_cast > 0.0, "实际 Boss 战斗点击归元后开始吐纳")
+	hub.close()
+	await process_frame
+	check(not real_pad.is_battle(), "退出实际 Boss 战斗时解绑触控层")
+
 	print("TOUCH_CONTROLS_TEST: all checks passed; 0 failures")
 	quit(0)
+
+func layout_ok(dimensions: Vector2, buttons: Array) -> bool:
+	var layout_ok := true
+	var joystick_center: Vector2 = pad._joystick_center()
+	var joystick_radius: float = pad._joystick_radius()
+	for i in range(buttons.size()):
+		var a: Dictionary = buttons[i]
+		if a.center.x - a.radius < dimensions.x * 0.5 or a.center.x + a.radius > dimensions.x or a.center.y - a.radius < 0.0 or a.center.y + a.radius > dimensions.y:
+			layout_ok = false
+		if a.center.distance_to(joystick_center) < joystick_radius + a.radius:
+			layout_ok = false
+		for j in range(i + 1, buttons.size()):
+			var b: Dictionary = buttons[j]
+			if a.center.distance_to(b.center) < a.radius + b.radius + 4.0:
+				layout_ok = false
+	return layout_ok

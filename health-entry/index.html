@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>疯狂修仙，中｜健康资料注册入口</title>
   <style>
     :root {
@@ -157,6 +157,19 @@
     .toast.show { opacity:1; transform:translate(-50%,0); }
     @media (max-width:1100px){ .layout{grid-template-columns:215px minmax(0,1fr);} .right-col{grid-column:1/-1; display:grid; grid-template-columns:1fr 1fr 1fr;} }
     @media (max-width:760px){ .app-shell{padding:16px 14px 30px;} .topbar{align-items:flex-start; gap:12px;} .top-actions{flex-direction:column; align-items:flex-end;} .layout{display:block;} .rail{position:static; margin-bottom:14px;} .rail .step{display:none;} .rail .step.active{display:flex;} .result-grid{grid-template-columns:1fr;} .right-col{display:flex; margin-top:14px;} .hero h2{font-size:24px;} .form-grid{grid-template-columns:1fr;} }
+    @media (max-width:760px), (pointer:coarse) {
+      .app-shell {
+        padding-top: max(16px, env(safe-area-inset-top));
+        padding-right: max(14px, env(safe-area-inset-right));
+        padding-bottom: max(30px, env(safe-area-inset-bottom));
+        padding-left: max(14px, env(safe-area-inset-left));
+      }
+      .topbar, .section-head, .manual-actions, .result-actions { flex-wrap: wrap; }
+      .field label, .field .hint { font-size: 13px; }
+      .field input, .field select, .field textarea { font-size: 16px; min-height: 44px; width: 100%; }
+      .field input, .field select, .field textarea { scroll-margin-block: 16px; }
+      .primary, .secondary, .sample-btn { min-height: 44px; font-size: 14px; }
+    }
   </style>
 </head>
 <body>
@@ -196,12 +209,12 @@
           <div class="view active" id="profileView">
             <div class="section-head"><div><h3>先填长辈基本信息</h3><p>关系与年龄为必填；病史和长期用药也可以直接写在这里，和图片一起参与识别换算。</p></div><span class="mode-badge">步骤 1 / 4</span></div>
             <div class="form-grid">
-              <div class="field"><label>长辈关系<span class="req">（必填）</span></label><select id="profileRelation"><option value="">请选择</option><option>爸爸</option><option>妈妈</option><option>爷爷</option><option>奶奶</option><option>外公</option><option>外婆</option><option>其他</option></select></div>
-              <div class="field"><label>准确年龄<span class="req">（必填，岁）</span></label><input id="profileAge" type="number" min="1" max="120" placeholder="例如 68" /></div>
-              <div class="field"><label>用户名称<span class="req">（必填）</span></label><input id="profileName" /></div>
-              <div class="field"><label>性别<span class="req">（必填）</span></label><select id="profileSex"><option value="">请选择</option><option>男</option><option>女</option></select></div>
-              <div class="field full"><label>既往病史 / 病历（选填）</label><input id="profileHistory" placeholder="例如：高血压 10 年，2018 年做过胆囊手术" /><span class="hint">也可在下一步上传病历照片</span></div>
-              <div class="field full"><label>长期用药（选填）</label><input id="profileMedications" placeholder="例如：氨氯地平 5mg 每日一次，二甲双胍 0.5g 每日两次" /><span class="hint">也可在下一步上传用药单照片</span></div>
+              <div class="field"><label for="profileRelation">长辈关系<span class="req">（必填）</span></label><select id="profileRelation"><option value="">请选择</option><option>爸爸</option><option>妈妈</option><option>爷爷</option><option>奶奶</option><option>外公</option><option>外婆</option><option>其他</option></select></div>
+              <div class="field"><label for="profileAge">准确年龄<span class="req">（必填，岁）</span></label><input id="profileAge" type="number" inputmode="numeric" min="1" max="120" placeholder="例如 68" /></div>
+              <div class="field"><label for="profileName">用户名称<span class="req">（必填）</span></label><input id="profileName" /></div>
+              <div class="field"><label for="profileSex">性别<span class="req">（必填）</span></label><select id="profileSex"><option value="">请选择</option><option>男</option><option>女</option></select></div>
+              <div class="field full"><label for="profileHistory">既往病史 / 病历（选填）</label><input id="profileHistory" placeholder="例如：高血压 10 年，2018 年做过胆囊手术" /><span class="hint">也可在下一步上传病历照片</span></div>
+              <div class="field full"><label for="profileMedications">长期用药（选填）</label><input id="profileMedications" placeholder="例如：氨氯地平 5mg 每日一次，二甲双胍 0.5g 每日两次" /><span class="hint">也可在下一步上传用药单照片</span></div>
             </div>
             <div class="manual-actions"><button class="primary" id="toUploadBtn">下一步：上传资料</button></div>
           </div>

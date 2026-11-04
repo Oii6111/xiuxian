@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-visual">
+  <title>$GODOT_PROJECT_NAME</title>
+  $GODOT_HEAD_INCLUDE
+  <style>
+    html, body { margin: 0; overflow: hidden; background: #10151f; color: #fff3d6; }
+    body { font-family: system-ui, sans-serif; }
+    #stage { position: fixed; inset: 0; display: grid; place-items: center;
+      box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right)
+        env(safe-area-inset-bottom) env(safe-area-inset-left); }
+    #canvas { display: block; width: var(--game-width); height: var(--game-height);
+      touch-action: none; outline: none; }
+    /* iOS zooms focused inputs below 16px, including Godot's native IME elements. */
+    #stage > input, #stage > textarea { font-size: 16px; }
+    #status { position: absolute; inset: 0; display: grid; place-content: center;
+      gap: 12px; padding: 24px; text-align: center; background: #10151f; }
+    #status[hidden] { display: none; }
+    progress { width: min(65vw, 420px); accent-color: #dbab62; justify-self: center; }
+    #rotate { display: none; pointer-events: none; position: absolute;
+      top: max(12px, env(safe-area-inset-top)); padding: 9px 14px; border-radius: 20px;
+      background: #242d3a; font-size: 14px; }
+    @media (pointer: coarse) and (orientation: portrait) {
+      #stage:not(.editing) #rotate { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <main id="stage">
+    <canvas id="canvas" width="1440" height="900">此浏览器无法显示游戏画面。</canvas>
+    <span id="rotate">横屏游玩，按键更好操作</span>
+    <div id="status" role="status">
+      <span id="status-text">正在载入仙村…</span>
+      <progress id="progress" aria-label="加载进度"></progress>
+    </div>
+  </main>
+  <noscript>请启用 JavaScript 后重新打开游戏。</noscript>
+  <script src="$GODOT_URL"></script>
+  <script>
+    const config = $GODOT_CONFIG;
+    const stage = document.getElementById("stage");
+    const canvas = document.getElementById("canvas");
+    const status = document.getElementById("status");
+    const progress = document.getElementById("progress");
+    let fittedWidth = 0;
+    let fittedHeight = 0;
+    let editing = false;
+    let preEditHeight = 0;
+    let preEditWidth = 0;
+
+    function fitCanvas() {
+      const style = getComputedStyle(stage);
+      const width = stage.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const height = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      // Keep the fitted stage size and origin while the keyboard covers the viewport.
+      if ((editing || window.visualViewport?.height < preEditHeight - 100) &&
+          Math.abs(width - preEditWidth) < 4 && height < preEditHeight) {
+        stage.style.height = preEditHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + "px";
+        return;
+      }
+      stage.style.removeProperty("height");
+      const availableHeight = stage.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      const scale = Math.min(width / 1440, availableHeight / 900);
+      fittedWidth = width;
+      fittedHeight = availableHeight;
+      canvas.style.setProperty("--game-width", Math.floor(1440 * scale) + "px");
+      canvas.style.setProperty("--game-height", Math.floor(900 * scale) + "px");
+    }
+
+    stage.addEventListener("focusin", (event) => {
+      if (!event.target.matches("input, textarea")) return;
+      if (!editing) {
+        preEditWidth = fittedWidth;
+        preEditHeight = fittedHeight;
+      }
+      editing = true;
+      stage.classList.add("editing");
+    });
+    stage.addEventListener("focusout", () => {
+      requestAnimationFrame(() => {
+        editing = stage.contains(document.activeElement) && document.activeElement.matches("input, textarea");
+        stage.classList.toggle("editing", editing);
+        fitCanvas();
+      });
+    });
+    window.addEventListener("resize", fitCanvas);
+    window.visualViewport?.addEventListener("resize", fitCanvas);
+    fitCanvas();
+
+    const engine = new Engine(config);
+    const missing = Engine.getMissingFeatures({ threads: $GODOT_THREADS_ENABLED });
+    function showError(error) {
+      document.getElementById("status-text").textContent = "游戏加载失败：" + error;
+      progress.hidden = true;
+      console.error(error);
+    }
+    if (missing.length) {
+      showError(missing.join("、"));
+    } else {
+      // Pages serves a static demo. The same build supports accounts on the game server.
+      const args = location.hostname.endsWith(".github.io") ? ["--", "--pages-demo"] : [];
+      engine.startGame({
+        canvas, args,
+        onProgress(current, total) {
+          if (total > 0) {
+            progress.max = total;
+            progress.value = current;
+          }
+        },
+      }).then(() => { status.hidden = true; }, showError);
+    }
+  </script>
+</body>
+</html>

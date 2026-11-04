@@ -1,12 +1,14 @@
 # 疯狂修仙，中（Godot 像素闯关）
 
+网页修复整合在 [PR #8](https://github.com/Oii6111/xiuxian/pull/8)。[GitHub Pages 游客演示](https://chunchengzheng58-ctrl.github.io/xiuxian/)使用模拟绑定和健康记录，支持体验本地装备与战斗。正式账号、微信和健康服务由游戏后端提供。
+
 > **A/B/C/D 已整合**：年轻人在网页玩游戏（C 服务同时托管客户端），老人只用微信扫码绑定 AI Bot。运行与接口见 [docs/BCD_INTEGRATION.md](docs/BCD_INTEGRATION.md)。
 
 当前开发目录：`F:\godot\xiuxian2`。保留现有像素仙村、男女角色、妖龙精灵和战斗背景；当前包含健康属性、二十 Boss 问道长廊和四个技能，没有引入旧项目的 3D 建模或场景。
 
 ## 运行
 
-用 Godot 4.7.2 打开本目录 `project.godot` 后按 F5；也可双击 `启动试玩.cmd`。启动可登录/注册子女账号，也可直接选择游客模式；正式账号进入“我的角色 + 两位家人”页面，游客会进入样例健康档案。本人角色独立保留，不占两个家人名额。注册首次请求时会自动启动本机账号服务，需要 Python 3。
+用 Godot 4.7.2 打开本目录 `project.godot` 后按 F5；也可双击 `启动试玩.cmd`。启动先登录或注册子女账号，再进入“我的角色 + 两位家人”页面。本人角色独立保留，不占两个家人名额。注册首次请求时会自动启动本机账号服务，需要 Python 3。
 
 新增统一内核 `GameKernel`，提供时间、事件、随机、配置、状态存档、迁移、命令路由与审计，以及七个独立系统入口。C 已接入赛季查询与网络依赖；其余客户端业务接口明确返回 `NOT_IMPLEMENTED`，供 A/B/D 逐项接入。
 
@@ -160,4 +162,3 @@ Git 支持多人分别修改、提交和合并；需要实时一起编辑时，�
 当前默认像素仙村通过 `scripts/gameplay_interface.gd` 接入登录、家人和聚宝阁，属性试炼使用独立的 `scenes/boss_corridor.tscn`。主分支的公共内核、共享契约、微信入口方案和 `scenes/pixel_campaign.tscn` 剧情关卡保留；内核说明见 `docs/KERNEL_V2.md`，剧情规则见 `docs/PIXEL_CAMPAIGN_STORY.md`。当前本机账号与家人状态尚未改为 v2 服务端权威钱包，后续应按契约对接。
 
 旧剧情的仙村桥接入口保存在 `scenes/legacy_campaign_village.tscn`；对应图形输入测试单独加载该入口，默认 `scenes/main.tscn` 使用本次账号与家人逻辑。
-

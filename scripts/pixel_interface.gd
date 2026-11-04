@@ -214,7 +214,11 @@ func refresh() -> void:
 
 func update_proximity(id: String) -> void:
 	var names = {"home": "健康档案", "battle": "技能练习", "boss": "属性闯关", "records": "天机碑", "gacha": "聚宝阁"}
-	hint.text = "E  进入「%s」" % names[id] if names.has(id) else "走近建筑按 E，或点击下方地点前往"
+	if id.begins_with("npc_"):
+		var index = id.trim_prefix("npc_").to_int()
+		hint.text = "E  对话「%s」" % game.npc_sprites[index].get_parent().name
+	else:
+		hint.text = "E  进入「%s」" % names[id] if names.has(id) else "走近建筑或村民按 E 互动 · 点击下方地点可前往"
 
 func reset_demo() -> void:
 	if not game.account_ready:
@@ -252,4 +256,3 @@ func open_npc(index: int) -> void:
 	paragraph(content, words[index], 21, INK)
 	line(content)
 	button(content, ["查看今日计划", "看看家族洞府", "阅读家族修行簿"][index], [open_record, open_home, open_records][index], true)
-

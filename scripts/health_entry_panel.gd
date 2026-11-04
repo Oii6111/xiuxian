@@ -1,10 +1,10 @@
 extends Control
 ## Native report onboarding. Draft results never touch GameState before confirmation.
 const Baseline = preload("res://scripts/health_baseline.gd")
+const FamilyPanel = preload("res://scripts/family_panel.gd")
 const BASE_URL = "http://127.0.0.1:8001"
 var service_url = BASE_URL
 const ENTRY_REVISION = "1f356a0"
-const GUEST_SAMPLE_PATHS = ["res://health-entry/样本体检报告.png", "res://health-entry/手写既往病史记录.png", "res://health-entry/四款药品包装展示.png"]
 var ui
 var game
 var probe: HTTPRequest
@@ -54,9 +54,6 @@ var verified_service_url = ""
 var pending_service_url = ""
 var committed = false
 var fill_mode: OptionButton
-var guest_sample_button: Button
-var guest_mode = false
-var guest_samples_loaded = false
 
 func _ready() -> void:
 	target_state = game.state
@@ -74,7 +71,13 @@ func _ready() -> void:
 	shade.color = Color(0.08, 0.07, 0.06, 0.8)
 	add_child(shade)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var content = ui.card(Rect2(100, 45, 1240, 810), self)
+	var touch := FamilyPanel.uses_touch_layout()
+	var parent: Control = FamilyPanel.form_scroll(self, 1090) if touch else self
+	var bounds := Rect2() if touch else Rect2(100, 45, 1240, 810)
+	var content: VBoxContainer = ui.card(bounds, parent)
+	if touch:
+		var panel := content.get_parent() as Control
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	var heading = HBoxContainer.new()
 	content.add_child(heading)
@@ -83,11 +86,11 @@ func _ready() -> void:
 	title.clip_text = true
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	avatar_button = ui.button(heading, "选择形象", ui.show_start)
-	ui.button(heading, "稍后填写 / 返回仙村", ui.close_modal)
+	var back_button: Button = ui.button(heading, "稍后填写 / 返回仙村", ui.close_modal)
 	ui.label_into(content, "① 填写基础信息    →    ② 分析资料生成属性    →    ③ 确认并进入仙村    * 为必填项", 18)
 	ui.line(content)
-	var columns = HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 26)
+	var columns: BoxContainer = VBoxContainer.new() if touch else HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 24 if touch else 26)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_child(columns)
 	var left = VBoxContainer.new()
@@ -106,9 +109,10 @@ func _ready() -> void:
 	var age_column = VBoxContainer.new()
 	names.add_child(age_column)
 	ui.label_into(age_column, "年龄 *", 16)
-	age_column.custom_minimum_size.x = 110
+	age_column.custom_minimum_size.x = 190 if touch else 110
 	age_input = text_line(age_column, "填写年龄")
 	age_input.max_length = 3
+	age_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 	var required_row = HBoxContainer.new()
 	required_row.add_theme_constant_override("separation", 12)
 	left.add_child(required_row)
@@ -121,6 +125,10 @@ func _ready() -> void:
 		sex_input.add_item(item)
 	sex_input.add_theme_color_override("font_color", ui.BROWN)
 	sex_input.add_theme_stylebox_override("normal", ui.style(Color("f6e5c4")))
+	if touch:
+		sex_input.custom_minimum_size.y = 80
+		sex_input.add_theme_font_size_override("font_size", 27)
+		sex_input.get_popup().add_theme_font_size_override("font_size", 27)
 	sex_input.get_popup().add_theme_color_override("font_color", ui.BROWN)
 	sex_input.get_popup().add_theme_stylebox_override("panel", ui.style(Color("f6e5c4")))
 	sex_column.add_child(sex_input)
@@ -166,7 +174,6 @@ func _ready() -> void:
 	select_button = ui.button(file_actions, "添加报告图片", choose_file, true)
 	select_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	clear_button = ui.button(file_actions, "清空", clear_files)
-	guest_sample_button = ui.button(file_actions, "游客样例 · 自动加载三张", load_guest_samples)
 	ui.paragraph(reports, "PNG / JPEG / WebP · 最多 6 张
 每张最多 10 MB，合计最多 30 MB", 14)
 	var info = VBoxContainer.new()
@@ -190,15 +197,18 @@ func _ready() -> void:
 	connect_button = ui.button(top_row, "重新连接", connect_service)
 	status = ui.paragraph(right, "等待连接分析服务…", 16)
 	status.custom_minimum_size.y = 58
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size.y = 310
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	right.add_child(scroll)
+	var result_parent: Control = right
+	if not touch:
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size.y = 310
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		right.add_child(scroll)
+		result_parent = scroll
 	result_box = VBoxContainer.new()
 	result_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	result_box.add_theme_constant_override("separation", 8)
-	scroll.add_child(result_box)
+	result_parent.add_child(result_box)
 	show_placeholder()
 	fill_mode = OptionButton.new()
 	fill_mode.add_item("子女代填 · 已获得家人同意")
@@ -213,6 +223,10 @@ func _ready() -> void:
 	consent.toggled.connect(func(_checked: bool): update_buttons())
 	analyze_button = ui.button(right, "分析资料 · 生成初始属性", analyze, true)
 	confirm_button = ui.button(right, "确认初始属性并进入仙村", confirm_draft, true)
+	if touch:
+		for control in [avatar_button, back_button, select_button, clear_button, connect_button, fill_mode, consent, analyze_button, confirm_button]:
+			control.custom_minimum_size.y = 80
+			control.add_theme_font_size_override("font_size", 26)
 	probe = HTTPRequest.new()
 	probe.max_redirects = 0
 	probe.timeout = 4
@@ -231,14 +245,16 @@ func _ready() -> void:
 		status.text = "请填写基础信息，上传报告或补充文字资料后开始分析。"
 	else:
 		connect_service()
-	if guest_mode:
-		call_deferred("load_guest_samples")
 
 func text_line(parent: Node, placeholder: String, initial: String = "") -> LineEdit:
 	var field = LineEdit.new()
 	field.placeholder_text = placeholder
 	field.text = initial
-	field.custom_minimum_size.y = 40
+	field.virtual_keyboard_enabled = true
+	var touch := FamilyPanel.uses_touch_layout()
+	field.custom_minimum_size.y = 80 if touch else 40
+	if touch:
+		field.add_theme_font_size_override("font_size", 30)
 	field.add_theme_stylebox_override("normal", ui.style(Color("f6e5c4")))
 	field.add_theme_color_override("font_color", ui.BROWN)
 	field.add_theme_color_override("font_placeholder_color", Color("8b755e"))
@@ -251,7 +267,11 @@ func text_line(parent: Node, placeholder: String, initial: String = "") -> LineE
 func text_area(parent: Node, placeholder: String) -> TextEdit:
 	var field = TextEdit.new()
 	field.placeholder_text = placeholder
-	field.custom_minimum_size.y = 80
+	field.virtual_keyboard_enabled = true
+	var touch := FamilyPanel.uses_touch_layout()
+	field.custom_minimum_size.y = 160 if touch else 80
+	if touch:
+		field.add_theme_font_size_override("font_size", 30)
 	field.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	field.add_theme_color_override("font_color", ui.BROWN)
 	field.add_theme_color_override("font_placeholder_color", Color("8b755e"))
@@ -307,8 +327,6 @@ func update_buttons() -> void:
 	confirm_button.disabled = busy or draft.is_empty() or not consent.button_pressed or not profile_error().is_empty()
 	analyze_button.tooltip_text = profile_error()
 	select_button.disabled = busy
-	if is_instance_valid(guest_sample_button):
-		guest_sample_button.disabled = busy
 	avatar_button.disabled = busy
 	clear_button.disabled = busy or chosen_paths.is_empty()
 	for field in field_controls:
@@ -385,51 +403,6 @@ func choose_file() -> void:
 	file_dialog.canceled.connect(file_dialog.queue_free)
 	file_dialog.popup_centered(Vector2i(960, 650))
 
-func load_guest_samples() -> void:
-	if busy or guest_samples_loaded:
-		return
-	guest_samples_loaded = true
-	guest_mode = true
-	name_input.text = "张建国"
-	age_input.text = "68"
-	sex_input.select(1)
-	relation_input.text = "爸爸"
-	history_input.text = "高血压 10 年"
-	medication_input.text = "氨氯地平 5mg 每日一次"
-	fill_mode.select(0)
-	var paths = PackedStringArray()
-	for resource_path in GUEST_SAMPLE_PATHS:
-		paths.append(ProjectSettings.globalize_path(resource_path))
-	select_files(paths)
-	consent.button_pressed = true
-	status.text = "游客样例已加载三张原始健康图片。正在准备样例档案…"
-	update_buttons()
-	if service_verified and configured:
-		analyze()
-	else:
-		load_guest_sample_baseline()
-
-func load_guest_sample_baseline() -> void:
-	var payload = JSON.parse_string(FileAccess.get_file_as_string("res://health-entry/sample-baseline.json"))
-	if not payload is Dictionary:
-		status.text = "无法读取游客样例档案。"
-		return
-	payload.baseline_id = "baseline_guest_sample"
-	payload.baseline_locked = true
-	payload.mapping_version = "body_system_v2"
-	payload.projection_version = "legacy-pixel-v1"
-	payload.recognition_mode = "sample"
-	payload.display_name = name_input.text.strip_edges()
-	var checked = Baseline.validate(payload)
-	if not checked.ok:
-		status.text = checked.message
-		return
-	record_id = "guest-sample"
-	submitted_inputs = input_signature()
-	draft = checked.baseline
-	show_draft()
-	status.text = "游客样例档案已生成 · 三张原始图片已载入 · 可直接确认进入仙村。"
-	update_buttons()
 func select_file(path: String) -> void:
 	select_files(PackedStringArray([path]))
 
@@ -607,9 +580,6 @@ func confirm_draft() -> void:
 		input_changed()
 		status.text = "资料已修改，请重新分析后再确认。"
 		return
-	if guest_mode and draft.recognition_mode == "sample":
-		commit(draft)
-		return
 	if draft.recognition_mode not in ["live", "text"]:
 		status.text = "请先分析你的资料，再确认基础状态。"
 		return
@@ -667,11 +637,7 @@ func commit(payload: Dictionary) -> void:
 	committed = true
 	ui.refresh()
 	ui.close_modal()
-	if game.guest_mode and int(target_state.equipment.get("starter_ten_pulls", 0)) > 0:
-		ui.toast("基础状态已保存，游客赠送一次免费十连。")
-		ui.call_deferred("open_treasure", "wish")
-	else:
-		ui.toast("基础状态已保存，开始修行吧！")
+	ui.toast("基础状态已保存，开始修行吧！")
 
 func shutdown() -> void:
 	if disposed:

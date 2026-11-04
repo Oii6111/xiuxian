@@ -1,4 +1,4 @@
-"""疯狂修仙，中 · 健康资料注册入口 —— 本地联调服务。
+"""家族修真录 · 健康资料注册入口 —— 本地联调服务。
 
 作用：
 - 托管前端原型 index.html
@@ -159,6 +159,13 @@ try:
     ilink_gateway.start_background()
 except Exception as error:  # noqa: BLE001 - 网关故障不能拖垮健康入口
     print(f"[ilink] gateway disabled: {error}")
+
+_chat_enabled = os.environ.get("HEALTH_CHAT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
+print(f"[chat] HEALTH_CHAT_ENABLED={_chat_enabled} "
+      f"model={os.environ.get('DEEPSEEK_CHAT_MODEL') or os.environ.get('HEALTH_CHAT_MODEL', 'deepseek-chat')} "
+      f"key={'set' if (os.environ.get('DEEPSEEK_API_KEY') or os.environ.get('HEALTH_CHAT_API_KEY')) else 'MISSING'}")
+if not _chat_enabled:
+    print("[chat] 未启用文本模型：老人消息只会收到固定兜底话术。")
 
 
 @app.get("/api/v1/wechat/gateway")

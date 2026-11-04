@@ -109,15 +109,12 @@ func run() -> void:
 	var original = scene.state.health_snapshot()
 	check(panel.name_input.text.is_empty() and panel.age_input.text.is_empty() and panel.relation_input.text.is_empty() and panel.sex_input.selected == 0, "Required profile starts blank, including name, age, sex and relation")
 	check(panel.preview.texture == null and panel.report_placeholder.visible, "Report area shows a neutral upload placeholder instead of an avatar")
-	var has_guest_prompt = false
+	var has_demo_prompt = false
 	for child in panel.find_children("*", "Control", true, false):
 		if child is Label or child is Button:
-			if child.text.contains("游客样例") or child.text.contains("游客模式"):
-				has_guest_prompt = true
-	check(has_guest_prompt, "Player entry exposes a guest sample button")
-	panel.load_guest_samples()
-	check(panel.guest_mode and panel.chosen_paths.size() == 3 and panel.draft.recognition_mode == "sample" and panel.name_input.text == "张建国", "Guest mode loads all three raw sample images and the sample baseline")
-	panel.clear_files()
+			if child.text.contains("示例") or child.text.contains("样例"):
+				has_demo_prompt = true
+	check(not has_demo_prompt, "Player entry contains no sample or offline-demo buttons or prompts")
 	panel.select_file(ProjectSettings.globalize_path(REPORT_FIXTURE))
 	check(not panel.chosen_path.is_empty() and panel.analyze_button.disabled and panel.draft.is_empty(), "Selecting a report requires analysis and consent instead of prefilled sample stats")
 	check(panel.preview.texture != null and not panel.report_placeholder.visible, "Only a selected report creates an image preview")

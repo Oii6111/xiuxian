@@ -20,6 +20,10 @@ var generation = 0
 var online = false
 
 func _ready() -> void:
+	if "--pages-demo" in OS.get_cmdline_user_args():
+		create_request()
+		reset_session()
+		return
 	endpoint_url = OS.get_environment("XIUXIAN_COMPANION_API_URL").strip_edges()
 	trusted_auth_origin = OS.get_environment("XIUXIAN_COMPANION_AUTH_ORIGIN").strip_edges().trim_suffix("/")
 	if endpoint_url.is_empty():

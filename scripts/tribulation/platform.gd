@@ -642,4 +642,3 @@ func _exit_tree() -> void:
 		if child is AudioStreamPlayer:
 			child.stop()
 			child.stream = null
-

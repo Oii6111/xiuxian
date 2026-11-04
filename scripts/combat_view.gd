@@ -75,6 +75,9 @@ var vital_labels: Array[Label] = []
 var vital_bars: Array[ProgressBar] = []
 var impact_text: Label
 var message: Label
+var _skill_row: HBoxContainer
+var _keyboard_tips: Label
+var _touch_pause_button: Button
 
 func _ready() -> void:
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -131,6 +134,11 @@ func _ready() -> void:
 	world.add_child(effects)
 	effects.z_index = 4
 	_build_hud()
+	var touch := get_node_or_null("/root/TouchControls")
+	if touch != null:
+		touch.bind_battle(self)
+		touch.controls_toggled.connect(_update_touch_hud)
+		_update_touch_hud(touch.controls_enabled())
 	for child in get_children():
 		if child is Control and child != background:
 			child.z_index = 10
@@ -182,6 +190,10 @@ func _build_hud() -> void:
 	var leave = ui.button(self, "返回长廊 ×" if not encounter.is_empty() else "返回仙村 ×", leave_battle)
 	leave.position = Vector2(1231, 20)
 	leave.size.x = 185
+	_touch_pause_button = ui.button(self, "暂停", _toggle_pause)
+	_touch_pause_button.position = Vector2(1231, 80)
+	_touch_pause_button.size.x = 185
+	_touch_pause_button.hide()
 	var status = ui.card(Rect2(20, 125, 292, 274), self, Color("342922"))
 	status.add_theme_constant_override("separation", 7)
 	ui.label_into(status, entered_state.player_name, 23, Color("f5ddb4"))
@@ -199,23 +211,54 @@ func _build_hud() -> void:
 	impact_text.add_theme_color_override("font_outline_color", Color("3a2b2b"))
 	impact_text.add_theme_constant_override("outline_size", 7)
 	impact_text.hide()
-	var row = HBoxContainer.new()
-	row.position = Vector2(25, 754)
-	row.add_theme_constant_override("separation", 10)
-	add_child(row)
-	basic_button = ui.button(row, "普攻 [J]\n近身命中 · 灵力 +5", basic_attack)
+	_skill_row = HBoxContainer.new()
+	_skill_row.position = Vector2(25, 754)
+	_skill_row.add_theme_constant_override("separation", 10)
+	add_child(_skill_row)
+	basic_button = ui.button(_skill_row, "普攻 [J]\n近身命中 · 灵力 +5", basic_attack)
 	basic_button.custom_minimum_size = Vector2(250, 86)
 	basic_button.add_theme_font_size_override("font_size", 17)
 	for i in range(4):
 		var choice = i
-		var button = ui.button(row, "", func(): use_skill(choice), i == 0)
+		var button = ui.button(_skill_row, "", func(): use_skill(choice), i == 0)
 		button.custom_minimum_size = Vector2(270, 86)
 		button.add_theme_font_size_override("font_size", 17)
 		skill_nodes.append(button)
-	var tips = ui.label_into(self, "WASD 移动  ·  按住 J 连击  ·  1 剑诀  ·  2 / 空格 踏云  ·  3 / K 护盾  ·  4 / R 归元  ·  体力自动恢复 · P 暂停", 16, Color("fff0c6"))
-	tips.position = Vector2(25, 858)
-	tips.add_theme_color_override("font_outline_color", Color("29242e"))
-	tips.add_theme_constant_override("outline_size", 5)
+	_keyboard_tips = ui.label_into(self, "WASD 移动  ·  按住 J 连击  ·  1 剑诀  ·  2 / 空格 踏云  ·  3 / K 护盾  ·  4 / R 归元  ·  体力自动恢复 · P 暂停", 16, Color("fff0c6"))
+	_keyboard_tips.position = Vector2(25, 858)
+	_keyboard_tips.add_theme_color_override("font_outline_color", Color("29242e"))
+	_keyboard_tips.add_theme_constant_override("outline_size", 5)
+
+func _update_touch_hud(enabled: bool) -> void:
+	_skill_row.visible = not enabled
+	_keyboard_tips.visible = not enabled
+	_touch_pause_button.visible = enabled and not rules.finished
+	message.position = Vector2(275, 208) if enabled else Vector2(330, 690)
+	message.size.x = 890 if enabled else 1070
+
+func touch_actions_active() -> bool:
+	return rules != null and not paused and not rules.finished
+
+func battle_action_state() -> Array:
+	# Match the mobile layout and reuse the desktop buttons' availability checks.
+	var heal_hint := "" if entered_state.heal_unlocked() else "未解锁"
+	return [
+		{"label": "普攻", "disabled": basic_button.disabled, "cooldown": rules.attack_cd},
+		{"label": "剑诀", "disabled": skill_nodes[0].disabled, "cooldown": rules.sword_cd},
+		{"label": "护盾", "disabled": skill_nodes[2].disabled, "cooldown": rules.shield_cd},
+		{"label": "闪避", "disabled": skill_nodes[1].disabled, "cooldown": rules.dodge_cd},
+		{"label": "归元", "disabled": skill_nodes[3].disabled, "cooldown": rules.heal_cd, "hint": heal_hint},
+	]
+
+func perform_action(action: int) -> void:
+	if not touch_actions_active():
+		return
+	match action:
+		0: basic_attack()
+		1: use_skill(0)
+		2: use_skill(2)
+		3: use_skill(1)
+		4: use_skill(3)
 
 func refresh() -> void:
 	top_label.text = "%s  %d / %d    用时 %.1f 秒" % [rules.boss_name, rules.boss_hp, rules.boss_max_hp, rules.elapsed] + (" · 第%d阶段 · 散祟%d" % [rules.stage_index + 1, rules.active_adds()] if not encounter.is_empty() else "")
@@ -434,10 +477,7 @@ func _input(event: InputEvent) -> void:
 		return
 	match event.keycode:
 		KEY_ESCAPE: leave_battle()
-		KEY_P:
-			paused = not paused
-			message.text = "暂停 · P 继续 / Esc 返回" if paused else "继续战斗"
-
+		KEY_P: _toggle_pause()
 		KEY_J: basic_attack()
 		KEY_1, KEY_Q: use_skill(0)
 		KEY_2, KEY_SPACE: use_skill(1)
@@ -445,6 +485,12 @@ func _input(event: InputEvent) -> void:
 		KEY_4, KEY_R: use_skill(3)
 		_: return
 	get_viewport().set_input_as_handled()
+
+func _toggle_pause() -> void:
+	paused = not paused
+	_touch_pause_button.text = "继续" if paused else "暂停"
+	var pause_hint := "战斗已暂停" if _touch_pause_button.visible else "暂停 · P 继续 / Esc 返回"
+	message.text = pause_hint if paused else "继续战斗"
 
 func leave_battle() -> void:
 	if not encounter.is_empty():
@@ -474,6 +520,7 @@ func show_result() -> void:
 	if result_shown:
 		return
 	result_shown = true
+	_touch_pause_button.hide()
 	_submit_remote_result()
 	entered_state.save_game()
 	ui.refresh()
@@ -612,6 +659,9 @@ func _boss_pose(_delta: float) -> void:
 	if rules.finished and rules.won: dragon.modulate = Color(.7,.7,.7,.7)
 
 func _exit_tree() -> void:
+	var touch := get_node_or_null("/root/TouchControls")
+	if touch != null:
+		touch.unbind_battle(self)
 	if is_instance_valid(boss_audio):
 		boss_audio.stop()
 		boss_audio.stream = null

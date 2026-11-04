@@ -19,9 +19,6 @@ var skip_button: Button
 var result_grid: GridContainer
 var status_label: Label
 
-## Lightweight reveal presentation used by the local and remote receipt views.
-## The result is still decided by the authoritative draw response; this control
-## only animates the already committed rarity and never changes the item.
 class GachaRevealFX extends Control:
 	var rarity: int = 0
 	var state: String = "idle"
@@ -250,16 +247,14 @@ func build() -> void:
 	progress.add_theme_stylebox_override("fill", box(Color("c6a162")))
 	left.add_child(progress)
 	var remaining = maxi(0, Rules.TEN_COST - int(game.state.equipment.qi))
-	var starter_pulls = int(game.state.equipment.get("starter_ten_pulls", 0))
-	if starter_pulls > 0:
-		text(left, "新手赠送 · 免费十连 × %d" % starter_pulls, 18, GOLD_TEXT)
-	else:
-		text(left, "十连已备齐" if remaining == 0 else "距十连还差 %d 灵气" % remaining, 16, MUTED_TEXT)
+	text(left, "新手赠送 · 免费十连" if int(game.state.equipment.get("starter_ten_pulls", 0)) > 0 else ("十连已备齐" if remaining == 0 else "距十连还差 %d 灵气" % remaining), 16, MUTED_TEXT)
 	paragraph_text(left, "每日有效习惯记录 +100\n单抽 70 · 十连 700\n积攒七天，即可十连。漏记不清零。", 16)
 	action(left, "查看今日习惯", ui.open_record)
 	var separator = HSeparator.new()
 	left.add_child(separator)
 	text(left, "本角色基础概率", 18, GOLD_TEXT)
+	# Keep long probability explanations inside the left column at the base viewport size.
+	left.add_theme_constant_override("separation", 8)
 	var locked = float(game.state.equipment.initial_score) >= 0
 	if locked:
 		var odds = Rules.probabilities(float(game.state.equipment.initial_score))
@@ -298,7 +293,7 @@ func build_wish() -> void:
 	var receipt = last_receipt()
 	if receipt.is_empty():
 		var seal = WishSeal.new()
-		seal.custom_minimum_size.y = 208
+		seal.custom_minimum_size.y = 148
 		right.add_child(seal)
 		var introduction = text(right, "每一份坚持，都有回响", 26, GOLD_TEXT)
 		introduction.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -306,22 +301,26 @@ func build_wish() -> void:
 		row.alignment = BoxContainer.ALIGNMENT_CENTER
 		row.add_theme_constant_override("separation", 16)
 		right.add_child(row)
-		for slot in Rules.SLOTS:
+		for template_id in [0, 1, 3, 4]:
+			var showcase = {"id": "showcase", "template": template_id, "rarity": 4}
+			var info = Rules.detail(showcase)
 			var column = VBoxContainer.new()
-			column.custom_minimum_size.x = 142
+			column.custom_minimum_size.x = 178
 			row.add_child(column)
 			var icon = Icon.new()
-			icon.slot = slot
-			icon.tint = GOLD_TEXT
-			icon.custom_minimum_size = Vector2(90, 78)
+			icon.setup(showcase)
+			icon.custom_minimum_size = Vector2(150, 132)
 			column.add_child(icon)
-			var label = text(column, Rules.SLOT_NAMES[slot], 18)
+			var label = text(column, info.name, 18, info.color)
 			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			var kind = text(column, "神话 · " + Rules.SLOT_NAMES[info.slot], 14, MUTED_TEXT)
+			kind.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var preview_note = text(right, "神话灵器外观预览 · 实际获得品质以祈愿结果为准", 14, MUTED_TEXT)
+		preview_note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var guidance = paragraph_text(right, "装备收入行囊后可查看与穿戴。加成独立于健康基础属性，下一场战斗生效。", 17)
 		guidance.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	else:
-		var starter_label = " · 新手赠送" if receipt.get("starter_bonus", false) else ""
-		text(right, "最近一次祈愿 · %d 抽 · 消耗 %d 灵气%s" % [receipt.count, receipt.cost, starter_label], 17, GOLD_TEXT if receipt.get("starter_bonus", false) else MUTED_TEXT)
+		text(right, "最近一次祈愿 · %d 抽 · 消耗 %d 灵气" % [receipt.count, receipt.cost], 17, MUTED_TEXT)
 		result_grid = GridContainer.new()
 		result_grid.columns = 5
 		result_grid.add_theme_constant_override("h_separation", 10)
@@ -339,12 +338,11 @@ func build_wish() -> void:
 	actions.add_theme_constant_override("separation", 12)
 	right.add_child(actions)
 	single_button = action(actions, "祈愿一次 · 70", func(): summon(1))
-	var can_use_starter = int(game.state.equipment.get("starter_ten_pulls", 0)) > 0
-	ten_button = action(actions, "新手赠送 · 免费十连" if can_use_starter else "十连祈愿 · 700", func(): summon(10), true)
+	ten_button = action(actions, "新手赠送 · 免费十连" if int(game.state.equipment.get("starter_ten_pulls", 0)) > 0 else "十连祈愿 · 700", func(): summon(10), true)
 	single_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ten_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	single_button.disabled = busy or int(game.state.equipment.qi) < Rules.SINGLE_COST or float(game.state.equipment.initial_score) < 0
-	ten_button.disabled = busy or (not can_use_starter and int(game.state.equipment.qi) < Rules.TEN_COST) or float(game.state.equipment.initial_score) < 0
+	ten_button.disabled = busy or (int(game.state.equipment.get("starter_ten_pulls", 0)) <= 0 and int(game.state.equipment.qi) < Rules.TEN_COST) or float(game.state.equipment.initial_score) < 0
 	skip_button = action(actions, "跳过动画", finish_reveal)
 	skip_button.visible = busy
 
@@ -353,7 +351,6 @@ func item_card(parent: Node, item: Dictionary, dimensions: Vector2) -> Button:
 	var card = Button.new()
 	card.custom_minimum_size = dimensions
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.clip_contents = true
 	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	card.tooltip_text = "%s · %s\n%s\n点击查看与穿戴" % [info.quality, info.name, Rules.bonus_text(item)]
 	var background = box(Color("262a35").lerp(info.color.darkened(0.7), 0.25), info.color, 2)
@@ -371,14 +368,13 @@ func item_card(parent: Node, item: Dictionary, dimensions: Vector2) -> Button:
 	column.offset_top = 12
 	column.offset_bottom = -10
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", 5)
+	column.add_theme_constant_override("separation", 3)
 	card.add_child(column)
 	var quality = text(column, info.quality, 15, info.color)
 	quality.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var icon = Icon.new()
-	icon.slot = info.slot
-	icon.tint = info.color
-	icon.custom_minimum_size.y = 75
+	icon.setup(item)
+	icon.custom_minimum_size.y = 68
 	column.add_child(icon)
 	var name_label = text(column, info.name, 17)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -538,6 +534,11 @@ func build_detail(parent: Node) -> void:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	parent.add_child(row)
+	var preview = Icon.new()
+	preview.name = "EquipmentDetailPreview"
+	preview.setup(selected)
+	preview.custom_minimum_size = Vector2(112, 112)
+	row.add_child(preview)
 	var description = VBoxContainer.new()
 	description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(description)

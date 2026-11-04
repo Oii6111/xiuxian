@@ -1,6 +1,7 @@
 extends Control
 const Catalogue = preload("res://scripts/companion_catalogue.gd")
 const Context = preload("res://scripts/companion_context.gd")
+const FamilyPanel = preload("res://scripts/family_panel.gd")
 var game: Node
 var ui: Control
 var choose_mode = false
@@ -42,32 +43,50 @@ func build() -> void:
 	send_button = null
 	messages = null
 	thinking = null
+	mode_label = null
 	portrait = null
 	task_sync_label = null
 	var shade = ColorRect.new()
 	shade.color = Color(0.08, 0.1, 0.08, 0.68)
 	add_child(shade)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var content = ui.card(Rect2(150, 73, 1140, 755), self, Color("f5e8c9"))
+	var touch := FamilyPanel.uses_touch_layout()
+	var parent: Control = FamilyPanel.form_scroll(self, 1090) if touch else self
+	var bounds := Rect2() if touch else Rect2(150, 73, 1140, 755)
+	var content: VBoxContainer = ui.card(bounds, parent, Color("f5e8c9"))
+	if touch:
+		var panel := content.get_parent() as Control
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 13)
 	var heading = HBoxContainer.new()
 	content.add_child(heading)
 	var title = ui.label_into(heading, "选择你的同行灵宠" if choose_mode else "灵宠小叙 · " + Catalogue.nickname(game.family.companion), 28)
 	title.add_theme_font_override("font", game.title_font)
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ui.button(heading, "关闭 ×", ui.close_modal)
+	var close_button: Button = ui.button(heading, "关闭 ×", ui.close_modal)
+	if touch:
+		close_button.custom_minimum_size.y = 76
+		close_button.add_theme_font_size_override("font_size", 26)
 	ui.paragraph(content, "四位伙伴，同样贴心。选一只喜欢的，陪你与家人慢慢修行。" if choose_mode else "今日任务、家人近况、下一步安排，都可以来问我。", 16)
 	ui.line(content)
 	if choose_mode:
-		build_choices(content)
+		build_choices(content, touch)
 	else:
-		build_chat(content)
+		build_chat(content, touch)
 
-func build_choices(content: VBoxContainer) -> void:
+func build_choices(content: VBoxContainer, touch: bool = false) -> void:
 	var existing = Catalogue.clean(game.family.companion)
 	selected_id = str(existing.id) if Catalogue.valid(existing.id) else "gourd_dragon"
-	var cards = HBoxContainer.new()
-	cards.add_theme_constant_override("separation", 14)
+	var cards: Container
+	if touch:
+		var grid := GridContainer.new()
+		grid.columns = 2
+		grid.add_theme_constant_override("h_separation", 14)
+		grid.add_theme_constant_override("v_separation", 14)
+		cards = grid
+	else:
+		cards = HBoxContainer.new()
+		cards.add_theme_constant_override("separation", 14)
 	cards.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_child(cards)
 	for id in Catalogue.IDS:
@@ -101,7 +120,10 @@ func build_choices(content: VBoxContainer) -> void:
 	content.add_child(bottom)
 	ui.label_into(bottom, "给伙伴取个昵称", 17)
 	nickname_input = LineEdit.new()
-	nickname_input.custom_minimum_size = Vector2(230, 45)
+	nickname_input.custom_minimum_size = Vector2(230, 80 if touch else 45)
+	nickname_input.virtual_keyboard_enabled = true
+	if touch:
+		nickname_input.add_theme_font_size_override("font_size", 30)
 	nickname_input.max_length = 10
 	nickname_input.text = existing.nickname if Catalogue.valid(existing.id) else Catalogue.PETS[selected_id].nickname
 	nickname_input.add_theme_color_override("font_color", ui.BROWN)
@@ -114,6 +136,9 @@ func build_choices(content: VBoxContainer) -> void:
 	bottom.add_child(spacer)
 	confirm_button = ui.button(bottom, "", confirm_choice, true)
 	confirm_button.custom_minimum_size.x = 270
+	if touch:
+		confirm_button.custom_minimum_size.y = 80
+		confirm_button.add_theme_font_size_override("font_size", 26)
 	status_label = ui.label_into(content, "随时可以免费更换，任务与陪伴记录会一直保留。", 14)
 	select_pet(selected_id, false)
 
@@ -153,43 +178,56 @@ func pet_image(parent: Node, id: String, minimum: Vector2) -> TextureRect:
 	parent.add_child(image)
 	return image
 
-func build_chat(content: VBoxContainer) -> void:
-	var columns = HBoxContainer.new()
+func build_chat(content: VBoxContainer, touch: bool = false) -> void:
+	var columns: BoxContainer = VBoxContainer.new() if touch else HBoxContainer.new()
 	columns.add_theme_constant_override("separation", 22)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_child(columns)
-	var side = VBoxContainer.new()
-	side.custom_minimum_size.x = 252
+	var side: BoxContainer = HBoxContainer.new() if touch else VBoxContainer.new()
+	if not touch:
+		side.custom_minimum_size.x = 252
 	side.add_theme_constant_override("separation", 11)
 	columns.add_child(side)
-	portrait = pet_image(side, game.family.companion.id, Vector2(230, 175))
-	var name_label = ui.label_into(side, Catalogue.nickname(game.family.companion), 27)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mode_label = ui.label_into(side, "在线陪伴" if game.companion_api.online else "仙村向导", 14)
-	mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ui.paragraph(side, Catalogue.PETS[game.family.companion.id].intro, 15)
-	ui.line(side)
+	if not touch:
+		portrait = pet_image(side, game.family.companion.id, Vector2(230, 175))
+		var name_label = ui.label_into(side, Catalogue.nickname(game.family.companion), 27)
+		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		mode_label = ui.label_into(side, "在线陪伴" if game.companion_api.online else "仙村向导", 14)
+		mode_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		ui.paragraph(side, Catalogue.PETS[game.family.companion.id].intro, 15)
+		ui.line(side)
 	for entry in [["今日任务", "今天的任务怎么样？"], ["家人近况", "家人今天的记录怎么样？"], ["下一步做什么", "下一步做什么？"]]:
 		var question: String = entry[1]
-		quick_buttons.append(ui.button(side, entry[0], func(): send_message(question)))
-	var stretch = Control.new()
-	stretch.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	side.add_child(stretch)
-	ui.button(side, "更换灵宠 / 修改昵称", func():
+		var quick: Button = ui.button(side, entry[0], func(): send_message(question))
+		if touch:
+			quick.custom_minimum_size.y = 76
+			quick.add_theme_font_size_override("font_size", 24)
+			quick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		quick_buttons.append(quick)
+	if not touch:
+		var stretch = Control.new()
+		stretch.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		side.add_child(stretch)
+	var change_pet: Button = ui.button(side, "更换灵宠" if touch else "更换灵宠 / 修改昵称", func():
 		game.companion_api.cancel_pending()
 		choose_mode = true
 		build()
 	)
+	if touch:
+		change_pet.custom_minimum_size.y = 76
+		change_pet.add_theme_font_size_override("font_size", 24)
 	var right = VBoxContainer.new()
 	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 9)
 	columns.add_child(right)
 	var context = Context.snapshot(game)
 	ui.label_into(right, context.as_of_date + "  ·  当前角色：" + Context.active(context).label, 15)
+	if touch:
+		mode_label = ui.label_into(right, "在线陪伴" if game.companion_api.online else "仙村向导", 21)
 	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
 		task_sync_label = ui.label_into(right, game.companion_tasks.status_text(), 13)
 	scroll = ScrollContainer.new()
-	scroll.custom_minimum_size.y = 380
+	scroll.custom_minimum_size.y = 300 if touch else 380
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	right.add_child(scroll)
@@ -206,7 +244,10 @@ func build_chat(content: VBoxContainer) -> void:
 	input.placeholder_text = "问问今日任务，或聊聊接下来的安排…"
 	input.max_length = 600
 	input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	input.custom_minimum_size.y = 48
+	input.custom_minimum_size.y = 80 if touch else 48
+	input.virtual_keyboard_enabled = true
+	if touch:
+		input.add_theme_font_size_override("font_size", 30)
 	input.add_theme_stylebox_override("normal", ui.style(Color("fff8e8")))
 	input.add_theme_stylebox_override("focus", ui.style(Color("fffdf2")))
 	input.add_theme_color_override("font_color", ui.BROWN)
@@ -216,6 +257,11 @@ func build_chat(content: VBoxContainer) -> void:
 	bottom.add_child(input)
 	send_button = ui.button(bottom, "发送", func(): send_message(input.text), true)
 	send_button.custom_minimum_size.x = 88
+	if touch:
+		send_button.custom_minimum_size = Vector2(136, 80)
+		send_button.add_theme_font_size_override("font_size", 26)
+		columns.move_child(right, 0)
+		right.move_child(bottom, 0)
 	var record_note = "按游戏中的记录陪你安排今天；确认记录请到对应页面完成。"
 	if is_instance_valid(game.companion_tasks) and game.companion_tasks.manages(game.family.active_id):
 		record_note = "由老人微信反馈完成，任务状态会自动同步。"
@@ -227,7 +273,8 @@ func build_chat(content: VBoxContainer) -> void:
 		game.companion_api.append_message("assistant", "你好，我是%s。今天想先看看任务、关心一下家人，还是一起安排下一步？" % Catalogue.nickname(game.family.companion))
 	render_messages()
 	on_busy(game.companion_api.busy)
-	input.grab_focus.call_deferred()
+	if not touch:
+		input.grab_focus.call_deferred()
 
 func render_messages() -> void:
 	if not is_instance_valid(messages):

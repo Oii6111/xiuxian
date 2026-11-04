@@ -22,6 +22,25 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	build()
 
+static func uses_touch_layout() -> bool:
+	return OS.has_feature("mobile") or DisplayServer.is_touchscreen_available() or "--touch" in OS.get_cmdline_user_args() or OS.has_environment("XIUXIAN_TOUCH")
+
+static func form_scroll(parent: Control, width: float) -> ScrollContainer:
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	scroll.scroll_deadzone = 12
+	parent.add_child(scroll)
+	scroll.anchor_left = 0.5
+	scroll.anchor_right = 0.5
+	scroll.anchor_top = 0.0
+	scroll.anchor_bottom = 1.0
+	scroll.offset_left = -width * 0.5
+	scroll.offset_right = width * 0.5
+	scroll.offset_top = 26
+	scroll.offset_bottom = -26
+	return scroll
+
 func style(color: Color = Color("232830"), border: Color = Color("514837")) -> StyleBoxFlat:
 	var result = StyleBoxFlat.new()
 	result.bg_color = color
@@ -33,12 +52,13 @@ func style(color: Color = Color("232830"), border: Color = Color("514837")) -> S
 	result.content_margin_bottom = 20
 	return result
 
-func panel_at(rect: Rect2, border: Color = Color("514837")) -> VBoxContainer:
+func panel_at(rect: Rect2, border: Color = Color("514837"), parent: Node = self) -> VBoxContainer:
 	var panel = PanelContainer.new()
 	panel.position = rect.position
 	panel.size = rect.size
 	panel.add_theme_stylebox_override("panel", style(Color("232830"), border))
-	add_child(panel)
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(panel)
 	var column = VBoxContainer.new()
 	column.add_theme_constant_override("separation", 16)
 	panel.add_child(column)
@@ -47,7 +67,7 @@ func panel_at(rect: Rect2, border: Color = Color("514837")) -> VBoxContainer:
 func text(parent: Node, value: String, font_size: int = 18, color: Color = CREAM) -> Label:
 	var label = Label.new()
 	label.text = value
-	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_font_size_override("font_size", maxi(font_size, 26) if uses_touch_layout() else font_size)
 	label.add_theme_color_override("font_color", color)
 	parent.add_child(label)
 	return label
@@ -60,7 +80,8 @@ func paragraph(parent: Node, value: String, font_size: int = 17, color: Color = 
 func action(parent: Node, value: String, callback: Callable, primary: bool = false) -> Button:
 	var button = Button.new()
 	button.text = value
-	button.custom_minimum_size.y = 50
+	var touch := uses_touch_layout()
+	button.custom_minimum_size.y = 84 if touch else 50
 	button.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	for state in ["normal", "hover", "pressed", "disabled", "focus"]:
 		var color = Color("735735") if primary else Color("303640")
@@ -76,7 +97,7 @@ func action(parent: Node, value: String, callback: Callable, primary: bool = fal
 	button.add_theme_color_override("font_hover_color", Color.WHITE)
 	button.add_theme_color_override("font_pressed_color", CREAM)
 	button.add_theme_color_override("font_disabled_color", Color("797b81"))
-	button.add_theme_font_size_override("font_size", 18)
+	button.add_theme_font_size_override("font_size", 28 if touch else 18)
 	button.pressed.connect(callback)
 	parent.add_child(button)
 	return button
@@ -89,18 +110,26 @@ func build() -> void:
 	shade.color = Color(0.035, 0.04, 0.06, 0.88)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
-	var background = Panel.new()
-	background.position = Vector2(100, 45)
-	background.size = Vector2(1240, 810)
-	background.add_theme_stylebox_override("panel", style(Color("191d25"), Color("a38350")))
-	add_child(background)
-	var header = panel_at(Rect2(120, 62, 1200, 90))
+	var stack: VBoxContainer
+	if uses_touch_layout():
+		stack = VBoxContainer.new()
+		stack.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		stack.add_theme_constant_override("separation", 16)
+		form_scroll(self, 1050).add_child(stack)
+	else:
+		var background = Panel.new()
+		background.position = Vector2(100, 45)
+		background.size = Vector2(1240, 810)
+		background.add_theme_stylebox_override("panel", style(Color("191d25"), Color("a38350")))
+		add_child(background)
+	var header = panel_at(Rect2(120, 62, 1200, 90), Color("514837"), stack if stack != null else self)
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 20)
 	header.add_child(row)
 	text(row, "我的家人", 32, GOLD_TEXT)
 	var summary = text(row, "%s  ·  %d / 2 位家人" % [game.family.account.name, game.family.members.size()], 18, MUTED_TEXT)
 	summary.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary.clip_text = stack != null
 	var back = action(row, "返回家人列表" if form_open else "返回仙村 ×", func():
 		if form_open:
 			form_open = false
@@ -110,13 +139,14 @@ func build() -> void:
 	)
 	back.disabled = false
 	if form_open:
-		build_form()
+		build_form(stack)
 	else:
-		build_members()
+		build_members(stack)
 
-func build_members() -> void:
+func build_members(stack: VBoxContainer = null) -> void:
+	var parent: Node = stack if stack != null else self
 	var own = game.family.owner_state
-	var own_bar = panel_at(Rect2(150, 165, 1140, 130), GOLD_TEXT if game.family.active_id == "self" else Color("514837"))
+	var own_bar = panel_at(Rect2(150, 165, 1140, 130), GOLD_TEXT if game.family.active_id == "self" else Color("514837"), parent)
 	var own_row = HBoxContainer.new()
 	own_row.add_theme_constant_override("separation", 22)
 	own_bar.add_child(own_row)
@@ -133,13 +163,18 @@ func build_members() -> void:
 	text(own_text, "我的角色 · 本人", 24, GOLD_TEXT)
 	text(own_text, own.player_name + " · " + own.realm(), 18)
 	text(own_text, "不占用下方两个家人位置", 16, MUTED_TEXT)
-	action(own_row, "进入我的角色", func(): ui.activate_family("self"), true)
-	action(own_row, "我的资料", func(): ui.activate_family("self", true))
-	action(own_row, "退出 / 换账号", ui.logout_account)
+	var own_actions: HBoxContainer = own_row
+	if stack != null:
+		own_actions = HBoxContainer.new()
+		own_actions.add_theme_constant_override("separation", 12)
+		own_bar.add_child(own_actions)
+	action(own_actions, "进入我的角色", func(): ui.activate_family("self"), true)
+	action(own_actions, "我的资料", func(): ui.activate_family("self", true))
+	action(own_actions, "退出 / 换账号", ui.logout_account)
 	for i in range(2):
 		var member = game.family.members[i] if i < game.family.members.size() else {}
 		var selected = not member.is_empty() and member.id == game.family.active_id
-		var column = panel_at(Rect2(150 + i * 585, 312, 555, 458), Color("cbaa68") if selected else Color("514837"))
+		var column = panel_at(Rect2(150 + i * 585, 312, 555, 458), Color("cbaa68") if selected else Color("514837"), parent)
 		column.add_theme_constant_override("separation", 8)
 		if member.is_empty():
 			text(column, "家人位置 %d" % (i + 1), 18, MUTED_TEXT)
@@ -188,7 +223,7 @@ func build_members() -> void:
 		action(buttons, "编辑基本资料", func(): show_form(id))
 		if ready:
 			action(buttons, "补充健康资料", func(): ui.activate_family(id, true))
-	var footer = panel_at(Rect2(150, 790, 1140, 50))
+	var footer = panel_at(Rect2(150, 790, 1140, 50), Color("514837"), parent)
 	status_label = paragraph(footer, game.family.last_error if not game.family.last_error.is_empty() else "本人角色单独保留；下方两个位置专门用于家人。每个角色的任务、灵气、装备和进度分别保存。", 17, GOLD_TEXT)
 
 func show_form(id: String) -> void:
@@ -202,7 +237,10 @@ func field(parent: Node, label: String, placeholder: String, value: String = "",
 	input.text = value
 	input.placeholder_text = placeholder
 	input.max_length = limit
-	input.custom_minimum_size.y = 44
+	input.virtual_keyboard_enabled = true
+	input.custom_minimum_size.y = 84 if uses_touch_layout() else 44
+	if uses_touch_layout():
+		input.add_theme_font_size_override("font_size", 30)
 	var normal = style(Color("303640"))
 	normal.content_margin_top = 10
 	normal.content_margin_bottom = 10
@@ -222,7 +260,10 @@ func option(parent: Node, label: String, items: Array, index: int) -> OptionButt
 	for value in items:
 		input.add_item(value)
 	input.select(index)
-	input.custom_minimum_size.y = 44
+	input.custom_minimum_size.y = 84 if uses_touch_layout() else 44
+	if uses_touch_layout():
+		input.add_theme_font_size_override("font_size", 28)
+		input.get_popup().add_theme_font_size_override("font_size", 28)
 	var look = style(Color("303640"))
 	look.content_margin_top = 10
 	look.content_margin_bottom = 10
@@ -231,9 +272,9 @@ func option(parent: Node, label: String, items: Array, index: int) -> OptionButt
 	parent.add_child(input)
 	return input
 
-func build_form() -> void:
+func build_form(stack: VBoxContainer = null) -> void:
 	var identity = game.family.identity_for(editing_id)
-	var left = panel_at(Rect2(150, 180, 700, 640))
+	var left = panel_at(Rect2(150, 180, 700, 640), Color("514837"), stack if stack != null else self)
 	text(left, "添加家人" if editing_id.is_empty() else "编辑家人基本资料", 28, GOLD_TEXT)
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 22)
@@ -246,6 +287,7 @@ func build_form() -> void:
 	ages.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(ages)
 	age_input = field(ages, "年龄 *", "1—120", str(int(identity.age)) if int(identity.get("age", 0)) > 0 else "", 3)
+	age_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 	row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 22)
 	left.add_child(row)
@@ -272,11 +314,14 @@ func build_form() -> void:
 	consent_input = CheckBox.new()
 	consent_input.text = "本人同意，或已获得家人同意后帮助填写"
 	consent_input.add_theme_color_override("font_color", CREAM)
+	if stack != null:
+		consent_input.custom_minimum_size.y = 84
+		consent_input.add_theme_font_size_override("font_size", 27)
 	consent_input.button_pressed = false
 	left.add_child(consent_input)
 	status_label = paragraph(left, "基本资料不会发放打卡奖励，也不会修改健康属性。", 16)
 	action(left, "保存家人并代填健康资料" if editing_id.is_empty() else "保存基本资料", save_form, true)
-	var right = panel_at(Rect2(875, 180, 415, 640))
+	var right = panel_at(Rect2(875, 180, 415, 640), Color("514837"), stack if stack != null else self)
 	text(right, "先认识家人，再开始修行", 25, GOLD_TEXT)
 	paragraph(right, "① 填写家人信息\n\n② 上传报告或补充文字\n\n③ 分析后预览属性\n\n④ 确认后进入仙村", 21)
 	paragraph(right, "姓名用于辨认家人，修仙称号用于游戏角色。两者分别保存，修改称号不会重置成长。", 18)

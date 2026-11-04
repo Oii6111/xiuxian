@@ -25,7 +25,7 @@ func run() -> void:
 		check(game.can_walk(point), "Stone bridge remains walkable at " + str(point))
 	for point in [Vector2(760, 780), Vector2(900, 760), Vector2(1120, 700)]:
 		check(not game.can_walk(point), "Bridge underside/channel blocks " + str(point))
-	check(not game.can_walk(Vector2(520, 700)), "Water edge requires the full player footprint to stay on land")
+	check(not game.can_stand(Vector2(520, 700)), "Water edge requires the full player footprint to stay on land")
 	game.queue_free()
 	await process_frame
 	print("TERRAIN COLLISION RESULT: ", passed, " passed, ", failed, " failed")

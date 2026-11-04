@@ -31,7 +31,7 @@ ANIMATIONS = ("idle", "talk", "celebrate")
 MAX_MESSAGE = 500
 MAX_REPLY = 2000
 
-SYSTEM_PROMPT = """你是《疯狂修仙，中》里陪伴年轻人的灵宠，用温和、简短的中文回答。
+SYSTEM_PROMPT = """你是《家族修真录》里陪伴年轻人的灵宠，用温和、简短的中文回答。
 
 硬性规则：
 1. 只根据我给你的“游戏记录投影”说话，不要编造任务状态、奖励、账本数字或家人情况。

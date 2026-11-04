@@ -457,4 +457,3 @@ func reset_demo() -> void:
 	game.player.position = Vector3(0, 0.2, 1)
 	refresh()
 	toast("已恢复初始演示资源")
-

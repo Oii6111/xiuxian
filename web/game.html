@@ -99,10 +99,8 @@
     if (missing.length) {
       showError(missing.join("、"));
     } else {
-      // Pages serves a static demo. The same build supports accounts on the game server.
-      const args = location.hostname.endsWith(".github.io") ? ["--", "--pages-demo"] : [];
       engine.startGame({
-        canvas, args,
+        canvas,
         onProgress(current, total) {
           if (total > 0) {
             progress.max = total;

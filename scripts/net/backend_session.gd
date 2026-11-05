@@ -8,6 +8,8 @@ signal family_synced
 const GameApi = preload("res://scripts/net/game_api.gd")
 const GameRealtime = preload("res://scripts/net/game_realtime.gd")
 const DEFAULT_URL = "http://127.0.0.1:8080"
+const PAGES_ORIGIN = "https://oii6111.github.io"
+const PRODUCTION_ORIGIN = "https://xiuxian.dshpond.com"
 var api: Node
 var realtime: Node
 var service_url = DEFAULT_URL:
@@ -32,8 +34,10 @@ func _ready() -> void:
 			service_url = OS.get_environment(name)
 			break
 	if OS.has_feature("web"):
-		# 网页由游戏服务直接托管：同源访问，无需配置地址。
-		service_url = str(JavaScriptBridge.eval("location.origin"))
+		service_url = web_service_origin(
+			str(JavaScriptBridge.eval("location.origin")),
+			str(JavaScriptBridge.eval("location.pathname"))
+		)
 	api = GameApi.new()
 	api.name = "GameApi"
 	add_child(api)
@@ -47,6 +51,12 @@ func kernel() -> Node:
 
 func is_authenticated() -> bool:
 	return not api.bearer_token.is_empty() and not account.is_empty() and api.base_url == service_url
+
+static func web_service_origin(page_origin: String, page_path: String) -> String:
+	# 只有正式项目 Pages 使用跨源 API。其他网页部署继续走同源。
+	if page_origin == PAGES_ORIGIN and (page_path == "/xiuxian" or page_path.begins_with("/xiuxian/")):
+		return PRODUCTION_ORIGIN
+	return page_origin
 
 static func endpoint_allowed(url: String) -> bool:
 	if OS.has_feature("web") and url == str(JavaScriptBridge.eval("location.origin")):

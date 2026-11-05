@@ -1,6 +1,7 @@
 extends SceneTree
 ## Regression coverage for the first web-debug batch. Preview state never writes player data.
 const Icon = preload("res://scripts/equipment_icon.gd")
+const BackendSession = preload("res://scripts/net/backend_session.gd")
 var passed = 0
 var failed = 0
 var game: Node2D
@@ -45,6 +46,9 @@ func run() -> void:
 	game.family.persist_enabled = false
 	game.state.persist_enabled = false
 	check(ProjectSettings.get_setting("application/config/name") == "疯狂修仙，中", "Visible product name uses the requested title")
+	check(BackendSession.web_service_origin("https://oii6111.github.io", "/xiuxian/") == "https://xiuxian.dshpond.com", "Official Pages resolves to the production game API")
+	check(BackendSession.web_service_origin("https://oii6111.github.io", "/xiuxian-preview/") == "https://oii6111.github.io", "An unrelated Pages project keeps its own origin")
+	check(BackendSession.web_service_origin("https://preview.example", "/xiuxian/") == "https://preview.example", "Other Web hosts keep their same-origin backend")
 	if OS.has_feature("windows"):
 		check(OS.get_user_data_dir().replace("\\", "/").ends_with("/Godot/app_userdata/家族修真录 · 像素仙村"), "Renaming preserves the existing Windows save/session directory")
 	# The real physical key goes through input dispatch, including after a HUD button has focus.

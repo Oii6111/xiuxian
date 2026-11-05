@@ -46,6 +46,7 @@
     const stage = document.getElementById("stage");
     const canvas = document.getElementById("canvas");
     const status = document.getElementById("status");
+    const statusText = document.getElementById("status-text");
     const progress = document.getElementById("progress");
     let fittedWidth = 0;
     let fittedHeight = 0;
@@ -95,7 +96,7 @@
     const engine = new Engine(config);
     const missing = Engine.getMissingFeatures({ threads: false });
     function showError(error) {
-      document.getElementById("status-text").textContent = "游戏加载失败：" + error;
+      statusText.textContent = "游戏加载失败：" + error;
       progress.hidden = true;
       console.error(error);
     }
@@ -105,22 +106,46 @@
       // Assemble the exported game pack from the static release files.
       async function startPagesBuild() {
         const pack = new Uint8Array(98906260);
-        progress.max = pack.length;
         const parts = ["game-f55b646-01.bin", "game-f55b646-02.bin", "game-f55b646-03.bin", "game-f55b646-04.bin"];
-        const loadingPack = (async () => {
-          let offset = 0;
-          for (const name of parts) {
-            const response = await fetch(name);
-            if (!response.ok) throw new Error(name + " HTTP " + response.status);
-            const bytes = new Uint8Array(await response.arrayBuffer());
-            pack.set(bytes, offset);
-            offset += bytes.length;
-            progress.value = offset;
+        const partSize = 24 * 1024 * 1024;
+        const downloads = new AbortController();
+        let loaded = 0;
+        let displayed = 0;
+        progress.max = pack.length;
+        progress.value = 0;
+        statusText.textContent = "正在下载游戏资源（0%）";
+        async function loadPart(name, index) {
+          let offset = index * partSize;
+          const end = Math.min(offset + partSize, pack.length);
+          const response = await fetch(name, { signal: downloads.signal });
+          if (!response.ok || !response.body) throw new Error(name + " HTTP " + response.status);
+          const reader = response.body.getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (offset + value.length > end) throw new Error(name + " 的大小不符");
+            pack.set(value, offset);
+            offset += value.length;
+            loaded += value.length;
+            progress.value = loaded;
+            const percent = Math.floor(loaded * 100 / pack.length);
+            if (percent !== displayed) {
+              displayed = percent;
+              statusText.textContent = "正在下载游戏资源（" + percent + "%）";
+            }
           }
-          if (offset !== pack.length) throw new Error("游戏资源下载不完整");
+          if (offset !== end) throw new Error(name + " 下载不完整");
+        }
+        const loadingPack = Promise.all(parts.map(loadPart)).then(async () => {
+          statusText.textContent = "正在启动仙村…";
           await engine.preloadFile(pack, "index.pck");
-        })();
-        await Promise.all([engine.init(config.executable), loadingPack]);
+        });
+        try {
+          await Promise.all([engine.init(config.executable), loadingPack]);
+        } catch (error) {
+          downloads.abort();
+          throw error;
+        }
         await engine.start({ canvas, args: ["--main-pack", "index.pck"] });
       }
       startPagesBuild().then(() => { status.hidden = true; }, showError);

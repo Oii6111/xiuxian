@@ -21,6 +21,7 @@ var status_labels: Array[Label] = []
 var jump_buttons: Array[Button] = []
 var progress_label: Label
 var focus_label: Label
+var story_label: Label
 var player_shadow: Polygon2D
 
 func _ready() -> void:
@@ -50,6 +51,10 @@ func _ready() -> void:
 
 func gate_x(index: int) -> float:
 	return FIRST_GATE + index * GATE_SPACING
+
+func _display_name(entry: Dictionary) -> String:
+	var subtitle := str(entry.get("subtitle", ""))
+	return entry.name if subtitle.is_empty() else "%s·%s" % [entry.name, subtitle]
 
 func _text(parent: Node, text: String, rect: Rect2, font_size: int, color: Color, heading: bool = false) -> Label:
 	var label = ui.label_into(parent, text, font_size, color)
@@ -103,7 +108,8 @@ func _build_gate(entry: Dictionary) -> void:
 	plaque.set_border_width_all(3)
 	top.add_theme_stylebox_override("panel", plaque)
 	world.add_child(top)
-	_text(top, "%02d · %s" % [index + 1, entry.name], Rect2(0, 5, 358, 44), 32, Color("f8dfaa"), true)
+	var display_name := _display_name(entry)
+	_text(top, "%02d · %s" % [index + 1, display_name], Rect2(0, 5, 358, 44), 32, Color("f8dfaa"), true)
 	var body = Sprite2D.new()
 	body.texture = Catalogue.boss_texture(entry.id)
 	body.position = Vector2(center, 550)
@@ -114,7 +120,7 @@ func _build_gate(entry: Dictionary) -> void:
 	enter.position = Vector2(center - 165, 263)
 	enter.size = Vector2(330, 334)
 	enter.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	enter.tooltip_text = entry.name + " · " + entry.arena + "\n点击进入战斗，建议培养 " + str(entry.tier) + " 档"
+	enter.tooltip_text = display_name + " · " + entry.arena + "\n点击进入战斗，建议培养 " + str(entry.tier) + " 档"
 	var transparent = StyleBoxFlat.new()
 	transparent.bg_color = Color(0, 0, 0, 0)
 	var hover = transparent.duplicate()
@@ -174,6 +180,13 @@ func _build_hud() -> void:
 			compact.content_margin_top = 4
 			compact.content_margin_bottom = 4
 			b.add_theme_stylebox_override(state_name, compact)
+	story_label = _text(self, "", Rect2(90, 159, 1260, 34), 17, Color("e7edc3"))
+	story_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var story_background := StyleBoxFlat.new()
+	story_background.bg_color = Color("2c3026")
+	story_background.border_color = Color("74875e")
+	story_background.set_border_width_all(1)
+	story_label.add_theme_stylebox_override("normal", story_background)
 	var footer = ui.card(Rect2(20, 797, 1400, 87), self, Color("342922"))
 	footer.add_theme_constant_override("separation", 5)
 	focus_label = ui.label_into(footer, "", 17, Color("ffe4ae"))
@@ -229,7 +242,11 @@ func _update_camera() -> void:
 	player_shadow.position = player_position
 	nearest_index = clampi(roundi((player_position.x - FIRST_GATE) / GATE_SPACING), 0, 19)
 	var entry = Catalogue.at(nearest_index)
-	focus_label.text = "附近：%02d · %s  /  %s    %s" % [nearest_index + 1, entry.name, entry.arena, "按 E 进入" if absf(player_position.x - gate_x(nearest_index)) < 220 else "继续沿长廊前行"]
+	focus_label.text = "附近：%02d · %s  /  %s    %s" % [nearest_index + 1, _display_name(entry), entry.arena, "按 E 进入" if absf(player_position.x - gate_x(nearest_index)) < 220 else "继续沿长廊前行"]
+	var story := str(entry.get("story", ""))
+	story_label.visible = not story.is_empty()
+	if story_label.visible:
+		story_label.text = story
 
 func _process(delta: float) -> void:
 	clock += delta

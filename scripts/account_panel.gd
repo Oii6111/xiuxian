@@ -21,19 +21,28 @@ func build() -> void:
 	shade.color = Color(0.035, 0.04, 0.06, 0.94)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(shade)
-	var left = panel_at(Rect2(145, 105, 520, 690), GOLD_TEXT)
-	text(left, "疯狂修仙，中", 42, GOLD_TEXT)
-	text(left, "从自己的账号开始", 27)
-	var space = Control.new()
-	space.custom_minimum_size.y = 40
-	left.add_child(space)
-	text(left, "我的角色", 28, GOLD_TEXT)
-	paragraph(left, "登录后拥有自己的昵称与修仙角色。\n原有角色进度可以单独保留。", 20)
-	text(left, "两位家人", 28, GOLD_TEXT)
-	paragraph(left, "两个位置都留给需要照顾的老人。\n帮助填写资料，记录每日坚持。", 20)
-	text(left, "分别成长", 28, GOLD_TEXT)
-	paragraph(left, "本人和两位家人的资料、灵气、装备与关卡进度分别保存。", 20)
-	var right = panel_at(Rect2(700, 105, 595, 690))
+	if "--pages-demo" in OS.get_cmdline_user_args():
+		build_pages_demo()
+		return
+	var touch := uses_touch_layout()
+	var right: VBoxContainer
+	if touch:
+		right = panel_at(Rect2(), GOLD_TEXT, form_scroll(self, 930))
+		text(right, "疯狂修仙，中", 42, GOLD_TEXT)
+	else:
+		var left = panel_at(Rect2(145, 105, 520, 690), GOLD_TEXT)
+		text(left, "疯狂修仙，中", 42, GOLD_TEXT)
+		text(left, "从自己的账号开始", 27)
+		var space = Control.new()
+		space.custom_minimum_size.y = 40
+		left.add_child(space)
+		text(left, "我的角色", 28, GOLD_TEXT)
+		paragraph(left, "登录后拥有自己的昵称与修仙角色。\n原有角色进度可以单独保留。", 20)
+		text(left, "两位家人", 28, GOLD_TEXT)
+		paragraph(left, "两个位置都留给需要照顾的老人。\n帮助填写资料，记录每日坚持。", 20)
+		text(left, "分别成长", 28, GOLD_TEXT)
+		paragraph(left, "本人和两位家人的资料、灵气、装备与关卡进度分别保存。", 20)
+		right = panel_at(Rect2(700, 105, 595, 690))
 	if register_mode:
 		right.add_theme_constant_override("separation", 8)
 	if migration_mode:
@@ -49,21 +58,29 @@ func build() -> void:
 	var top = HBoxContainer.new()
 	top.add_theme_constant_override("separation", 12)
 	right.add_child(top)
-	action(top, "登录", func(): switch_mode(false), not register_mode)
-	action(top, "注册", func(): switch_mode(true), register_mode)
+	var login_tab := action(top, "登录", func(): switch_mode(false), not register_mode)
+	var register_tab := action(top, "注册", func(): switch_mode(true), register_mode)
+	if touch:
+		login_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		register_tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	text(right, "注册子女账号" if register_mode else "欢迎回来", 30, GOLD_TEXT)
 	username_input = field(right, "用户名", "3—32 位字母、数字或下划线", "", 32)
 	password_input = field(right, "密码", "请输入密码（至少 12 位）", "", 128)
 	password_input.secret = true
-	password_input.text_submitted.connect(func(_value): submit())
+	password_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD
+	if not touch or not register_mode:
+		password_input.text_submitted.connect(func(_value): submit())
 	if register_mode:
 		repeat_input = field(right, "确认密码", "请再次输入密码", "", 128)
 		repeat_input.secret = true
+		repeat_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_PASSWORD
 		var personal = HBoxContainer.new()
 		personal.add_theme_constant_override("separation", 16)
 		right.add_child(personal)
 		var names = VBoxContainer.new()
 		names.custom_minimum_size.x = 270
+		if touch:
+			names.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		personal.add_child(names)
 		display_input = field(names, "我的昵称", "自己的昵称", "", 10)
 		var avatars = VBoxContainer.new()
@@ -74,6 +91,21 @@ func build() -> void:
 	submit_button = action(right, "注册并登录" if register_mode else "登录游戏", submit, true)
 	paragraph(right, "现场演示：不需要注册，直接进入一份模拟好的家庭数据。", 15)
 	action(right, "游客演示 · 无需注册  →", func(): ui.start_guest_demo())
+
+func build_pages_demo() -> void:
+	var center := CenterContainer.new()
+	add_child(center)
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var content := panel_at(Rect2(), GOLD_TEXT, center)
+	var panel := content.get_parent() as Control
+	panel.custom_minimum_size.x = 870
+	var title := text(content, "疯狂修仙，中", 46, GOLD_TEXT)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var label := text(content, "GitHub Pages 游客演示", 30)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var intro := paragraph(content, "直接体验模拟家庭档案与每日修行，无需账号密码，也不会发送真实微信消息。", 26)
+	intro.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	submit_button = action(content, "进入游客演示", func(): ui.start_guest_demo(), true)
 
 func switch_mode(value: bool) -> void:
 	if game.account_api.busy:

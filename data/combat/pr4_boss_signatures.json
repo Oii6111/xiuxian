@@ -1,0 +1,1123 @@
+{
+  "b00": {
+    "move": "b00_2",
+    "name": "两响照灯",
+    "subtitle": "照灯雷阵",
+    "story": "雷叔摇响旧灯座的铜铃，小雷兽用两道不同的雷光考一考守灯者。",
+    "tactics": "先看第一圈雷纹，站在内圈或环外；再避开中心回雷。",
+    "tell": 1.25,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "ring",
+        "anchor": "boss",
+        "radius": [
+          205,
+          105
+        ],
+        "scale": 0.64,
+        "label": "一响 · 避开雷环"
+      },
+      {
+        "at": 0.87,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "boss",
+        "radius": [
+          94,
+          49
+        ],
+        "scale": 0.7,
+        "label": "二响 · 退出中心"
+      }
+    ]
+  },
+  "b01": {
+    "move": "b01_2",
+    "name": "承重断梁",
+    "subtitle": "中空古梁",
+    "story": "阿禾翻出旧检修图，完好的桥皮下面，两侧承重梁已经被压出了空腔。",
+    "tactics": "两侧横梁会留下裂痕，先走中间完好的桥板，再避开纵梁。",
+    "tell": 1.15,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -540,
+          -66
+        ],
+        "offset": [
+          540,
+          -66
+        ],
+        "radius": [
+          130,
+          25
+        ],
+        "width": 23,
+        "scale": 0.68,
+        "residue": 1.15,
+        "label": "上梁将裂 · 退向桥心"
+      },
+      {
+        "at": 0.76,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -540,
+          66
+        ],
+        "offset": [
+          540,
+          66
+        ],
+        "radius": [
+          130,
+          25
+        ],
+        "width": 23,
+        "scale": 0.7,
+        "residue": 1.15,
+        "label": "下梁将裂 · 别踏余震"
+      },
+      {
+        "at": 1.42,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          0,
+          -112
+        ],
+        "offset": [
+          0,
+          112
+        ],
+        "radius": [
+          25,
+          90
+        ],
+        "width": 25,
+        "scale": 0.79,
+        "label": "纵梁断裂 · 横移离开"
+      }
+    ]
+  },
+  "b02": {
+    "move": "b02_2",
+    "name": "锁轴扣诀",
+    "subtitle": "失修转轴",
+    "story": "学徒给涩节不断加重配铁，转轴卡死后，每一轮启动都要扣住相邻的机关。",
+    "tactics": "先躲横向扣轴，再离开回弹区。灵力被扣时，靠普攻回补。",
+    "tell": 1.14,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "player",
+        "from": [
+          -282,
+          0
+        ],
+        "offset": [
+          282,
+          0
+        ],
+        "radius": [
+          100,
+          25
+        ],
+        "width": 27,
+        "scale": 0.59,
+        "effect": "seal",
+        "label": "铁榫扣诀 · 向上或下走"
+      },
+      {
+        "at": 0.81,
+        "shape": "circle",
+        "anchor": "boss",
+        "radius": [
+          155,
+          83
+        ],
+        "scale": 0.82,
+        "label": "转轴回弹 · 离开内圈"
+      },
+      {
+        "at": 1.46,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "player",
+        "from": [
+          0,
+          -220
+        ],
+        "offset": [
+          0,
+          220
+        ],
+        "radius": [
+          25,
+          110
+        ],
+        "width": 24,
+        "scale": 0.63,
+        "effect": "seal",
+        "label": "末段竖锁 · 横移"
+      }
+    ]
+  },
+  "b04": {
+    "move": "b04_2",
+    "name": "错拍三震",
+    "subtitle": "回声争拍",
+    "story": "陶伯听见铜蝉腹中的三面鼓各抢一拍，原本给山里报时的声音开始错开。",
+    "tactics": "近声和远声的间隔不同，看每一道地面预警来闪。",
+    "tell": 1.08,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "cross",
+        "anchor": "player",
+        "offset": [
+          -35,
+          0
+        ],
+        "radius": [
+          224,
+          106
+        ],
+        "width": 25,
+        "scale": 0.65,
+        "label": "短拍 · 离开十字"
+      },
+      {
+        "at": 0.74,
+        "shape": "ring",
+        "anchor": "player",
+        "radius": [
+          178,
+          96
+        ],
+        "scale": 0.67,
+        "label": "抢拍 · 穿过鼓环"
+      },
+      {
+        "at": 1.77,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          125,
+          70
+        ],
+        "scale": 0.95,
+        "label": "迟拍 · 仍有一次重击"
+      }
+    ]
+  },
+  "b05": {
+    "move": "b05_0",
+    "name": "换廊压焰",
+    "subtitle": "狭廊流火",
+    "story": "陶伯见窄焰一催炉就有灯台失火，便沿旧灯线指出还能换道的上下支廊。",
+    "tactics": "上廊亮时走下路，听见换廊声就转上路，别停在两廊交界。",
+    "tell": 1.2,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -540,
+          -51
+        ],
+        "offset": [
+          540,
+          -51
+        ],
+        "radius": [
+          120,
+          60
+        ],
+        "width": 65,
+        "scale": 0.83,
+        "label": "上廊压焰 · 走下路"
+      },
+      {
+        "at": 0.85,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -540,
+          51
+        ],
+        "offset": [
+          540,
+          51
+        ],
+        "radius": [
+          120,
+          60
+        ],
+        "width": 65,
+        "scale": 0.83,
+        "label": "换火入下廊 · 转上路"
+      },
+      {
+        "at": 1.58,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -540,
+          0
+        ],
+        "offset": [
+          540,
+          0
+        ],
+        "radius": [
+          120,
+          34
+        ],
+        "width": 37,
+        "scale": 0.96,
+        "label": "火压合拢 · 留在边路"
+      }
+    ]
+  },
+  "b06": {
+    "move": "b06_2",
+    "name": "赤晶合棘",
+    "subtitle": "窑槽积晶",
+    "story": "赤棘仍替旧窑挡风，封住散热槽的赤晶却被它震进了桥面。",
+    "tactics": "晶簇落地后会沿横线互相引爆，先退出两簇之间的桥面。",
+    "tell": 1.14,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          -102,
+          0
+        ],
+        "radius": [
+          65,
+          46
+        ],
+        "scale": 0.5,
+        "residue": 1.06,
+        "label": "第一簇赤晶落地"
+      },
+      {
+        "at": 0.12,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          102,
+          0
+        ],
+        "radius": [
+          65,
+          46
+        ],
+        "scale": 0.5,
+        "residue": 1.06,
+        "label": "第二簇赤晶落地"
+      },
+      {
+        "at": 0.89,
+        "shape": "line",
+        "anchor": "player",
+        "from": [
+          -218,
+          0
+        ],
+        "offset": [
+          218,
+          0
+        ],
+        "radius": [
+          98,
+          30
+        ],
+        "width": 30,
+        "scale": 0.89,
+        "effect": "slow",
+        "label": "赤晶相连 · 上下避开"
+      },
+      {
+        "at": 1.55,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "player",
+        "from": [
+          0,
+          -185
+        ],
+        "offset": [
+          0,
+          185
+        ],
+        "radius": [
+          30,
+          98
+        ],
+        "width": 27,
+        "scale": 0.75,
+        "label": "余晶竖爆 · 斜向离开"
+      }
+    ]
+  },
+  "b07": {
+    "move": "b07_1",
+    "name": "璧壳层叠",
+    "subtitle": "三重渠壳",
+    "story": "禾生发现末端田灯渐暗，而积璧仍把每一层错叠的璧片当成修补。",
+    "tactics": "看清逐层亮起的璧壳，先留在两层之间，收壳后近身。",
+    "tell": 1.18,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "ring",
+        "anchor": "boss",
+        "radius": [
+          285,
+          155
+        ],
+        "scale": 0.78,
+        "label": "外层璧壳 · 留在内侧或退出环带"
+      },
+      {
+        "at": 0.73,
+        "shape": "ring",
+        "anchor": "boss",
+        "radius": [
+          153,
+          91
+        ],
+        "scale": 0.8,
+        "label": "内层璧壳 · 越过边缘再近身"
+      },
+      {
+        "at": 1.34,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "boss",
+        "radius": [
+          76,
+          51
+        ],
+        "scale": 0.82,
+        "label": "渠心合拢 · 离开内圈"
+      }
+    ]
+  },
+  "b08": {
+    "move": "b08_2",
+    "name": "灯尽余息",
+    "subtitle": "半盏余灯",
+    "story": "薄丹把备用灯全挂在翅上，每次扇翅送出余光，自己便在驿路旁停歇。",
+    "tactics": "暗灯扑灭会消耗体力，先走出落点，保留一次踏云。",
+    "tell": 1.14,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          95,
+          60
+        ],
+        "scale": 0.54,
+        "effect": "fatigue",
+        "label": "暗灯落地 · 被击中会消耗体力"
+      },
+      {
+        "at": 0.75,
+        "shape": "ring",
+        "anchor": "player",
+        "radius": [
+          163,
+          93
+        ],
+        "scale": 0.54,
+        "effect": "fatigue",
+        "label": "灯灰外扬 · 穿过环带或停在空心"
+      },
+      {
+        "at": 1.37,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          70,
+          51
+        ],
+        "scale": 0.65,
+        "label": "灯芯余烬 · 离开原落点"
+      }
+    ]
+  },
+  "b09": {
+    "move": "b09_2",
+    "name": "四渠错流",
+    "subtitle": "积谷断渠",
+    "story": "失稷把灵谷全攒在背仓，禾生循陶渠一路查到回流的谷灯。",
+    "tactics": "四渠分两批泄流，沿斜角换边，别停在下一批亮起的交口。",
+    "tell": 1.16,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "cross",
+        "anchor": "arena",
+        "offset": [
+          -238,
+          -37
+        ],
+        "radius": [
+          242,
+          155
+        ],
+        "width": 30,
+        "scale": 0.79,
+        "label": "西渠先泄 · 避开左侧交口"
+      },
+      {
+        "at": 0.73,
+        "shape": "cross",
+        "anchor": "arena",
+        "offset": [
+          235,
+          35
+        ],
+        "radius": [
+          242,
+          155
+        ],
+        "width": 30,
+        "scale": 0.85,
+        "label": "东渠倒灌 · 避开右侧交口"
+      },
+      {
+        "at": 1.36,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -510,
+          95
+        ],
+        "offset": [
+          510,
+          -95
+        ],
+        "width": 27,
+        "scale": 0.83,
+        "label": "末渠斜贯 · 远离斜线"
+      }
+    ]
+  },
+  "b10": {
+    "move": "b10_1",
+    "name": "重岚封道",
+    "subtitle": "风炉窄道",
+    "story": "素娘在铸风坊旧图里发现，闭岚加装的两侧风车挤掉了送风主道。",
+    "tactics": "走明亮的中央风道，两侧封风会持续一阵，后段从中间风闸的两侧绕过。",
+    "tell": 1.16,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -530,
+          -77
+        ],
+        "offset": [
+          530,
+          -77
+        ],
+        "width": 36,
+        "scale": 0.64,
+        "residue": 2.2,
+        "label": "北侧封风 · 进入中央安全道"
+      },
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -530,
+          77
+        ],
+        "offset": [
+          530,
+          77
+        ],
+        "width": 36,
+        "scale": 0.64,
+        "residue": 2.2,
+        "label": "南侧封风 · 进入中央安全道"
+      },
+      {
+        "at": 0.78,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          0,
+          -39
+        ],
+        "offset": [
+          0,
+          39
+        ],
+        "width": 26,
+        "scale": 0.78,
+        "label": "中央闸落下 · 从闸的左右两端避开"
+      }
+    ]
+  },
+  "b11": {
+    "move": "b11_2",
+    "name": "回雁热雾",
+    "subtitle": "暖驿归巢",
+    "story": "暖炉错位，灼羽每次折返都把余烬带回暖羽驿，驿主只得举灯为旅人引路。",
+    "tactics": "两次归巢沿交叉斜线掠过，换边后别踏回亮起的折返线。",
+    "tell": 1.14,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -490,
+          -94
+        ],
+        "offset": [
+          492,
+          94
+        ],
+        "width": 34,
+        "scale": 0.8,
+        "effect": "slow",
+        "label": "火鹭入庭 · 避开第一条斜线"
+      },
+      {
+        "at": 0.76,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          490,
+          -94
+        ],
+        "offset": [
+          -492,
+          94
+        ],
+        "width": 34,
+        "scale": 0.84,
+        "effect": "slow",
+        "label": "火鹭折返 · 避开反向斜线"
+      },
+      {
+        "at": 1.38,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "arena",
+        "radius": [
+          109,
+          72
+        ],
+        "scale": 0.82,
+        "label": "余烬回巢 · 离开两线交会处"
+      }
+    ]
+  },
+  "b12": {
+    "move": "b12_0",
+    "name": "缄风吞翎",
+    "subtitle": "错环闭翼",
+    "story": "白羽坛的玉环错了位，铜羽鹤合翼时把山风卷回胸前，展开时又把归信吹散。",
+    "tactics": "吸风出现时横移出扇面，蓄力别贴在鹤正前方；吹飞落地后再找收招窗口。",
+    "tell": 1.22,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "cone",
+        "anchor": "boss",
+        "radius": [
+          590,
+          255
+        ],
+        "width": 0.85,
+        "scale": 0,
+        "effect": "pull",
+        "label": "吞风吸近 · 从扇面侧翼退出"
+      },
+      {
+        "at": 0.87,
+        "shape": "cone",
+        "anchor": "boss",
+        "radius": [
+          550,
+          255
+        ],
+        "width": 0.47,
+        "scale": 1,
+        "effect": "launch",
+        "label": "展翼吹飞 · 远离正前方窄扇"
+      },
+      {
+        "at": 1.5,
+        "stage": 2,
+        "shape": "ring",
+        "anchor": "boss",
+        "radius": [
+          196,
+          104
+        ],
+        "scale": 0.62,
+        "label": "玉环回响 · 退开环带"
+      }
+    ]
+  },
+  "b13": {
+    "move": "b13_0",
+    "name": "浊砂沉池",
+    "subtitle": "泉眼积砂",
+    "story": "汀兰翻出三份泉碑旧记，才看出沉砂把浑水一次次蓄在蚌壳里。",
+    "tactics": "砂圈落地会留下泥池，往空地转移，留一条路回到 Boss 身边。",
+    "tell": 1.14,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          112,
+          66
+        ],
+        "scale": 0.69,
+        "residue": 2.8,
+        "effect": "slow",
+        "label": "浊砂初落 · 先离开原位置"
+      },
+      {
+        "at": 0.73,
+        "stage": 1,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          158,
+          -45
+        ],
+        "radius": [
+          95,
+          63
+        ],
+        "scale": 0.72,
+        "residue": 2.8,
+        "effect": "slow",
+        "label": "砂泥分流 · 改走另一侧"
+      },
+      {
+        "at": 1.36,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          -154,
+          46
+        ],
+        "radius": [
+          88,
+          57
+        ],
+        "scale": 0.73,
+        "residue": 2.8,
+        "effect": "slow",
+        "label": "三池滞砂 · 保留退路"
+      }
+    ]
+  },
+  "b14": {
+    "move": "b14_2",
+    "name": "双汐错拍",
+    "subtitle": "停转双轮",
+    "story": "汀兰请你同守两侧水轮，上游囤积的潮水正等着轮流泄下。",
+    "tactics": "水轮轮流泄潮，先躲上游，再换边避开下游回流。",
+    "tell": 1.24,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -535,
+          -96
+        ],
+        "offset": [
+          535,
+          -37
+        ],
+        "width": 38,
+        "scale": 0.63,
+        "residue": 0.85,
+        "label": "左轮先泄"
+      },
+      {
+        "at": 0.8,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          535,
+          94
+        ],
+        "offset": [
+          -535,
+          32
+        ],
+        "width": 43,
+        "scale": 0.83,
+        "label": "右轮回流"
+      },
+      {
+        "at": 1.48,
+        "stage": 2,
+        "shape": "cross",
+        "anchor": "arena",
+        "radius": [
+          475,
+          106
+        ],
+        "width": 33,
+        "scale": 0.76,
+        "label": "合潮，避开交汇"
+      }
+    ]
+  },
+  "b15": {
+    "move": "b15_2",
+    "name": "三碑量压",
+    "subtitle": "静水负岳",
+    "story": "汀兰翻出父亲的巡河册，平静水面下，岸边三根量水碑已逐格发亮。",
+    "tactics": "读三碑的顺序，远离先亮的冲击，等背甲泄压再反击。",
+    "tell": 1.29,
+    "beats": [
+      {
+        "at": 0.14,
+        "shape": "circle",
+        "anchor": "arena",
+        "offset": [
+          -305,
+          0
+        ],
+        "radius": [
+          173,
+          103
+        ],
+        "scale": 0.64,
+        "label": "一碑涨：西岸"
+      },
+      {
+        "at": 0.81,
+        "shape": "ring",
+        "anchor": "arena",
+        "offset": [
+          0,
+          0
+        ],
+        "radius": [
+          265,
+          94
+        ],
+        "scale": 0.77,
+        "label": "二碑涨：中槽留空"
+      },
+      {
+        "at": 1.5,
+        "shape": "circle",
+        "anchor": "arena",
+        "offset": [
+          305,
+          0
+        ],
+        "radius": [
+          185,
+          109
+        ],
+        "scale": 0.89,
+        "label": "三碑溢：东岸"
+      },
+      {
+        "at": 2.19,
+        "stage": 2,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -536,
+          0
+        ],
+        "offset": [
+          536,
+          0
+        ],
+        "width": 57,
+        "scale": 0.98,
+        "label": "决堤：往两岸退"
+      }
+    ]
+  },
+  "b16": {
+    "move": "b16_2",
+    "name": "漏刻回环",
+    "subtitle": "长夜余灯",
+    "story": "守夜人阿更总走回同一盏灯下，只有更漏台的小门还通向清晨。",
+    "tactics": "依次避开余灯，最后第一盏还会再亮一次。",
+    "tell": 1.22,
+    "beats": [
+      {
+        "at": 0.1,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          97,
+          57
+        ],
+        "scale": 0.61,
+        "label": "第一盏余灯"
+      },
+      {
+        "at": 0.79,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          135,
+          -41
+        ],
+        "radius": [
+          108,
+          58
+        ],
+        "scale": 0.7,
+        "label": "巡夜重影"
+      },
+      {
+        "at": 1.47,
+        "stage": 2,
+        "shape": "circle",
+        "anchor": "player",
+        "offset": [
+          -135,
+          42
+        ],
+        "radius": [
+          104,
+          58
+        ],
+        "scale": 0.74,
+        "label": "更漏重影"
+      },
+      {
+        "at": 2.15,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          118,
+          66
+        ],
+        "scale": 0.87,
+        "label": "回环：第一盏再亮"
+      }
+    ]
+  },
+  "b17": {
+    "move": "b17_2",
+    "name": "灯签引路",
+    "subtitle": "空简藏楼",
+    "story": "陪老抄书人摆回渡船、茶杯和窗边椅子，墨雾里的归路就有了熟悉的标记。",
+    "tactics": "墨潮绕过亮起的灯签，照地面提示进圈，或退到墨环之外。",
+    "tell": 1.3,
+    "beats": [
+      {
+        "at": 0.13,
+        "shape": "ring",
+        "anchor": "arena",
+        "offset": [
+          -200,
+          0
+        ],
+        "radius": [
+          330,
+          128
+        ],
+        "scale": 0.73,
+        "label": "渡口签 · 进圈避墨"
+      },
+      {
+        "at": 0.86,
+        "shape": "ring",
+        "anchor": "arena",
+        "offset": [
+          0,
+          0
+        ],
+        "radius": [
+          350,
+          130
+        ],
+        "scale": 0.8,
+        "label": "茶杯签 · 进圈避墨"
+      },
+      {
+        "at": 1.6,
+        "stage": 2,
+        "shape": "ring",
+        "anchor": "arena",
+        "offset": [
+          200,
+          0
+        ],
+        "radius": [
+          385,
+          136
+        ],
+        "scale": 0.87,
+        "label": "归家签 · 进圈避墨"
+      }
+    ]
+  },
+  "b18": {
+    "move": "b18_2",
+    "name": "镜海叠痕",
+    "subtitle": "映阵晦龙",
+    "story": "晦鳞的镜鳞倒映五域残阵，共守台上每道旧阵都会在对岸留下倒影。",
+    "tactics": "看完实阵再看对岸倒影，末段沿斜角闪过双线。",
+    "tell": 1.25,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "cross",
+        "anchor": "player",
+        "radius": [
+          258,
+          98
+        ],
+        "width": 28,
+        "scale": 0.73,
+        "label": "本阵锁位 · 离开十字交点"
+      },
+      {
+        "at": 0.85,
+        "shape": "cross",
+        "anchor": "mirror",
+        "radius": [
+          258,
+          98
+        ],
+        "width": 28,
+        "scale": 0.84,
+        "label": "对岸映现 · 避开镜像十字",
+        "effect": "slow"
+      },
+      {
+        "at": 1.55,
+        "stage": 2,
+        "shape": "cross",
+        "anchor": "arena",
+        "radius": [
+          530,
+          108
+        ],
+        "width": 35,
+        "scale": 0.75,
+        "label": "两岸合镜 · 走十字斜角"
+      }
+    ]
+  },
+  "b19": {
+    "move": "b19_2",
+    "name": "五印轮值",
+    "subtitle": "失时天仪",
+    "story": "执衡把五坛停在同一刻，守灯者带回五枚归衡印，请各地重新掌管自己的节奏。",
+    "tactics": "按木、火、土、金、水的印次走位，水印收束后趁天仪停转反击。",
+    "tell": 1.35,
+    "beats": [
+      {
+        "at": 0.12,
+        "shape": "circle",
+        "anchor": "player",
+        "radius": [
+          117,
+          65
+        ],
+        "scale": 0.55,
+        "label": "木印 · 离开根圈",
+        "style": "wood"
+      },
+      {
+        "at": 0.77,
+        "shape": "line",
+        "anchor": "arena",
+        "from": [
+          -535,
+          -29
+        ],
+        "offset": [
+          535,
+          29
+        ],
+        "width": 40,
+        "scale": 0.62,
+        "label": "火印 · 横避炎线",
+        "style": "fire"
+      },
+      {
+        "at": 1.42,
+        "shape": "cross",
+        "anchor": "arena",
+        "radius": [
+          493,
+          110
+        ],
+        "width": 35,
+        "scale": 0.71,
+        "label": "土印 · 走十字斜角",
+        "style": "stone"
+      },
+      {
+        "at": 2.07,
+        "stage": 1,
+        "shape": "cone",
+        "anchor": "boss",
+        "radius": [
+          550,
+          185
+        ],
+        "width": 0.57,
+        "scale": 0.76,
+        "label": "金印 · 绕开风门",
+        "style": "metal"
+      },
+      {
+        "at": 2.73,
+        "stage": 2,
+        "shape": "ring",
+        "anchor": "arena",
+        "radius": [
+          365,
+          138
+        ],
+        "scale": 0.95,
+        "label": "水印 · 贴内圈或撤远",
+        "style": "water"
+      }
+    ]
+  }
+}

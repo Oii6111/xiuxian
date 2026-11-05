@@ -9,6 +9,9 @@ const DODGE_COST = 24
 const HEAL_COST = 45
 const SWORD_RANGE = 820.0
 const BASIC_RANGE = 210.0
+const MAX_ADDS = 4
+const WOOD_BUD_TIME = 0.55
+const AIRBORNE_DURATION := .62
 var combat_rank: int = 1
 var poise: float = 0
 var max_poise: float = 140
@@ -25,6 +28,14 @@ var hurt_grace: float = 0
 var pattern_index: int = 0
 var stage_index: int = 0
 var adds: Array = []
+var _wood_split_in: float = 0.0
+var _wood_split_count: int = 0
+var _wood_clone_serial: int = 0
+var slow_time := 0.0
+var airborne_time := 0.0
+var _airborne_velocity := Vector2.ZERO
+var _airborne_damage := 0
+var _airborne_attack := ""
 var _warning: Dictionary = {}
 var _base_windup: float = 1.1
 var _attack_number: int = 0
@@ -109,13 +120,15 @@ func _init(data: RefCounted, support: int = 0, challenge_tier: int = 0, challeng
 		finished = true
 		last_message = "该角色当前不能出战，请选择修行中的家人。"
 
-func _available(cooldown: float, cost: float = 0, can_cancel: bool = false) -> bool:
+func _available(cooldown: float, cost: float = 0, can_cancel: bool = false, allow_airborne: bool = false) -> bool:
 	last_message = ""
 	if not state.allows_battle():
 		finished = true
 		last_message = "该角色当前不能出战，请切换修行中的家人。"
 	elif finished:
 		last_message = "本次挑战已结束。"
+	elif airborne_time > 0 and not allow_airborne:
+		last_message = "人在空中 · 可用云罡护住落地。"
 	elif heal_cast > 0:
 		last_message = "正在归元吐纳，移动寻找安全位置。"
 	elif not pending_action.is_empty() and not can_cancel:
@@ -220,7 +233,7 @@ func _resolve_sword(origin: Vector2, direction: Vector2, targets: Array = []) ->
 	return {"ok": true, "damage": damage, "impacts":impacts, "counter":counter_used, "hit_count": hits.size(), "message": "听风剑诀 · 剑气掠过路径目标" if not hits.is_empty() else "剑气未命中，调整站位再出剑。"}
 
 func defend() -> bool:
-	if not _available(shield_cd, SHIELD_COST):
+	if not _available(shield_cd, SHIELD_COST, false, true):
 		return false
 	mp -= SHIELD_COST
 	shield_cd = 7.0
@@ -261,7 +274,7 @@ func heal() -> bool:
 	return true
 
 func receive_damage(raw_damage: int) -> Dictionary:
-	if finished:
+	if finished or airborne_time > 0:
 		return {}
 	if brain != null and hurt_grace > 0:
 		return {}
@@ -306,16 +319,21 @@ func step(delta: float, player_position: Vector2) -> Dictionary:
 	var remaining := delta
 	var events: Array = []
 	var healed := 0
+	var displacement := Vector2.ZERO
 	while remaining > .000001 and not finished:
 		var slice := minf(remaining, 1.0/60)
 		var result := _step_once(slice, player_position)
 		healed += int(result.get("healed", 0))
 		for event in result.get("events", []):
 			events.append(event)
+			if event.event == "forced_move":
+				var next := BossBrain.clamp_floor(player_position + Vector2(event.offset))
+				displacement += next - player_position
+				player_position = next
 		if result.get("event", "") == "state_changed":
 			events.append({"event":"state_changed"})
 		remaining -= slice
-	var output: Dictionary = {"healed":healed, "events":events}
+	var output: Dictionary = {"healed":healed, "events":events, "displacement":displacement}
 	for event in events:
 		if event.event in ["hurt", "blocked", "evaded", "perfect_evade", "windup", "state_changed", "stagger"]:
 			output.merge(event, true)
@@ -338,6 +356,7 @@ func _step_once(delta: float, player_position: Vector2) -> Dictionary:
 	if brain != null and poise_delay == 0 and not brain.pending_stagger:
 		poise = maxf(0,poise-delta*5)
 	hurt_grace = maxf(0, hurt_grace - delta)
+	slow_time = maxf(0, slow_time - delta)
 	attack_cd = maxf(0, attack_cd - delta)
 	sword_cd = maxf(0, sword_cd - delta)
 	shield_cd = maxf(0, shield_cd - delta)
@@ -357,7 +376,18 @@ func _step_once(delta: float, player_position: Vector2) -> Dictionary:
 			healed = mini(max_hp - hp, int(round(max_hp * 0.24)) + 12)
 			hp += healed
 	if brain != null:
-		var player_events: Array = _step_player_action(delta,player_position)
+		var player_events: Array = []
+		if airborne_time > 0:
+			var offset := _airborne_velocity * minf(delta, airborne_time)
+			player_events.append({"event":"forced_move", "offset":offset, "effect":"launch"})
+			player_position = BossBrain.clamp_floor(player_position + offset)
+			airborne_time = maxf(0, airborne_time - delta)
+			if airborne_time == 0:
+				var landing := receive_damage(_airborne_damage)
+				if not landing.is_empty():
+					landing["attack"] = _airborne_attack + " · 坠地"
+					player_events.append(landing)
+		player_events.append_array(_step_player_action(delta,player_position))
 		if finished: return {"healed":healed,"events":player_events}
 		var enemies := _step_enemies(delta,player_position,healed)
 		enemies.events = player_events+enemies.events
@@ -395,15 +425,47 @@ func _sync_stage() -> void:
 	# 已经显示的预兆不在中途缩短：新节奏从下一次蓄力生效。
 	if brain != null:
 		brain.stage = stage_index
+		if brain.definition.has("wood_split_interval"):
+			_spawn_wood_clones(3 if stage_index == 2 else 2)
+			_wood_split_in = float(brain.definition.wood_split_interval[stage_index - 1])
+			return
 	var summon_count: int = int(brain.definition.minions) if brain != null else stage_index + 1
 	for i in range(summon_count):
-		if active_adds() >= 4:
+		if active_adds() >= MAX_ADDS:
 			break
 		var slot: int = adds.size() % 4
 		adds.append({"id":"add_%d" % adds.size(), "hp":36 + tier / 2, "position":BossBrain.clamp_floor(boss_position + Vector2(-100 + (slot % 2) * 170, -45 + (slot / 2) * 65)), "radius":30, "phase":"seek", "clock":-1.0-slot*.22, "target":Vector2.ZERO})
 
 func active_adds() -> int:
 	return adds.filter(func(add): return add.hp > 0).size()
+
+func _spawn_wood_clones(count: int) -> void:
+	adds = adds.filter(func(add): return add.hp > 0)
+	var offsets := [Vector2(-210, 40), Vector2(205, 40), Vector2(-162, -92), Vector2(168, -78)]
+	for i in range(mini(count, MAX_ADDS - adds.size())):
+		var large := _wood_clone_serial % 2 == 1
+		var health := 215 if large else 75
+		var offset: Vector2 = offsets[_wood_clone_serial % offsets.size()]
+		var point := BossBrain.clamp_floor(boss_position + offset)
+		if absf(point.x - boss_position.x) < 125.0:
+			point = BossBrain.clamp_floor(boss_position + Vector2(-offset.x * 1.5, offset.y))
+		adds.append({"id":"wood_%d" % _wood_clone_serial, "hp":health, "max_hp":health,
+			"position":point, "radius":42 if large else 25, "variant":"large" if large else "small",
+			"speed_scale":.72 if large else 1.6, "tell":.92 if large else .57, "power":1.38 if large else .78,
+			"phase":"bud", "clock":0.0, "target":Vector2.ZERO})
+		_wood_clone_serial += 1
+		_wood_split_count += 1
+
+func _step_wood_clones(delta: float, events: Array) -> void:
+	if stage_index == 0 or not brain.definition.has("wood_split_interval"):
+		return
+	_wood_split_in -= delta
+	if _wood_split_in <= 0.0 and brain.phase in ["waiting", "breath"]:
+		_spawn_wood_clones(3 if stage_index == 2 else 2)
+		_wood_split_in = float(brain.definition.wood_split_interval[stage_index - 1])
+	if _wood_split_count > 0:
+		events.append({"event":"split", "position":boss_position, "count":_wood_split_count})
+		_wood_split_count = 0
 
 func warning_profile() -> Dictionary:
 	if _warning.is_empty():
@@ -421,13 +483,21 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 	var events: Array = []
 	brain.stage = stage_index
 	for event in brain.step(delta, player):
-		if event.event == "damage":
+		if event.event == "signature_contact":
+			_receive_signature(event, player, events)
+		elif event.event == "damage":
 			var received := receive_damage(int(event.raw))
 			if not received.is_empty():
 				received["attack"] = event.attack
 				received["direction"] = event.direction
 				received["source"] = event.get("source","")
 				events.append(received)
+				var ratio := float(event.get("drain_ratio", 0.0))
+				if ratio > 0.0 and received.event == "hurt":
+					var amount := mini(boss_max_hp - boss_hp, roundi(float(received.damage) * ratio))
+					if amount > 0:
+						boss_hp += amount
+						events.append({"event":"drain", "amount":amount, "source_position":player, "position":brain.position})
 		else:
 			if event.event == "stagger":
 				poise = 0
@@ -441,8 +511,66 @@ func _step_enemies(delta: float, player: Vector2, healed: int) -> Dictionary:
 		_warning = brain.profiles[0].duplicate(true)
 		target_position = _warning.target
 	if not finished:
+		_step_wood_clones(delta, events)
 		_step_adds(delta, player, events)
 	return {"healed":healed, "events":events}
+
+func airborne_height() -> float:
+	return sin(PI * airborne_time / AIRBORNE_DURATION) * 146.0
+
+func _receive_signature(event: Dictionary, player: Vector2, events: Array) -> void:
+	var effect := str(event.effect)
+	var raw := int(event.raw)
+	if finished or airborne_time > 0:
+		return
+	if effect in ["pull", "launch"]:
+		if hurt_grace > 0:
+			return
+		var away := (player - Vector2(brain.position)).normalized()
+		if away.is_zero_approx():
+			away = Vector2(event.direction)
+		if effect == "pull":
+			if dodge_time <= 0 and (shield_time <= 0 or shield_hp <= 0):
+				var distance := clampf(player.distance_to(brain.position) - 72.0, 0.0, 158.0)
+				if distance > 0.0:
+					events.append({"event":"forced_move", "offset":-away * distance, "effect":"pull"})
+			return
+		if dodge_time > 0 or (shield_time > 0 and shield_hp > 0):
+			var guard := receive_damage(maxi(1, roundi(raw * .32)))
+			if not guard.is_empty():
+				guard["attack"] = event.attack
+				events.append(guard)
+			if guard.get("event", "") != "hurt" or finished:
+				return
+		airborne_time = AIRBORNE_DURATION
+		_airborne_velocity = away * 253.0 / AIRBORNE_DURATION
+		_airborne_damage = raw
+		_airborne_attack = str(event.attack)
+		heal_cast = 0
+		pending_action.clear()
+		events.append({"event":"signature_status", "label":"被气浪吹飞 · 可用云罡护住落地"})
+		return
+	var received := receive_damage(raw)
+	if received.is_empty():
+		return
+	received["attack"] = event.attack
+	received["direction"] = (player - brain.position).normalized()
+	events.append(received)
+	if received.event != "hurt":
+		return
+	var label := ""
+	match effect:
+		"slow":
+			slow_time = 1.65
+			label = "步履受阻 · 移动暂缓"
+		"fatigue":
+			stamina = maxf(0, stamina - 24.0)
+			label = "体力 −24"
+		"seal":
+			mp = maxf(0, mp - 18.0)
+			label = "灵力 −18"
+	if not label.is_empty():
+		events.append({"event":"signature_status", "label":label})
 
 func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 	for i in range(adds.size()):
@@ -450,7 +578,12 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 		if add.hp <= 0:
 			continue
 		add.clock += delta
+		var tell := float(add.get("tell", .72))
 		match str(add.phase):
+			"bud":
+				if add.clock >= WOOD_BUD_TIME:
+					add.phase = "seek"
+					add.clock = 0.0
 			"seek":
 				var offset: Vector2 = player - Vector2(add.position)
 				var direction := offset.normalized()
@@ -458,13 +591,13 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					if other != add and other.hp > 0 and Vector2(add.position).distance_to(other.position) < 55:
 						direction += (Vector2(add.position) - Vector2(other.position)).normalized() * .8
 				if offset.length() > 65:
-					add.position = BossBrain.clamp_floor(Vector2(add.position) + direction.limit_length(1) * (85 + tier*.25) * delta)
+					add.position = BossBrain.clamp_floor(Vector2(add.position) + direction.limit_length(1) * (85 + tier*.25) * float(add.get("speed_scale", 1.0)) * delta)
 				if add.clock >= .45 and offset.length() <= 115:
 					add.phase = "windup"
 					add.clock = 0.0
 					add.target = player
 			"windup":
-				if add.clock >= .72:
+				if add.clock >= tell:
 					add.phase = "lunge"
 					add.clock = 0.0
 					add["origin"] = add.position
@@ -474,12 +607,12 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					add.phase = "recover"
 					add.clock = 0.0
 					add["recover_from"] = add.position
-					var profile := {"kind":"circle", "target":add.target, "radius":Vector2(49,34), "width":20.0}
+					var profile := _add_attack_profile(add)
 					if Patterns.hits(profile, player):
-						var raw := roundi(12+(combat_rank-1)*1.1)
+						var raw := roundi((12+(combat_rank-1)*1.1) * float(add.get("power", 1.0)))
 						var received := receive_damage(raw)
 						if not received.is_empty():
-							received["attack"] = "散祟扑咬"
+							received["attack"] = "木身扑袭" if add.has("variant") else "散祟扑咬"
 							received["direction"] = (player-Vector2(add.origin)).normalized()
 							events.append(received)
 			"recover":
@@ -489,13 +622,17 @@ func _step_adds(delta: float, player: Vector2, events: Array) -> void:
 					add.phase = "seek"
 					add.clock = 0.0
 
+func _add_attack_profile(add: Dictionary) -> Dictionary:
+	var size := float(add.radius) / 30.0
+	return {"kind":"circle", "target":add.target, "radius":Vector2(49,34) * size, "width":20.0}
+
 func enemy_zones() -> Array:
 	if brain == null or finished:
 		return []
 	var zones: Array = brain.zones()
 	for add in adds:
 		if add.hp > 0 and add.phase in ["windup","lunge"]:
-			zones.append({"profile":{"kind":"circle", "target":add.target, "radius":Vector2(49,34), "width":20.0}, "progress":1.0 if add.phase == "lunge" else clampf(float(add.clock)/.72,0,1), "style":"minion", "active":false})
+			zones.append({"profile":_add_attack_profile(add), "progress":1.0 if add.phase == "lunge" else clampf(float(add.clock)/float(add.get("tell", .72)),0,1), "style":"minion", "active":false})
 	return zones
 
 

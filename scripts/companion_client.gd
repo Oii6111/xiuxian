@@ -20,12 +20,16 @@ var generation = 0
 var online = false
 
 func _ready() -> void:
+	if "--pages-demo" in OS.get_cmdline_user_args():
+		create_request()
+		reset_session()
+		return
 	endpoint_url = OS.get_environment("XIUXIAN_COMPANION_API_URL").strip_edges()
 	trusted_auth_origin = OS.get_environment("XIUXIAN_COMPANION_AUTH_ORIGIN").strip_edges().trim_suffix("/")
 	if endpoint_url.is_empty():
-		# 默认直接接灵宠聊天服务（deepseek-flash）。网页走同源，桌面走本机 8031。
+		# 网页使用游戏账号所在服务，桌面走本机 8031。
 		if OS.has_feature("web"):
-			var origin = str(JavaScriptBridge.eval("location.origin")).strip_edges().trim_suffix("/")
+			var origin: String = game.account_api.service_url
 			if not origin.is_empty():
 				endpoint_url = origin + "/api/v1/companion/chat"
 				trusted_auth_origin = origin
@@ -97,7 +101,8 @@ func send_message(message: String) -> bool:
 	append_message("user", message)
 	set_busy(true)
 	var own_generation = generation
-	if endpoint_url.is_empty() or not endpoint_allowed(endpoint_url):
+	var guest := str(game.family.account.get("id", "")) == "guest-demo"
+	if endpoint_url.is_empty() or not endpoint_allowed(endpoint_url) or guest:
 		deliver_local.call_deferred(own_generation, false)
 		return true
 	var payload = {"schema_version": 1, "request_id": pending_request_id, "conversation_id": conversation_id, "channel": "godot", "account_id": str(game.family.account.get("id", "")), "companion": game.family.companion.duplicate(true), "message": message, "context": pending_context}

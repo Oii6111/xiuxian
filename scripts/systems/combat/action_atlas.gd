@@ -36,7 +36,8 @@ static func boss_frame(rules: RefCounted, clock: float, hurt: float = 0) -> int:
 	var brain: RefCounted = rules.brain
 	if brain==null: return 0
 	var t: float = brain.progress()
-	var melee: bool = str(brain.move.get("kind","")) in ["slash","charge","leap"]
+	var signature: bool = brain.move.has("signature")
+	var melee: bool = not signature and str(brain.move.get("kind","")) in ["slash","charge","leap"]
 	var start := 4 if melee else 8
 	match brain.phase:
 		"waiting", "link":
@@ -44,6 +45,8 @@ static func boss_frame(rules: RefCounted, clock: float, hurt: float = 0) -> int:
 			return int(clock*8)%4 if brain.velocity.length()>3 else 0
 		"windup": return start if t<.5 else start+1
 		"attack":
+			if signature:
+				return 10 if not brain.impacts.is_empty() and float(brain.impacts.back().life) > .28 else 9
 			if brain.move.kind=="charge": return int(clock*15)%4
 			if brain.move.kind=="leap": return 5 if t<.72 else 6
 			if brain.move.kind=="volley": return 10 if fmod(brain.phase_clock,.34)<.22 else 9

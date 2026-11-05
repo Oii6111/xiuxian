@@ -32,8 +32,9 @@ static func run(rules: RefCounted, active: bool, limit: float = 160) -> Dictiona
 		var dt := 1.0/60
 		cast_left = maxf(0,cast_left-dt)
 		var zones: Array = rules.enemy_zones()
-		if rules.phase=="attack" and rules.brain.move.kind in ["slash","nova","beam","cross"]:
+		if rules.phase=="attack" and not rules.brain.move.has("signature") and rules.brain.move.kind in ["slash","nova","beam","cross"]:
 			for profile in rules.brain.profiles: zones.append({"profile":profile})
+		var airborne: bool = rules.airborne_time > 0.0
 		var retreating := false
 		var aim: Vector2 = rules.boss_position
 		for add in rules.adds:
@@ -41,7 +42,7 @@ static func run(rules: RefCounted, active: bool, limit: float = 160) -> Dictiona
 				aim = add.position
 				break
 		var goal: Vector2 = aim+(hero-aim).normalized()*125
-		if active:
+		if active and not airborne:
 			if danger(hero,zones) or danger(goal,zones):
 				retreating = true
 				var best := INF
@@ -65,19 +66,26 @@ static func run(rules: RefCounted, active: bool, limit: float = 160) -> Dictiona
 						cast_left = 0
 			if rules.hp<rules.max_hp*.55 and rules.state.heal_unlocked() and rules.phase in ["breath","stagger"]: rules.heal()
 			if rules.phase=="windup" and rules.brain.progress()>.75 and danger(hero,zones): rules.defend()
-		if roll_left>0:
+		if airborne:
+			roll_left = 0.0
+			cast_left = 0.0
+		elif roll_left>0:
 			var distance := minf(roll_left,145/.18*dt)
 			hero = Brain.clamp_floor(hero+roll_direction*distance)
 			roll_left -= distance
 		elif hero.distance_to(goal)>8:
-			hero = Brain.clamp_floor(hero+(goal-hero).limit_length(255*dt*(.3 if rules.heal_cast>0 else (.65 if cast_left>0 else 1.0))))
-		if roll_left<=0 and not retreating and hero.distance_to(aim)<=210:
+			var movement := .3 if rules.heal_cast>0 else (.65 if cast_left>0 else 1.0)
+			if rules.slow_time > 0.0:
+				movement *= .62
+			hero = Brain.clamp_floor(hero+(goal-hero).limit_length(255*dt*movement))
+		if not airborne and roll_left<=0 and not retreating and hero.distance_to(aim)<=210:
 			var basic: Dictionary = rules.start_action("basic",hero)
 			if basic.ok: cast_left = .38
-		if roll_left<=0 and not retreating and hero.distance_to(rules.boss_position)<820:
+		if not airborne and roll_left<=0 and not retreating and hero.distance_to(rules.boss_position)<820:
 			var sword: Dictionary = rules.start_action("sword",hero,rules.boss_position-hero)
 			if sword.ok: cast_left = .52
 		var result: Dictionary = rules.step(dt,hero)
+		hero = Brain.clamp_floor(hero + Vector2(result.get("displacement", Vector2.ZERO)))
 		for event in result.get("events",[]):
 			if event.event=="windup":
 				attacks += 1

@@ -4,7 +4,9 @@ extends Control
 ## 启动参数带 --demo-authority 时，渡劫台改用隔离的演示运行时和替身确认通道（非真实家属确认）。
 const LEVEL_SCENE = preload("res://scenes/combat/level.tscn")
 const PLATFORM_SCENE = preload("res://scenes/tribulation/platform.tscn")
+const PR4_BOSS_SCENE = preload("res://scenes/combat/demo_boss.tscn")
 const DemoKernel = preload("res://scripts/combat/demo_kernel.gd")
+const DemoState = preload("res://scripts/combat/demo_state.gd")
 const Assets = preload("res://scripts/pixel_assets.gd")
 var demo_authority: bool = "--demo-authority" in OS.get_cmdline_user_args()
 var current: Control = null
@@ -17,9 +19,20 @@ var _opening: bool = false
 var _map_art: Texture2D = preload("res://assets/pixel_campaign/map_origin.png")
 var _feedback: Label
 var _menu: VBoxContainer
+## The PR4 view expects the same small surface as the main game object.
+## Keeping it here makes the standalone demo use the exact BossRules path.
+var state: RefCounted
+var walk_textures: Array[Texture2D] = []
+var title_font: Font
+var account_api = null
+var family = null
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_setup_inputs()
+	state = DemoState.new()
+	walk_textures = Assets.frames("res://assets/pixel/cultivator-walk.png", 4, 4, 0.2)
+	title_font = SystemFont.new()
 	_menu = VBoxContainer.new()
 	_menu.position = Vector2(120, 140)
 	_menu.add_theme_constant_override("separation", 20)
@@ -60,6 +73,16 @@ func _ready() -> void:
 		button.pressed.connect(func() -> void: open(kind))
 		_menu.add_child(button)
 
+func _setup_inputs() -> void:
+	var bindings := {"move_forward": [KEY_W, KEY_UP], "move_back": [KEY_S, KEY_DOWN], "move_left": [KEY_A, KEY_LEFT], "move_right": [KEY_D, KEY_RIGHT]}
+	for action in bindings:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+		for key in bindings[action]:
+			var event := InputEventKey.new()
+			event.physical_keycode = key
+			InputMap.action_add_event(action, event)
+
 func open(kind: String) -> bool:
 	if current != null or _opening:
 		return false
@@ -68,10 +91,10 @@ func open(kind: String) -> bool:
 		"level":
 			scene = LEVEL_SCENE.instantiate()
 		"boss":
-			scene = LEVEL_SCENE.instantiate()
+			scene = PR4_BOSS_SCENE.instantiate()
 			scene.boss_mode = true
 		"boss_party":
-			scene = LEVEL_SCENE.instantiate()
+			scene = PR4_BOSS_SCENE.instantiate()
 			scene.boss_mode = true
 			scene.allies_enabled = true
 		"platform":
@@ -96,11 +119,80 @@ func open(kind: String) -> bool:
 				scene.add_child(banner)
 		_:
 			return false
+	if kind in ["boss", "boss_party"]:
+		scene.game = self
+		scene.ui = self
 	scene.left.connect(close)
 	current = scene
 	_menu.visible = false
 	add_child(scene)
 	return true
+
+## Minimal UI facade used by combat_view.gd in the standalone demo.
+## The gameplay interface provides richer styling; both paths share BossRules.
+func card(rect: Rect2, parent: Node = self, color: Color = Color("342922")) -> VBoxContainer:
+	var panel := PanelContainer.new()
+	panel.position = rect.position
+	panel.size = rect.size
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = Color("94794e")
+	style.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 6)
+	panel.add_child(content)
+	return content
+
+func label_into(parent: Node, text: String, size: int = 17, color: Color = Color.WHITE) -> Label:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", size)
+	label.add_theme_color_override("font_color", color)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	parent.add_child(label)
+	return label
+
+func button(parent: Node, text: String, callback: Callable, primary: bool = false) -> Button:
+	var value := Button.new()
+	value.text = text
+	value.focus_mode = Control.FOCUS_NONE
+	value.custom_minimum_size.y = 42
+	value.add_theme_font_size_override("font_size", 16 if not primary else 18)
+	if callback.is_valid():
+		value.pressed.connect(callback)
+	parent.add_child(value)
+	return value
+
+func line(parent: Node) -> HSeparator:
+	var divider := HSeparator.new()
+	parent.add_child(divider)
+	return divider
+
+func paragraph(parent: Node, text: String, size: int = 17, color: Color = Color("5c432e")) -> Label:
+	return label_into(parent, text, size, color)
+
+func refresh() -> void:
+	queue_redraw()
+
+func toast(_text: String) -> void:
+	pass
+
+func open_boss() -> void:
+	close()
+
+func close_modal(_force: bool = false) -> void:
+	close()
+
+func start_battle() -> void:
+	close()
+
+func start_corridor_boss(_id: String) -> void:
+	close()
+
+func start_boss(_use_support: bool = false, _tier: int = 0, _track: String = "") -> void:
+	close()
 
 func close() -> void:
 	if current == null:

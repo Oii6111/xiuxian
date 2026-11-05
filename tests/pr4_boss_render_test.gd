@@ -40,7 +40,8 @@ func _run() -> void:
 		var tell = false
 		var attack = false
 		var recovery = false
-		for frame in range(330):
+		# Late encounters may link several full multi-beat casts before recovering.
+		for frame in range(480):
 			Guard.step(view)
 			view._process(1.0/30)
 			var brain: RefCounted = view.rules.brain

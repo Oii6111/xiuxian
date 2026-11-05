@@ -1,5 +1,6 @@
 extends Node2D
 const Actions = preload("res://scripts/systems/combat/action_atlas.gd")
+const Patterns = preload("res://scripts/systems/combat/pr4_patterns.gd")
 ## Pixel-snapped 2D ink, cloud and jade effects; no 3D resources.
 var view: Control
 var ground_only: bool = false
@@ -41,7 +42,7 @@ func _draw() -> void:
 	if view.companion_flash > 0 and is_instance_valid(view.companion_sprite):
 		draw_line(view.companion_sprite.position + Vector2(0, -55), view.boss_anchor + Vector2(0, -80), Color(0.8, 0.95, 0.7, view.companion_flash * 2), 3)
 
-	var hero: Vector2 = view.hero.position
+	var hero: Vector2 = view.hero.position - Vector2(0, rules.airborne_height())
 	if ground_only:
 		_ground()
 		return
@@ -50,6 +51,14 @@ func _draw() -> void:
 	elif rules.brain == null and rules.phase == "breath" and not rules.finished:
 		bolt(view.boss_anchor+Vector2(-60,-view.boss_height*.55),rules.target_position,time)
 	_challenge_effects()
+	if view.wind_visual > 0.0:
+		_wind_cues(hero)
+	if view.landing_visual > 0.0:
+		var fade: float = view.landing_visual / view.LANDING_FLASH_TIME
+		var radius := Vector2(36, 15).lerp(Vector2(88, 30), 1.0 - fade)
+		ellipse(view.landing_position, radius, Color(.98, .90, .72, fade), 4.0)
+		_burst(view.landing_position, radius, "stone", fade * .75, 1.0 - fade)
+	_add_bars()
 	if rules.shield_time > 0 and rules.shield_hp > 0:
 		var center = hero + Vector2(0, -74)
 		ellipse(center, Vector2(63, 83), Color("b4e5e3"), 4)
@@ -107,28 +116,131 @@ func _draw() -> void:
 
 
 func _ground() -> void:
-	# Only real shadows and live effects; collision geometry is private to the rules.
 	var rules: RefCounted = view.rules
 	var shadow = Color(.08,.07,.13,.28)
-	draw_circle(view.hero.position,33,shadow)
+	var height: float = rules.airborne_height()
+	draw_circle(view.hero.position, lerpf(33.0, 18.0, clampf(height / 180.0, 0.0, 1.0)), shadow)
 	if rules.brain == null: return
 	var brain: RefCounted = rules.brain
 	ellipse(rules.boss_position,Vector2(view.boss_height*.25,23),shadow,14)
-	# A lingering attack still has its real flame/root effect, without an area outline.
+	for impact in brain.impacts:
+		var profile: Dictionary = impact.profile
+		if profile.has("at"):
+			var fade := clampf(float(impact.life) / .48, 0.0, 1.0)
+			var tint := _signature_tint(profile, str(impact.style))
+			_paint_signature_zone(profile, tint, fade * .28, fade * .90)
 	for hazard in brain.hazards:
 		var profile: Dictionary = hazard.profile
-		_draw_action_fx(str(hazard.style),profile.target,fposmod(view.clock*2.2,1),Vector2(profile.radius)*2,.7)
+		if profile.has("at"):
+			var tint := _signature_tint(profile, str(hazard.style))
+			_paint_signature_zone(profile, tint, .16, .48)
+		else:
+			_draw_action_fx(str(hazard.style),profile.target,fposmod(view.clock*2.2,1),Vector2(profile.radius)*2,.7)
+	for zone in brain.signature_zones():
+		var profile: Dictionary = zone.profile
+		var progress := clampf(float(zone.progress), 0.0, 1.0)
+		var tint := _signature_tint(profile, str(zone.style))
+		_paint_signature_zone(profile, tint, lerpf(.15, .26, progress), lerpf(.61, .97, progress))
+		_signature_badge(profile, int(zone.number), tint)
 	for add in rules.adds:
 		if add.hp > 0:
-			ellipse(add.position,Vector2(21,10),shadow,8)
-			var at: Vector2 = add.position+Vector2(-18,-80)
-			draw_rect(Rect2(at,Vector2(36,4)),Color("362930"))
-			draw_rect(Rect2(at,Vector2(36*float(add.hp)/(36+rules.tier/2),4)),Color("d7b66f"))
+			var radius := float(add.get("radius", 30.0))
+			ellipse(add.position, Vector2(radius * .70, radius * .34), shadow, 8)
+
+func _signature_tint(profile: Dictionary, style: String) -> Color:
+	match str(profile.get("effect", "")):
+		"pull": return Color("b7f5f1")
+		"launch": return Color("b8d7ff")
+		"slow": return Color("9ed2fa")
+		"fatigue": return Color("ffcc91")
+		"seal": return Color("efb8ff")
+	return _palette(str(profile.get("style", style)))
+
+func _paint_signature_zone(profile: Dictionary, tint: Color, fill_alpha: float, edge_alpha: float) -> void:
+	var edges := {}
+	for polygon: PackedVector2Array in Patterns.polygons(profile):
+		if polygon.size() < 3:
+			continue
+		draw_colored_polygon(polygon, Color(tint, fill_alpha))
+		for i in range(polygon.size()):
+			var from := polygon[i]
+			var to := polygon[(i + 1) % polygon.size()]
+			var start := Vector2i((from * 16.0).round())
+			var end := Vector2i((to * 16.0).round())
+			var key := Vector4i(start.x, start.y, end.x, end.y)
+			if start.x > end.x or (start.x == end.x and start.y > end.y):
+				key = Vector4i(end.x, end.y, start.x, start.y)
+			# Ring geometry is made of quads. Shared edges are inside the hit area.
+			if not edges.erase(key):
+				edges[key] = [from, to]
+	for segment in edges.values():
+		draw_line(segment[0], segment[1], Color(.08, .10, .15, edge_alpha), 7.0)
+		draw_line(segment[0], segment[1], Color(tint, edge_alpha), 3.0)
+
+func _signature_badge(profile: Dictionary, number: int, tint: Color) -> void:
+	var center := Vector2(profile.target)
+	if profile.kind == "line":
+		center = center.lerp(Vector2(profile.origin), .5)
+	elif profile.kind == "cone":
+		center += Vector2(profile.direction) * 66.0
+	center = center.clamp(Vector2(173, 480), Vector2(1207, 658))
+	draw_circle(center, 18.0, Color(.08, .11, .17, .93))
+	draw_arc(center, 17.0, 0.0, TAU, 24, tint, 2.0)
+	var text := str(number)
+	var font := ThemeDB.fallback_font
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 21).x
+	draw_string(font, center + Vector2(-width * .5, 7), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 21, tint)
+
+func _wind_cues(hero: Vector2) -> void:
+	var source: Vector2 = view.boss_anchor - Vector2(0, view.boss_height * .43)
+	var target := hero - Vector2(0, 65)
+	var pull: bool = view.wind_effect == "pull"
+	if pull:
+		var swap := source
+		source = target
+		target = swap
+	var forward := (target - source).normalized()
+	var across := forward.orthogonal()
+	var opacity: float = minf(1.0, view.wind_visual / .35)
+	var color := Color("c8f7f1") if pull else Color("d5e6ff")
+	for i in range(10):
+		var progress := fposmod(view.clock * 2.8 - i * .11, 1.0)
+		var edge := float(i % 5 - 2)
+		var stream := sin(progress * PI) * edge * 18.0
+		var point := source.lerp(target, progress) + across * stream
+		var length := 24.0 + absf(edge) * 8.0
+		var stroke := PackedVector2Array([point - forward * length, point - forward * 7.0 + across * edge * 2.0, point])
+		draw_polyline(stroke, Color(color, opacity * sin(progress * PI)), 3.0)
+
+func _add_bars() -> void:
+	if view.rules.finished:
+		return
+	for add in view.rules.adds:
+		if add.hp <= 0:
+			continue
+		var variant := str(add.get("variant", ""))
+		var width := 36.0
+		var height := 4.0
+		var tint := Color("d7b66f")
+		if variant == "large":
+			width = 72.0
+			height = 8.0
+			tint = Color("ffca78")
+		elif variant == "small":
+			width = 52.0
+			height = 7.0
+			tint = Color("b4e57e")
+		var max_hp := float(add.get("max_hp", 36 + view.rules.tier / 2))
+		var ratio := clampf(float(add.hp) / maxf(1.0, max_hp), 0.0, 1.0)
+		var at := Vector2(add.position) - Vector2(width * .5, view.add_sprite_height(add) + 11.0)
+		draw_rect(Rect2(at - Vector2(2, 2), Vector2(width + 4, height + 4)), Color("171f1b"))
+		draw_rect(Rect2(at, Vector2(width, height)), Color("47352d"))
+		draw_rect(Rect2(at, Vector2(width * ratio, height)), tint)
 
 func _palette(style: String) -> Color:
 	match style:
 		"fire", "ember": return Color("ffb250")
-		"wood", "leaf", "roots": return Color("a8db86")
+		"wood", "leaf", "roots", "sap": return Color("a8db86")
 		"water", "wind": return Color("a8edf1")
 		"metal", "seal", "grain": return Color("ffe0a1")
 		"stone", "sand": return Color("e6c494")
@@ -168,6 +280,8 @@ func _boss_effects() -> void:
 	var hand = boss+Vector2(brain.facing.x*view.boss_height*.20,-view.boss_height*.45)
 	if brain.phase == "windup":
 		var progress: float = brain.progress()
+		if move.style == "sap" and not brain.profiles.is_empty():
+			_sap_lane(brain.profiles[0], progress, false)
 		for i in range(8):
 			var angle = i*TAU/8+view.clock*2
 			var radius = 18+(1-progress)*45
@@ -178,7 +292,7 @@ func _boss_effects() -> void:
 		var mark = boss+Vector2(0,-view.boss_height-20)
 		draw_line(mark+Vector2(0,-8),mark+Vector2(0,4),Color("ffe6a6"),4)
 		draw_rect(Rect2(mark+Vector2(-2,9),Vector2(4,4)),Color("ffe6a6"))
-	if brain.phase == "attack":
+	if brain.phase == "attack" and not move.has("signature"):
 		match str(move.kind):
 			"charge":
 				for i in range(0,brain.trail.size(),3):
@@ -204,6 +318,10 @@ func _boss_effects() -> void:
 				draw_polyline(arc,Color("fff4d7"),2)
 				_draw_action_fx(str(move.style),boss+brain.facing*135+Vector2(0,-35),progress,Vector2(165,130),.9)
 			"beam":
+				if move.style == "sap":
+					if not brain.profiles.is_empty():
+						_sap_lane(brain.profiles[0], brain.progress(), true)
+					return
 				var target: Vector2 = brain.profiles[0].target
 				var origin: Vector2 = brain.profiles[0].origin
 				var muzzle: Vector2 = hand
@@ -237,10 +355,81 @@ func _boss_effects() -> void:
 	for impact in brain.impacts:
 		var age = 1-float(impact.life)/.48
 		var profile: Dictionary = impact.profile
-		if profile.kind in ["circle","ring","cross"]:
+		if profile.has("at"):
+			var style := str(profile.get("style", impact.style))
+			if profile.kind == "line":
+				for i in range(5):
+					var point := Vector2(profile.origin).lerp(Vector2(profile.target), (i + .5) / 5.0)
+					_draw_action_fx(style, point, age, Vector2(100, 85), 1.0 - age)
+			else:
+				var radius: Vector2 = Vector2(profile.radius).clamp(Vector2(60, 40), Vector2(320, 150))
+				_burst(profile.target, radius, style, 1.0 - age, age)
+		elif profile.kind in ["circle","ring","cross"]:
 			_draw_action_fx(str(impact.style),profile.target,age,Vector2.ONE*clampf(Vector2(profile.radius).x*1.5,150,370),1-age*.45)
 			_burst(profile.target,profile.radius,str(impact.style),1-age,age)
 
+func _sap_lane(profile: Dictionary, progress: float, attacking: bool) -> void:
+	# This attack's roots follow the committed path, even when the player moves.
+	var origin := Vector2(profile.origin) + Vector2(0, -4)
+	var target := Vector2(profile.target) + Vector2(0, -4)
+	var across := (target - origin).normalized().orthogonal()
+	var width := float(profile.width)
+	var pulse: float = view.sap_pulse_visual / view.SAP_PULSE_TIME
+	var alpha := lerpf(.42, .80, progress) if not attacking else .57 + pulse * .40
+	draw_line(origin, target, Color(.03, .10, .09, alpha * .67), width * 1.8)
+	draw_line(origin, target, Color(.50, .93, .44, alpha * (.27 + pulse * .47)), width * 1.35)
+	for strand: float in [-1.0, 0.0, 1.0]:
+		var points := PackedVector2Array()
+		for i in range(25):
+			var t := float(i) / 24.0
+			var weave := sin(t * 20.0 - view.clock * 5.0 + strand * PI) * width * .16
+			var point := origin.lerp(target, t) + across * (strand * width * .62 + weave)
+			points.append(point.snapped(Vector2(3, 3)))
+		var tint := Color("efffb8") if attacking else Color("d6e8a2")
+		draw_polyline(points, Color(tint, alpha * (.55 if strand == 0.0 else 1.0)), 4.0 + pulse * 4.0)
+	var knots := clampi(ceili(origin.distance_to(target) / 83.0), 3, 11)
+	for i in range(knots):
+		var t := (i + .5) / knots
+		var center := origin.lerp(target, t)
+		var twig := across * width * (.72 if i % 2 == 0 else -.72)
+		var rise := Vector2(-12, -18)
+		draw_polyline(PackedVector2Array([center, center + twig, center + twig + rise]), Color(.68, .91, .49, alpha), 3.0)
+
+func _sap_flow(flow: Dictionary) -> void:
+	var age: float = 1.0 - float(flow.life) / view.SAP_FLOW_TIME
+	var start := Vector2(flow.source) + Vector2(0, -62)
+	var end := Vector2(flow.target) - Vector2(0, view.boss_height * .38)
+	var path := PackedVector2Array()
+	for i in range(13):
+		var t := float(i) / 12.0
+		path.append(start.lerp(end, t) + Vector2(0, -72.0 * sin(t * PI)))
+	draw_polyline(path, Color(.09, .24, .14, 1.0 - age), 16.0)
+	draw_polyline(path, Color(.63, 1.0, .40, (1.0 - age) * .85), 5.0)
+	for i in range(5):
+		var t := clampf(age * 1.55 - float(i) * .12, 0.0, 1.0)
+		if t > 0.0 and t < 1.0:
+			var point := start.lerp(end, t) + Vector2(0, -72.0 * sin(t * PI))
+			draw_circle(point, 8.0 - i, Color(.94, 1.0, .65, 1.0 - age * .65))
+	if age > .43:
+		ellipse(end, Vector2(22, 29) * (1.0 + age), Color(.81, 1.0, .53, 1.0 - age), 5.0)
+
+func _landed_hit(burst: Dictionary) -> void:
+	var age: float = 1.0 - float(burst.life) / view.HIT_BURST_TIME
+	var center := Vector2(burst.position)
+	var tint := Color("ffe49d") if burst.counter else Color("b1fae7")
+	var radius := 95.0 if burst.sword or burst.counter else 68.0
+	var alpha := 1.0 - age
+	for i in range(10):
+		var ray := Vector2.from_angle(i * TAU / 10.0 + .27)
+		var start := center + ray * radius * (.18 + .61 * age)
+		var end := start + ray * radius * .44 * alpha
+		draw_line(start.snapped(Vector2(3, 3)), end.snapped(Vector2(3, 3)), Color(tint, alpha), 5.0 if i % 3 == 0 else 3.0)
+	if age < .3:
+		var flash := 1.0 - age / .3
+		var span := (34.0 if burst.counter else 23.0) * flash
+		var points := PackedVector2Array([center + Vector2(-span, 0), center + Vector2(0, -span), center + Vector2(span, 0), center + Vector2(0, span)])
+		draw_colored_polygon(points, Color(1.0, .99, .89, flash))
+	_draw_action_fx("blade", center, age, Vector2.ONE * radius * 1.8, alpha)
 
 func _challenge_effects() -> void:
 	if view.rules.brain == null:
@@ -249,7 +438,20 @@ func _challenge_effects() -> void:
 	var boss: Vector2 = view.rules.boss_position
 	var brain: RefCounted = view.rules.brain
 	for burst in view.hit_bursts:
-		_draw_action_fx("blade",burst.position,1-float(burst.life)/.42,Vector2(155,155) if burst.counter else Vector2(110,110),.9)
+		_landed_hit(burst)
+	for flow in view.sap_flows:
+		_sap_flow(flow)
+	for burst in view.split_bursts:
+		var age: float = 1.0 - float(burst.life) / view.SPLIT_BURST_TIME
+		var center := Vector2(burst.position)
+		_draw_action_fx("roots", center, age, Vector2(210, 160), 1.0 - age * .7)
+		_burst(center, Vector2(132, 70), "leaf", 1.0 - age, age)
+	for add in view.rules.adds:
+		if add.hp > 0 and add.phase == "bud":
+			var center := Vector2(add.position)
+			var alpha := .53 + sin(view.clock * 11.0) * .24
+			ellipse(center, Vector2(26, 12), Color(.94, .84, .47, alpha), 5.0)
+			_draw_action_fx("roots", center, clampf(float(add.clock) / .60, 0.0, 1.0), Vector2(116, 84), alpha)
 	if view.perfect_visual>0:
 		var t: float = 1-view.perfect_visual/.7
 		ellipse(hero+Vector2(0,-65),Vector2(48,70)*(1+t*.5),Color(1,.88,.57,(1-t)*.8),3)
@@ -272,7 +474,7 @@ func _challenge_effects() -> void:
 	if view.phase_flash>0:
 		var t: float = 1-view.phase_flash/.75
 		ellipse(boss,Vector2(70,35)*(1+t*4),Color(1,.82,.48,view.phase_flash*.65),4)
-	if brain.phase == "attack" and brain.move.kind == "volley" and fmod(brain.phase_clock,.34)<.12:
+	if brain.phase == "attack" and brain.move.kind == "volley" and not brain.move.has("signature") and fmod(brain.phase_clock,.34)<.12:
 		var center = boss+Vector2(brain.facing.x*view.boss_height*.2,-view.boss_height*.45)
 		var color = _palette(brain.move.style)
 		for i in range(6):

@@ -1,6 +1,7 @@
 extends RefCounted
-## Curated art/name mapping only. No remote campaign scripts or medical rules.
+## Curated art, identity, and player-facing trial hints.
 const Assets = preload("res://scripts/pixel_assets.gd")
+const Signatures = preload("res://data/combat/pr4_boss_signatures.json")
 const PATH = "res://data/trial_bosses.json"
 static var _entries: Array = []
 
@@ -9,6 +10,12 @@ static func all() -> Array:
 		var parsed = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 		if parsed is Dictionary:
 			_entries = parsed.get("bosses", [])
+			for row in _entries:
+				var signature: Dictionary = Signatures.data.get(row.id, {})
+				if not signature.is_empty():
+					row.subtitle = signature.subtitle
+					row.story = signature.story
+					row.tactics = signature.tactics
 	return _entries
 
 static func entry(id: String) -> Dictionary:

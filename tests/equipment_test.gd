@@ -46,6 +46,13 @@ func run() -> void:
 	var high = Rules.probabilities(100)
 	check(is_equal_approx(float(low.reduce(func(a, b): return a + b, 0.0)), 100.0) and is_equal_approx(float(high.reduce(func(a, b): return a + b, 0.0)), 100.0), "Both endpoint probability tables sum to 100 percent")
 	check(low[2] > high[2] and low[3] > high[3] and low[4] > high[4], "Lower initial stats improve epic, legendary and mythic chances")
+	var starter = fresh()
+	starter.equipment.starter_ten_pulls = 1
+	starter.equipment_rng.seed = 7
+	var starter_result = starter.draw_equipment(10, "starter-ten")
+	check(starter_result.ok and starter_result.starter_bonus and starter_result.cost == 0 and starter.equipment.qi == 0, "Starter grant delivers a free ten-pull without spending qi")
+	check(starter.equipment.starter_ten_pulls == 0 and starter.equipment.inventory.size() == 10, "Starter grant is consumed exactly once")
+	check(starter.draw_equipment(10, "starter-ten") == starter_result and not starter.draw_equipment(10, "starter-again").ok, "Starter receipt is idempotent and cannot be reused")
 	var r1 = RandomNumberGenerator.new()
 	var r2 = RandomNumberGenerator.new()
 	r1.seed = 1024
@@ -158,6 +165,8 @@ func run() -> void:
 	check(scene.state.equipment.inventory.size() == 10, "Repeated input during reveal cannot perform a second pull")
 	treasure.finish_reveal()
 	check(treasure.result_cards.size() == 10 and not treasure.busy, "Skipping reveals all ten already-saved cards")
+	var reveal_fx = treasure.result_cards[0].get_node_or_null("GachaRevealFX")
+	check(reveal_fx != null and str(reveal_fx.get("state")) == "revealed", "Each result card carries a staged rarity reveal effect")
 	treasure.result_cards[0].pressed.emit()
 	await process_frame
 	check(treasure.tab == "bag" and not treasure.selected_id.is_empty(), "A result card opens the matching inventory detail")

@@ -43,6 +43,15 @@ func run() -> void:
 	ok = ok and game.ui.modal_open
 	print("GUEST: SETTLEMENT DIALOG OPENS: ", "PASS" if ok else "FAIL")
 
+	game.ui.open_treasure("wish")
+	await process_frame
+	var treasure = game.ui.treasure
+	var balance = elder.equipment.qi
+	if is_instance_valid(treasure) and is_instance_valid(treasure.ten_button) and not treasure.ten_button.disabled:
+		treasure.ten_button.pressed.emit()
+	ok = ok and elder.equipment.inventory.size() == 10 and elder.equipment.qi == balance and elder.equipment.starter_ten_pulls == 0
+	print("GUEST: FREE TEN-PULL FROM THE REAL WISH PANEL: ", "PASS" if ok else "FAIL")
+
 	game.ui.guest_exit_demo()
 	await process_frame
 	ok = ok and not game.account_ready and game.family.members.is_empty()

@@ -347,6 +347,9 @@ func refresh_wechat_tasks(state) -> void:
 	refresh()
 
 func bind_wechat(state) -> void:
+	if not guest_elder_id.is_empty():
+		guest_show_qr()
+		return
 	var invite = await game.account_api.api.request_api("/api/v2/bindings/invitations", HTTPClient.METHOD_POST, {"cultivator_id": state.cultivator_id})
 	if not invite.ok:
 		toast(str(invite.message))
@@ -791,11 +794,10 @@ func start_guest_demo() -> void:
 		toast("演示数据准备失败，请重试。")
 		return
 	elder.choose_avatar("female", "王奶奶的化身")
-	elder.health_attributes = {"life": 62, "attack": 48, "defense": 55, "spirit": 41, "stamina": 58}
-	elder.health_profile_id = "demo-elder-profile"
-	elder.health_source = "模拟健康档案（游客演示）"
-	elder.health_simulated = true
-	elder.health_baseline = {"baseline_id": "demo-elder-profile", "recognition_mode": "sample", "display_name": "王奶奶", "values": elder.health_attributes.duplicate(true)}
+	elder.apply_health_profile({"profile_id": "demo-elder-profile", "revision": 1,
+		"attributes": {"life": 62, "attack": 48, "defense": 55, "spirit": 41, "stamina": 58},
+		"source": "模拟健康档案（游客演示）", "simulated": true})
+	elder.equipment.starter_ten_pulls = 1
 	elder.medication_required = true
 	elder.longterm_enabled = true
 	game.family = roster
@@ -906,6 +908,8 @@ func guest_show_result() -> void:
 	line(content)
 	button(content, "回到演示向导", guest_back_to_guide, true)
 	button(content, "打开家人面板", guest_open_family)
+	button(content, "去聚宝阁 · 领取新手十连", func(): open_treasure("wish"), true)
+	button(content, "返回仙村", close_modal)
 
 func guest_open_family() -> void:
 	close_modal(true)

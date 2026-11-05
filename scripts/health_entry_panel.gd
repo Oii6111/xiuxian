@@ -1,6 +1,7 @@
 extends Control
 ## Native report onboarding. Draft results never touch GameState before confirmation.
 const Baseline = preload("res://scripts/health_baseline.gd")
+const FamilyPanel = preload("res://scripts/family_panel.gd")
 const BASE_URL = "http://127.0.0.1:8001"
 var service_url = BASE_URL
 const ENTRY_REVISION = "1f356a0"
@@ -70,7 +71,13 @@ func _ready() -> void:
 	shade.color = Color(0.08, 0.07, 0.06, 0.8)
 	add_child(shade)
 	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var content = ui.card(Rect2(100, 45, 1240, 810), self)
+	var touch := FamilyPanel.uses_touch_layout()
+	var parent: Control = FamilyPanel.form_scroll(self, 1090) if touch else self
+	var bounds := Rect2() if touch else Rect2(100, 45, 1240, 810)
+	var content: VBoxContainer = ui.card(bounds, parent)
+	if touch:
+		var panel := content.get_parent() as Control
+		panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	var heading = HBoxContainer.new()
 	content.add_child(heading)
@@ -79,11 +86,11 @@ func _ready() -> void:
 	title.clip_text = true
 	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	avatar_button = ui.button(heading, "选择形象", ui.show_start)
-	ui.button(heading, "稍后填写 / 返回仙村", ui.close_modal)
+	var back_button: Button = ui.button(heading, "稍后填写 / 返回仙村", ui.close_modal)
 	ui.label_into(content, "① 填写基础信息    →    ② 分析资料生成属性    →    ③ 确认并进入仙村    * 为必填项", 18)
 	ui.line(content)
-	var columns = HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 26)
+	var columns: BoxContainer = VBoxContainer.new() if touch else HBoxContainer.new()
+	columns.add_theme_constant_override("separation", 24 if touch else 26)
 	columns.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	content.add_child(columns)
 	var left = VBoxContainer.new()
@@ -102,9 +109,10 @@ func _ready() -> void:
 	var age_column = VBoxContainer.new()
 	names.add_child(age_column)
 	ui.label_into(age_column, "年龄 *", 16)
-	age_column.custom_minimum_size.x = 110
+	age_column.custom_minimum_size.x = 190 if touch else 110
 	age_input = text_line(age_column, "填写年龄")
 	age_input.max_length = 3
+	age_input.virtual_keyboard_type = LineEdit.KEYBOARD_TYPE_NUMBER
 	var required_row = HBoxContainer.new()
 	required_row.add_theme_constant_override("separation", 12)
 	left.add_child(required_row)
@@ -117,6 +125,10 @@ func _ready() -> void:
 		sex_input.add_item(item)
 	sex_input.add_theme_color_override("font_color", ui.BROWN)
 	sex_input.add_theme_stylebox_override("normal", ui.style(Color("f6e5c4")))
+	if touch:
+		sex_input.custom_minimum_size.y = 80
+		sex_input.add_theme_font_size_override("font_size", 27)
+		sex_input.get_popup().add_theme_font_size_override("font_size", 27)
 	sex_input.get_popup().add_theme_color_override("font_color", ui.BROWN)
 	sex_input.get_popup().add_theme_stylebox_override("panel", ui.style(Color("f6e5c4")))
 	sex_column.add_child(sex_input)
@@ -185,15 +197,18 @@ func _ready() -> void:
 	connect_button = ui.button(top_row, "重新连接", connect_service)
 	status = ui.paragraph(right, "等待连接分析服务…", 16)
 	status.custom_minimum_size.y = 58
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size.y = 310
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	right.add_child(scroll)
+	var result_parent: Control = right
+	if not touch:
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size.y = 310
+		scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		right.add_child(scroll)
+		result_parent = scroll
 	result_box = VBoxContainer.new()
 	result_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	result_box.add_theme_constant_override("separation", 8)
-	scroll.add_child(result_box)
+	result_parent.add_child(result_box)
 	show_placeholder()
 	fill_mode = OptionButton.new()
 	fill_mode.add_item("子女代填 · 已获得家人同意")
@@ -208,6 +223,10 @@ func _ready() -> void:
 	consent.toggled.connect(func(_checked: bool): update_buttons())
 	analyze_button = ui.button(right, "分析资料 · 生成初始属性", analyze, true)
 	confirm_button = ui.button(right, "确认初始属性并进入仙村", confirm_draft, true)
+	if touch:
+		for control in [avatar_button, back_button, select_button, clear_button, connect_button, fill_mode, consent, analyze_button, confirm_button]:
+			control.custom_minimum_size.y = 80
+			control.add_theme_font_size_override("font_size", 26)
 	probe = HTTPRequest.new()
 	probe.max_redirects = 0
 	probe.timeout = 4
@@ -231,7 +250,11 @@ func text_line(parent: Node, placeholder: String, initial: String = "") -> LineE
 	var field = LineEdit.new()
 	field.placeholder_text = placeholder
 	field.text = initial
-	field.custom_minimum_size.y = 40
+	field.virtual_keyboard_enabled = true
+	var touch := FamilyPanel.uses_touch_layout()
+	field.custom_minimum_size.y = 80 if touch else 40
+	if touch:
+		field.add_theme_font_size_override("font_size", 30)
 	field.add_theme_stylebox_override("normal", ui.style(Color("f6e5c4")))
 	field.add_theme_color_override("font_color", ui.BROWN)
 	field.add_theme_color_override("font_placeholder_color", Color("8b755e"))
@@ -244,7 +267,11 @@ func text_line(parent: Node, placeholder: String, initial: String = "") -> LineE
 func text_area(parent: Node, placeholder: String) -> TextEdit:
 	var field = TextEdit.new()
 	field.placeholder_text = placeholder
-	field.custom_minimum_size.y = 80
+	field.virtual_keyboard_enabled = true
+	var touch := FamilyPanel.uses_touch_layout()
+	field.custom_minimum_size.y = 160 if touch else 80
+	if touch:
+		field.add_theme_font_size_override("font_size", 30)
 	field.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	field.add_theme_color_override("font_color", ui.BROWN)
 	field.add_theme_color_override("font_placeholder_color", Color("8b755e"))

@@ -21,7 +21,9 @@ const TEMPLATES = [
 ]
 
 static func fresh() -> Dictionary:
-	return {"qi": 0, "initial_score": -1.0, "initial_profile_id": "", "inventory": [], "equipped": {}, "next_id": 1, "draw_count": 0, "receipts": {}, "last_request": ""}
+	# Track the onboarding grant separately from the qi wallet so it cannot be
+	# recreated by changing the wallet balance or replaying the UI.
+	return {"qi": 0, "initial_score": -1.0, "initial_profile_id": "", "inventory": [], "equipped": {}, "next_id": 1, "draw_count": 0, "receipts": {}, "last_request": "", "starter_ten_pulls": 0}
 
 static func initial_score(attributes: Dictionary) -> float:
 	var total = 0.0
@@ -77,6 +79,7 @@ static func normalize(payload) -> Dictionary:
 	if not payload is Dictionary:
 		return result
 	result.qi = maxi(0, int(payload.get("qi", 0)))
+	result.starter_ten_pulls = clampi(int(payload.get("starter_ten_pulls", 0)), 0, 1)
 	result.initial_score = clampf(float(payload.get("initial_score", -1.0)), -1.0, 100.0)
 	result.initial_profile_id = str(payload.get("initial_profile_id", ""))
 	var ids = {}
@@ -117,7 +120,8 @@ static func normalize(payload) -> Dictionary:
 							items.append(owned.duplicate())
 							receipt_ids[owned.id] = true
 			if items.size() == int(receipt.count):
-				result.receipts[str(request)] = {"ok": true, "request_id": str(request), "count": int(receipt.count), "cost": SINGLE_COST * int(receipt.count), "items": items, "guaranteed": receipt.get("guaranteed", false) == true}
+				var restored_cost = maxi(0, int(receipt.get("cost", SINGLE_COST * int(receipt.count))))
+				result.receipts[str(request)] = {"ok": true, "request_id": str(request), "count": int(receipt.count), "cost": restored_cost, "items": items, "guaranteed": receipt.get("guaranteed", false) == true, "starter_bonus": receipt.get("starter_bonus", false) == true}
 	var last_request = str(payload.get("last_request", ""))
 	if result.receipts.has(last_request):
 		result.last_request = last_request

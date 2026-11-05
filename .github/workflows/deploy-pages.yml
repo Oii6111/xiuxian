@@ -19,14 +19,26 @@ jobs:
     permissions:
       contents: read
       pages: read
+    outputs:
+      source: ${{ steps.pages-source.outputs.type }}
     steps:
+      - name: Check the Pages publishing source
+        id: pages-source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          type="$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type')"
+          printf 'type=%s\n' "$type" >> "$GITHUB_OUTPUT"
       - name: Check out the game
+        if: steps.pages-source.outputs.type == 'workflow'
         uses: actions/checkout@v6
         with:
           persist-credentials: false
       - name: Configure GitHub Pages
+        if: steps.pages-source.outputs.type == 'workflow'
         uses: actions/configure-pages@v5
       - name: Cache the Godot editor and Web template
+        if: steps.pages-source.outputs.type == 'workflow'
         id: godot-cache
         uses: actions/cache@v4
         with:
@@ -35,7 +47,7 @@ jobs:
             ~/.local/share/godot/export_templates/4.7.2.stable/web_nothreads_release.zip
           key: godot-4.7.2-linux-x86_64-web-nothreads
       - name: Install Godot and the Web template
-        if: steps.godot-cache.outputs.cache-hit != 'true'
+        if: steps.pages-source.outputs.type == 'workflow' && steps.godot-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           godot_dir="$RUNNER_TEMP/godot-4.7.2"
@@ -53,6 +65,7 @@ jobs:
           unzip -p godot-templates.tpz '*web_nothreads_release.zip' > "$template_dir/web_nothreads_release.zip"
           unzip -tq "$template_dir/web_nothreads_release.zip"
       - name: Export the full Web game
+        if: steps.pages-source.outputs.type == 'workflow'
         shell: bash
         run: |
           godot="$RUNNER_TEMP/godot-4.7.2/Godot_v4.7.2-stable_linux.x86_64"
@@ -66,13 +79,14 @@ jobs:
           touch "$site/.nojekyll"
           printf '%s\n' "$GITHUB_SHA" > "$site/source-commit.txt"
       - name: Upload the exported game
+        if: steps.pages-source.outputs.type == 'workflow'
         uses: actions/upload-pages-artifact@v4
         with:
           path: ${{ runner.temp }}/pages-site
           include-hidden-files: true
 
   deploy:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && needs.build.outputs.source == 'workflow'
     needs: build
     runs-on: ubuntu-latest
     permissions:

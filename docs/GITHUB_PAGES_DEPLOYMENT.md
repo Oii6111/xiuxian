@@ -1,13 +1,14 @@
 # 主仓库 GitHub Pages 部署
 
-GitHub Pages 发布由 [部署工作流](../.github/workflows/deploy-pages.yml) 从主仓库 `main` 构建的 Godot Web 客户端。入口采用 `project.godot` 配置的主场景，仓库首页地址直接加载游戏。工作流把 Web 导出包上传为 Pages 构建产物，仓库源码分支无需存放 `.pck` 或 `.wasm`。
+主仓库以 `main` 的根目录作为 Pages 发布来源时，首页的 `index.html` 直接加载 `play/` 内的 Godot Web 构建。浏览器下载后拼合资源分片，再挂载完整的游戏包。通过 [发布提交号](https://oii6111.github.io/xiuxian/source-commit.txt) 核对该构建使用的源码。
 
-## 首次启用
+## 启用自动导出
 
-1. 合并包含游戏改动和部署工作流的 PR。
-2. 主仓库维护者在 [Pages 设置](https://github.com/Oii6111/xiuxian/settings/pages) 中，将 **Build and deployment → Source** 设为 **GitHub Actions**。
-3. 在 [Actions](https://github.com/Oii6111/xiuxian/actions/workflows/deploy-pages.yml) 打开 **Publish game to GitHub Pages**，选择 `main` 后点击 **Run workflow**。后续推送到 `main` 会自动部署。
-4. 部署完成后打开 [游戏首页](https://oii6111.github.io/xiuxian/)，检查登录界面和问道长廊。通过 [发布提交号](https://oii6111.github.io/xiuxian/source-commit.txt) 核对实际部署的源码版本。
+[部署工作流](../.github/workflows/deploy-pages.yml) 可从 `main` 导出最新主场景，并把 Web 包作为 Pages 产物发布。它只在 Pages 来源为 **GitHub Actions** 时执行构建和部署。
+
+1. 主仓库维护者在 [Pages 设置](https://github.com/Oii6111/xiuxian/settings/pages) 中，将 **Build and deployment → Source** 设为 **GitHub Actions**。
+2. 在 [Actions](https://github.com/Oii6111/xiuxian/actions/workflows/deploy-pages.yml) 打开 **Publish game to GitHub Pages**，选择 `main` 后点击 **Run workflow**。后续推送到 `main` 会自动部署。
+3. 部署完成后打开 [游戏首页](https://oii6111.github.io/xiuxian/)，检查登录界面和问道长廊。
 
 ## 正式服务
 
